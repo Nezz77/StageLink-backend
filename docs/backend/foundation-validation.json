@@ -42,9 +42,18 @@
     "unsupported_event_dead_letter": "passed",
     "concurrent_first_deliveries": "passed"
   },
-  "container_builds": "not_run",
-  "remote_ci": "not_run",
-  "pushed": false,
+  "container_builds": {
+    "api_worker": "passed",
+    "ai": "passed",
+    "web": "passed",
+    "platform": "local ARM64 Docker"
+  },
+  "remote_ci": {
+    "initial_run": "failed setup: service health command quoting and uv Python download catalog",
+    "fix": "double-quoted health commands and setup-python action",
+    "rerun": "pending"
+  },
+  "pushed": true,
   "deployed": false,
   "dependency_audit": {
     "runtime": {
@@ -57,5 +66,7 @@
     },
     "remaining": "Development-only openapi-typescript / Redocly / minimatch; one underlying glob amplification advisory",
     "reference": "https://github.com/advisories/GHSA-g3hv-75wg-m249"
-  }
+  },
+  "compose_boot": "passed: postgres, redis, migration, api, worker, ai",
+  "container_outbox_delivery": "passed: committed CLI event has one persisted receipt"
 }

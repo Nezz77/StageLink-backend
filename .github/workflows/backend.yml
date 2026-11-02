@@ -19,13 +19,13 @@ jobs:
           POSTGRES_DB: stagelink_test
         ports: ['5432:5432']
         options: >-
-          --health-cmd 'pg_isready -U stagelink -d stagelink_test'
+          --health-cmd "pg_isready -U stagelink -d stagelink_test"
           --health-interval 3s --health-timeout 3s --health-retries 20
       redis:
         image: redis:7.4.12-bookworm
         ports: ['6379:6379']
         options: >-
-          --health-cmd 'redis-cli ping'
+          --health-cmd "redis-cli ping"
           --health-interval 3s --health-timeout 3s --health-retries 20
     env:
       NODE_ENV: test
@@ -62,10 +62,12 @@ jobs:
         working-directory: backend/ai
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       - uses: astral-sh/setup-uv@v6
         with:
           version: '0.11.29'
-          python-version: '3.12.14'
       - run: uv sync --frozen
       - run: uv run --frozen pytest -q
       - run: docker build -t stagelink-ai:ci .

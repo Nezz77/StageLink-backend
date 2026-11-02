@@ -19,12 +19,12 @@ Backend type checking/build and all three API/configuration tests passed with th
 
 The runtime dependency audit reports zero vulnerabilities. The development-only OpenAPI generator retains three moderate package findings for one underlying Redocly/minimatch glob-amplification advisory (see ADR 001); high/critical findings are zero.
 
-Container image builds/full Compose application boot and remote CI have not been verified. P01 remains in progress for those gates. No production deployment is claimed.
+API/worker, AI and website images built successfully on local ARM64 Docker. PostgreSQL, Redis, migration, API, worker and AI booted healthy; a CLI outbox event produced one persisted worker receipt. The original website container required the project pnpm version and its Figma site configuration in the build context; both are fixed. Remote CI initially failed on service-command quoting and an unavailable uv-managed Python patch; the workflow now uses proper Docker argument quoting and setup-python. CI rerun is pending. No production deployment is claimed.
 
 ## Next work
 
-1. Finish P01 container validation: build API/worker/AI images and boot the complete Compose application. Run remote CI after an authorized push. Host runtime and PostgreSQL/Redis recovery checks already passed.
+1. Verify the corrected remote CI run. Local API/worker/AI/web image builds, full core-service boot and host runtime recovery checks passed.
 2. P02: persistent accounts, sessions, password reset/verification, role authorization and frontend authentication integration.
 3. Follow the remaining phases in `backend-backlog.json`. No business UI has been switched to a live API yet; existing sample/demo data remains until the corresponding integration phase.
 
-No push, merge, deployment, provider account creation or real payment/model/SMS call was performed. Figma, wireframes and prototype do not need changes for health-only infrastructure; update them when integration adds visible UI states.
+The foundation commits were pushed to the same GitHub repository on `backend`; GitHub’s `frontend` branch remains at the original UI baseline. No merge, deployment, provider account creation or real payment/model/SMS call was performed. Figma, wireframes and prototype do not need changes for health-only infrastructure; update them when integration adds visible UI states.
