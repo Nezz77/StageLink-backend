@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readConfig } from '../shared/config.js';
-const valid = { DATABASE_URL: 'postgresql://user:secret@localhost/db', REDIS_URL: 'redis://localhost:6379' };
+const valid = { AUTH_JWT_SECRET: '01'.repeat(32), AUTH_MAIL_KEY: '02'.repeat(32), DATABASE_URL: 'postgresql://user:secret@localhost/db', REDIS_URL: 'redis://localhost:6379' };
 test('configuration rejects missing, malformed and unsafe settings without leaking secrets', () => {
   assert.throws(() => readConfig({}), /DATABASE_URL, REDIS_URL/);
   for (const extra of [{ PORT: '0' }, { PORT: 'invalid' }, { DATABASE_URL: 'https://user:secret@example.com' }, { WEB_ORIGIN: '*' }, { WEB_ORIGIN: 'http://localhost:3000/path' }]) {

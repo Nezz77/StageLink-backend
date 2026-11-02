@@ -36,6 +36,215 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/register": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a public account; uniform response for an existing email */
+        post: operations["AuthController_register"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AuthController_login"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/csrf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AuthController_csrf"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AuthController_refresh"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AuthController_logout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AuthController_me"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/active-role": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AuthController_role"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/access": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AuthController_admin"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/email-verification": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AuthController_requestVerification"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/email-verification/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AuthController_confirm"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/password-reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AuthController_reset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/password-reset/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AuthController_verifyReset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/password-reset/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AuthController_complete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -117,6 +326,1454 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    AuthController_register: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Must match the configured web origin for every state-changing request. */
+                Origin?: string;
+                /** @description Required for refresh, logout, role changes and verification requests. Obtain from login or GET /auth/csrf. */
+                "X-CSRF-Token"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    displayName: string;
+                    email: string;
+                    password: string;
+                    /** @enum {string} */
+                    role: "customer" | "artist" | "renter";
+                };
+            };
+        };
+        responses: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        message: string;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+        };
+    };
+    AuthController_login: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Must match the configured web origin for every state-changing request. */
+                Origin?: string;
+                /** @description Required for refresh, logout, role changes and verification requests. Obtain from login or GET /auth/csrf. */
+                "X-CSRF-Token"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    email: string;
+                    password: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        accessToken: string;
+                        expiresIn: number;
+                        csrfToken: string;
+                        user: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: email */
+                            email: string;
+                            displayName: string;
+                            roles: ("customer" | "artist" | "renter" | "admin")[];
+                            /** @enum {string} */
+                            activeRole: "customer" | "artist" | "renter" | "admin";
+                            emailVerified: boolean;
+                            /** Format: date-time */
+                            createdAt: string;
+                        };
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+        };
+    };
+    AuthController_csrf: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Must match the configured web origin for every state-changing request. */
+                Origin?: string;
+                /** @description Required for refresh, logout, role changes and verification requests. Obtain from login or GET /auth/csrf. */
+                "X-CSRF-Token"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        csrfToken: string;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+        };
+    };
+    AuthController_refresh: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Must match the configured web origin for every state-changing request. */
+                Origin?: string;
+                /** @description Required for refresh, logout, role changes and verification requests. Obtain from login or GET /auth/csrf. */
+                "X-CSRF-Token"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        accessToken: string;
+                        expiresIn: number;
+                        csrfToken: string;
+                        user: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: email */
+                            email: string;
+                            displayName: string;
+                            roles: ("customer" | "artist" | "renter" | "admin")[];
+                            /** @enum {string} */
+                            activeRole: "customer" | "artist" | "renter" | "admin";
+                            emailVerified: boolean;
+                            /** Format: date-time */
+                            createdAt: string;
+                        };
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+        };
+    };
+    AuthController_logout: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Must match the configured web origin for every state-changing request. */
+                Origin?: string;
+                /** @description Required for refresh, logout, role changes and verification requests. Obtain from login or GET /auth/csrf. */
+                "X-CSRF-Token"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+        };
+    };
+    AuthController_me: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Must match the configured web origin for every state-changing request. */
+                Origin?: string;
+                /** @description Required for refresh, logout, role changes and verification requests. Obtain from login or GET /auth/csrf. */
+                "X-CSRF-Token"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: email */
+                        email: string;
+                        displayName: string;
+                        roles: ("customer" | "artist" | "renter" | "admin")[];
+                        /** @enum {string} */
+                        activeRole: "customer" | "artist" | "renter" | "admin";
+                        emailVerified: boolean;
+                        /** Format: date-time */
+                        createdAt: string;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+        };
+    };
+    AuthController_role: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Must match the configured web origin for every state-changing request. */
+                Origin?: string;
+                /** @description Required for refresh, logout, role changes and verification requests. Obtain from login or GET /auth/csrf. */
+                "X-CSRF-Token"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    role: "customer" | "artist" | "renter" | "admin";
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: email */
+                        email: string;
+                        displayName: string;
+                        roles: ("customer" | "artist" | "renter" | "admin")[];
+                        /** @enum {string} */
+                        activeRole: "customer" | "artist" | "renter" | "admin";
+                        emailVerified: boolean;
+                        /** Format: date-time */
+                        createdAt: string;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+        };
+    };
+    AuthController_admin: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Must match the configured web origin for every state-changing request. */
+                Origin?: string;
+                /** @description Required for refresh, logout, role changes and verification requests. Obtain from login or GET /auth/csrf. */
+                "X-CSRF-Token"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        authorized: boolean;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+        };
+    };
+    AuthController_requestVerification: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Must match the configured web origin for every state-changing request. */
+                Origin?: string;
+                /** @description Required for refresh, logout, role changes and verification requests. Obtain from login or GET /auth/csrf. */
+                "X-CSRF-Token"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        message: string;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+        };
+    };
+    AuthController_confirm: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Must match the configured web origin for every state-changing request. */
+                Origin?: string;
+                /** @description Required for refresh, logout, role changes and verification requests. Obtain from login or GET /auth/csrf. */
+                "X-CSRF-Token"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    token: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        message: string;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+        };
+    };
+    AuthController_reset: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Must match the configured web origin for every state-changing request. */
+                Origin?: string;
+                /** @description Required for refresh, logout, role changes and verification requests. Obtain from login or GET /auth/csrf. */
+                "X-CSRF-Token"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    email: string;
+                };
+            };
+        };
+        responses: {
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        message: string;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+        };
+    };
+    AuthController_verifyReset: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Must match the configured web origin for every state-changing request. */
+                Origin?: string;
+                /** @description Required for refresh, logout, role changes and verification requests. Obtain from login or GET /auth/csrf. */
+                "X-CSRF-Token"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    token: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        grant: string;
+                        expiresIn: number;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+        };
+    };
+    AuthController_complete: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Must match the configured web origin for every state-changing request. */
+                Origin?: string;
+                /** @description Required for refresh, logout, role changes and verification requests. Obtain from login or GET /auth/csrf. */
+                "X-CSRF-Token"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    grant: string;
+                    password: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        message: string;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        statusCode: number;
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
                 };
             };
         };

@@ -1,50 +1,47 @@
 # StageLink backend
 
-Implementation branch: `backend`, isolated from the existing frontend `main` checkout. Start with [the full plan](StageLink-Backend-Implementation-Plan.md), [decisions](ADR-001-foundation.md), [backlog](backend-backlog.json), [UI coverage](UI-Backend-Coverage.csv) and [progress](PROGRESS.md).
+Development stays on `backend` in the same [StageLink repository](https://github.com/Nezz77/StageLink/tree/backend). GitHub's `frontend` branch remains the original UI baseline. See the [whole-backend plan](StageLink-Backend-Implementation-Plan.md), [backlog](backend-backlog.json), [coverage](UI-Backend-Coverage.csv), [foundation decisions](ADR-001-foundation.md), [account decisions](ADR-002-accounts.md), and [progress](PROGRESS.md).
 
-P01 adds infrastructure, not production accounts/bookings/payments. The frontend still uses its existing demo state. P02 authentication is next; each feature switches to authorized persisted data in the phase listed in the backlog. Nothing is seeded into production automatically.
+P01 infrastructure and P02 accounts are implemented. Account creation, sign-in, verification, recovery, assigned-role selection and sign-out use PostgreSQL. Catalog content remains a labeled preview. Profiles, verification approval, uploads, bookings, chat and payments become persistent in their scheduled phases. Public artist/renter registration does not approve a provider to publish or receive payouts.
 
-## Local setup with Docker
+## Start locally
 
-From the repository root:
+Use Node 24.22.1 and Docker. From the repository root:
 
 ```sh
-cp infra/.env.example infra/.env
-# Local-only credentials; replace before any shared/hosted environment.
-docker compose --env-file infra/.env -f infra/compose.backend.yml up --build -d --wait
+node backend/scripts/setup-env.mjs
+docker compose --env-file infra/.env -f infra/compose.backend.yml --profile web up --build -d --wait
 ```
 
-This boots a separate `stagelink-backend` project, PostgreSQL, Redis, a one-shot migrator, API, worker and internal AI shell. Migrations must succeed before API/worker start. Host ports bind loopback only: API 4000, PostgreSQL 55432, Redis 56379. There is no public AI port. Optional existing demo frontend container:
+Setup creates ignored configuration files with separate random signing/encryption keys. It fills missing settings and preserves valid existing keys and custom values. Do not copy an example over an existing `.env`. If setup reports mismatched existing keys, align the intended configuration explicitly; it does not rotate them silently. Database passwords in these defaults are for this loopback development stack only.
+
+- Website and real account forms: [localhost:3000](http://localhost:3000).
+- API docs through the same origin: [localhost:3000/api/docs](http://localhost:3000/api/docs).
+- Local verification/recovery inbox: [127.0.0.1:8025](http://127.0.0.1:8025). Mailpit captures mail locally; it does not deliver to external inboxes.
+- API health: [localhost:4000/api/v1/health/ready](http://localhost:4000/api/v1/health/ready).
+
+Host ports bind loopback: website 3000, API 4000, PostgreSQL 55432, Redis 56379, Mailpit 8025/1025. AI has no public port. Migrations must succeed before API/worker start. No accounts or business records are seeded automatically.
+
+Create an account through the website, open its verification message in Mailpit, then follow the link or paste its one-time code. Use `localhost:3000` consistently: mutations require the exact configured browser origin. Registration returns the same acceptance message for new and existing addresses and never overwrites an existing password.
+
+Stop while retaining database/Redis volumes:
 
 ```sh
-docker compose --env-file infra/.env -f infra/compose.backend.yml --profile web up --build -d web
-```
-
-Open `http://localhost:3000` for the existing demo UI, `http://localhost:4000/api/docs` for local API docs, and `/api/v1/health/live` or `/api/v1/health/ready` for probes. Health-only AI docs are internal. P01 deliberately exposes no user/business mutation endpoint.
-
-```sh
-# Commit a harmless internal diagnostic event. Worker consumes it transactionally.
-docker compose --env-file infra/.env -f infra/compose.backend.yml exec api npm run outbox:ping
-# Verify the corresponding receipt (not merely successful enqueue):
-docker compose --env-file infra/.env -f infra/compose.backend.yml exec postgres psql -U stagelink -d stagelink_dev -c 'SELECT * FROM foundation_receipts;'
-# Pending / dead-letter inspection (local operators only):
-docker compose --env-file infra/.env -f infra/compose.backend.yml exec postgres psql -U stagelink -d stagelink_dev -c 'SELECT id, topic, processed_at, dead_lettered_at, last_error_code FROM outbox_events;'
-# Stop without deleting persistent volumes:
 docker compose --env-file infra/.env -f infra/compose.backend.yml down
 ```
 
-Do not run volume deletion against a database you need. No production deployment configuration is supplied by this foundation.
+This is a local development configuration, not a production deployment.
 
 ## Host development
 
-Use Node 24.22.1 and Python 3.12.14. Existing frontend pnpm commands are unchanged; backend uses npm in its own folder.
+Backend uses npm independently from the pnpm frontend:
 
 ```sh
+node backend/scripts/setup-env.mjs
+docker compose --env-file infra/.env -f infra/compose.backend.yml up -d postgres redis mailpit
 cd backend
 npm ci
 npm run db:generate
-cp .env.example .env
-# Load these local settings explicitly (the dev scripts do not silently load credentials).
 set -a
 . ./.env
 set +a
@@ -53,33 +50,39 @@ npm run dev:api
 # In another terminal with the same environment: npm run dev:worker
 ```
 
-Start just the database services with the Compose command plus `postgres redis` if running Node on the host. Local `.env` is ignored by Git. Example credentials are intentionally local-only and are not provider secrets.
+Root `.env.local` enables API mode and the Vite `/api` proxy. If developing at another website origin, set `WEB_ORIGIN` to that exact origin and restart API/worker processes. Docker reads `infra/.env`; host processes use the explicitly loaded `backend/.env`. Matching keys are required when using both.
+
+API mode is the default on this branch. `VITE_AUTH_MODE=demo` explicitly builds the earlier frontend demonstration, including simulated recovery and sample workspaces. API mode never falls back to a demo identity on errors and never opens sample private dashboards as a real account. Demo mode must not be used as an authentication substitute.
+
+## Validation
 
 ```sh
 cd backend
+npm run db:generate
 npm run typecheck
 npm test
 npm run contracts
-cd ai
-uv sync --frozen
-uv run --frozen pytest -q
-uv run --frozen uvicorn app.main:app --host 127.0.0.1 --port 8000 --no-access-log
+cd ..
+pnpm typecheck
+pnpm test
+pnpm build
+sh backend/scripts/check-integration.sh
 ```
 
-## Integration tests
+Integration uses a separate Compose project, `stagelink_test`, PostgreSQL 55433, Redis 56380 and Mailpit 11025/18025. Tests reject non-test database names and remove only their own rows/jobs/Redis namespace. They do not truncate shared tables or flush Redis. Coverage includes migrations, outages, worker restart and duplicate delivery; accounts also test separate users, privilege rejection, rotation/replay, actual SMTP capture, single-use/expired tokens, password replacement and session revocation.
 
-For the provided isolated local setup, run `sh backend/scripts/check-integration.sh` from the repository root. It uses `infra/compose.test.yml`, a separate Compose project, PostgreSQL port 55433, Redis port 56380, and a dedicated `stagelink_test` database. Stop those test services with `docker compose -f infra/compose.test.yml down`.
+Tests need permission to listen on a temporary HTTP port. Credential mutation is exercised through real HTTP integration tests; browser QA covers forms, login, reload, role selection, sign-out, errors and responsive themes.
 
-For a manually managed database, use a dedicated disposable `*_test` database and isolated Redis. CI creates these services; local tests explicitly reject a non-test database. From `backend/`:
+Generated contracts are `contracts/openapi.json` → `packages/contracts/src/api.d.ts`. Regenerate and commit both after endpoint changes; CI rejects drift. Never edit an applied migration. Update the expected migration constant when adding one.
+
+AI remains health-only. Under `backend/ai`, use Python 3.12 / uv 0.11.29, `uv sync --frozen`, then `uv run --frozen pytest -q`. No model/provider is configured.
+
+## Controlled administrator creation
+
+There is no public administrator signup or default password. With database configuration loaded, an operator can create a new administrator using the compiled CLI. Pipe a 12–128 character password from a protected source, such as an approved password manager's stdout, into:
 
 ```sh
-NODE_ENV=test \
-DATABASE_URL='postgresql://stagelink:local-development-only@127.0.0.1:55432/stagelink_test?connect_timeout=3' \
-REDIS_URL='redis://127.0.0.1:56379/1' npm run db:migrate
-# Reuse these exact environment variables for:
-npm run test:integration
+npm run --silent admin:create -- --email administrator@example.com --name 'StageLink Administrator'
 ```
 
-Create `stagelink_test` first using your local PostgreSQL administrator. The example command sets variables for one command only; export them or repeat the prefix before the test command. Tests cover rollback, queue publication failure, Redis job loss, duplicate/concurrent consumption, dead letters and an actual worker process stop/restart. They remove only their own records/jobs. They do not flush Redis or truncate shared tables. Unknown external/provider outcomes are outside this harmless internal diagnostic.
-
-Generated contract: `contracts/openapi.json` → `packages/contracts/src/api.d.ts`. Regenerate after endpoint changes, commit both, and let CI check drift. Update the expected migration constant when a phase adds a new migration. Do not edit already-applied migration SQL.
+The command refuses terminal password input and refuses to overwrite any account. It prints only the new user ID. Replace the example address with the intended administrator. Setup/tests create no real administrator. Provider approval and admin-management screens remain separate backlog work.

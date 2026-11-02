@@ -1,5 +1,9 @@
 # StageLink Marketplace UI
 
+This is the **backend development branch**. Persistent registration, login, email verification, recovery and account roles are connected to NestJS/PostgreSQL. Other marketplace features remain a labeled preview while their APIs are implemented. Start with the [backend setup guide](docs/backend/README.md) and [phase progress](docs/backend/PROGRESS.md).
+
+The UI overview below describes the original demonstration, available explicitly with `VITE_AUTH_MODE=demo`. The real account flow does not use the demo role switcher, universal recovery code or sample private dashboards.
+
 StageLink is a modern, high-performance marketplace platform connecting event organizers with performing artists, stage production crews, and professional equipment rentals. Built with **React 19**, **Vite 8**, **Tailwind CSS v4**, and **Framer Motion**, the application features rich micro-interactions, dark mode aesthetics, an animated authentication modal, real-time negotiation chat, and role-specific dashboards.
 
 ---

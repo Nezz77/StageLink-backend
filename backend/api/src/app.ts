@@ -8,6 +8,9 @@ import type { Request, Response, NextFunction } from 'express';
 import type { Config } from '../../shared/config.js';
 import { closeResources, readiness, resources, type Resources } from '../../shared/resources.js';
 import { log } from '../../shared/log.js';
+import { AuthService } from './auth/service.js';
+import { makeAuthController } from './auth/controller.js';
+import { PublicError } from './auth/errors.js';
 
 class LiveResponse {
   @ApiProperty({ type: String, enum: ['alive'] }) status!: string;
@@ -35,9 +38,9 @@ class Errors implements ExceptionFilter {
   catch(error: unknown, host: ArgumentsHost) {
     const res = host.switchToHttp().getResponse<Response>();
     const status = error instanceof HttpException ? error.getStatus() : 500;
-    const code = status === 404 ? 'NOT_FOUND' : status === 400 ? 'BAD_REQUEST' :
+    const code = error instanceof PublicError ? error.code : status === 401 ? 'UNAUTHORIZED' : status === 403 ? 'FORBIDDEN' : status === 429 ? 'RATE_LIMITED' : status === 404 ? 'NOT_FOUND' : status === 400 ? 'BAD_REQUEST' :
       status === 503 ? 'DEPENDENCIES_UNAVAILABLE' : 'INTERNAL_ERROR';
-    const message = status === 404 ? 'Resource not found' : status === 400 ? 'Invalid request' :
+    const message = error instanceof PublicError ? error.publicMessage : status === 401 ? 'Sign in again to continue.' : status === 403 ? 'Access denied.' : status === 429 ? 'Too many attempts.' : status === 404 ? 'Resource not found' : status === 400 ? 'Invalid request' :
       status === 503 ? 'Required services are unavailable' : 'An unexpected error occurred';
     res.status(status).json({ statusCode: status, code, message, requestId: res.locals.requestId });
   }
@@ -59,7 +62,8 @@ export async function createApp(config: Config, dependencies: Resources = resour
       return health;
     }
   }
-  @Module({ controllers: [HealthController] })
+  const auth = new AuthService(config, dependencies);
+  @Module({ controllers: [HealthController, makeAuthController(auth)] })
   class AppModule {
     async onApplicationShutdown() { await closeResources(dependencies); }
   }
@@ -90,6 +94,7 @@ export async function createApp(config: Config, dependencies: Resources = resour
 }
 export function openApi(app: INestApplication) {
   return SwaggerModule.createDocument(app, new DocumentBuilder()
-    .setTitle('StageLink API').setDescription('P01 infrastructure only. Business endpoints follow per phase.')
+    .setTitle('StageLink API').setDescription('Accounts and infrastructure. Other business endpoints follow per phase.')
+    .addBearerAuth().addCookieAuth('stagelink_refresh')
     .setVersion('0.1.0').build());
 }

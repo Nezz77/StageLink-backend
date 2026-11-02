@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import AccountRecovery from './AccountRecovery';
+import { useState, useEffect, useRef } from 'react';
+import { accountClient } from '../api/auth';
 import { Icon } from './Icons';
 
 type AuthType = 'login' | 'register_customer' | 'register_artist' | 'register_renter';
@@ -8,40 +8,28 @@ interface AuthModalProps {
   initialMode: AuthType;
   onClose: () => void;
   onSuccess: (role: string) => void;
+  onRecover: (email: string) => void;
 }
 
-/* ─── Social icon (inline SVG) ────────────────────────────── */
-function SocialIcon({ d, label }: { d: string; label: string }) {
-  return (
-    <a
-      href="#"
-      aria-label={label}
-      onClick={e => e.preventDefault()}
-      className="w-10 h-10 rounded-full flex items-center justify-center transition-all hover:scale-110"
-      style={{
-        border: '1px solid rgba(124,58,237,0.35)',
-        color: '#a78bfa',
-      }}
-    >
-      <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor">
-        <path d={d} />
-      </svg>
-    </a>
-  );
-}
-
-const socialIcons = [
-  { label: 'Google', d: 'M21.35 11.1h-9.18v2.73h5.51c-.24 1.27-.98 2.34-2.09 3.06l3.38 2.63c1.97-1.82 3.11-4.5 3.11-7.65 0-.53-.05-1.04-.14-1.54l-.59.77zm-9.18 10.07c2.55 0 4.69-.84 6.25-2.29l-3.38-2.63c-.84.56-1.92.89-2.87.89-2.21 0-4.08-1.49-4.75-3.5l-3.44 2.66c1.57 3.1 4.79 5.23 8.19 4.87zm-4.75-8.53c-.17-.52-.27-1.07-.27-1.64s.1-1.12.27-1.64L4.08 6.7A9.82 9.82 0 0 0 3 11c0 1.57.38 3.06 1.08 4.38l3.34-2.74zM12.17 5.04c1.24 0 2.35.43 3.23 1.27l2.42-2.42C16.36 2.59 14.22 1.73 12.17 1.73c-3.4 0-6.33 1.95-7.76 4.8l3.44 2.66c.67-2.01 2.54-4.15 4.32-4.15z' },
-  { label: 'Facebook', d: 'M22 12c0-5.52-4.48-10-10-10S2 6.48 2 12c0 4.84 3.44 8.87 8 9.8V15H8v-3h2V9.5C10 7.57 11.57 6 13.5 6H16v3h-2c-.55 0-1 .45-1 1v2h3v3h-3v6.95c5.05-.5 9-4.76 9-9.95z' },
-  { label: 'Apple', d: 'M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.53-3.23 0-1.44.62-2.2.44-3.06-.4C3.79 16.17 4.36 9.02 8.87 8.72c1.26.07 2.14.72 2.88.78.95-.19 1.86-.88 2.96-.8 1.52.12 2.66.7 3.43 1.92-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.57 4.53zM12.03 8.65c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z' },
-];
-
-export default function AuthModal({ initialMode, onClose, onSuccess }: AuthModalProps) {
-  const [recovery, setRecovery] = useState(false);
+export default function AuthModal({ initialMode, onClose, onSuccess, onRecover }: AuthModalProps) {
+  const dialog = useRef<HTMLDivElement>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const isInitiallySignUp = initialMode.startsWith('register');
   const [rightPanelActive, setRightPanelActive] = useState(isInitiallySignUp);
   const [mounted, setMounted] = useState(false);
 
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const frame = requestAnimationFrame(() => {
+      const inputs = Array.from(dialog.current?.querySelectorAll<HTMLInputElement>('input') ?? []);
+      inputs.find(input => !input.closest('[inert]'))?.focus();
+    });
+    return () => { cancelAnimationFrame(frame); document.body.style.overflow = overflow; previous?.focus(); };
+  }, [rightPanelActive]);
   // Sign In state
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
@@ -59,14 +47,17 @@ export default function AuthModal({ initialMode, onClose, onSuccess }: AuthModal
     requestAnimationFrame(() => setMounted(true));
   }, []);
 
-  const handleSignIn = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSuccess('customer');
+  const handleSignIn = async (e: React.FormEvent) => {
+    e.preventDefault(); if (busy) return; setBusy(true); setError('');
+    try { const user = await accountClient.login(loginEmail, loginPassword); setLoginPassword(''); onSuccess(user.activeRole); }
+    catch (error) { setError(error instanceof Error ? error.message : 'Sign in failed. Please try again.'); }
+    finally { setBusy(false); }
   };
-
-  const handleSignUp = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSuccess(signupRole);
+  const handleSignUp = async (e: React.FormEvent) => {
+    e.preventDefault(); if (busy) return; setBusy(true); setError('');
+    try { await accountClient.register(signupName, signupEmail, signupPassword, signupRole); setSignupPassword(''); setLoginEmail(signupEmail); setRightPanelActive(false); setNotice('Account request received. Check your inbox, then sign in with your chosen password.'); }
+    catch (error) { setError(error instanceof Error ? error.message : 'Registration failed. Please try again.'); }
+    finally { setBusy(false); }
   };
 
   /* shared input style */
@@ -114,14 +105,23 @@ export default function AuthModal({ initialMode, onClose, onSuccess }: AuthModal
 
   return (
     <>
-    {recovery && <AccountRecovery initialEmail={loginEmail} onClose={() => setRecovery(false)} />}
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
+      className="fixed inset-0 z-50 flex items-center justify-center sl-auth-backdrop"
+      ref={dialog} role="dialog" aria-modal="true" aria-label={rightPanelActive ? 'Create StageLink account' : 'Sign in to StageLink'}
+      onKeyDown={event => {
+        if (event.key === 'Escape') { event.preventDefault(); onClose(); }
+        if (event.key === 'Tab') {
+          const fields = Array.from(dialog.current?.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled),a[href]') ?? []).filter(field => !field.closest('[inert]') && field.getClientRects().length);
+          const first = fields[0], last = fields[fields.length - 1];
+          if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+          else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+        }
+      }}
       style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(10px)' }}
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     >
       {/* ── Main container ── */}
-      <div
+      <div className="sl-auth-panel"
         style={{
           position: 'relative',
           width: '100%',
@@ -140,6 +140,7 @@ export default function AuthModal({ initialMode, onClose, onSuccess }: AuthModal
         {/* Close button */}
         <button
           onClick={onClose}
+          aria-label="Close sign-in"
           style={{
             position: 'absolute', top: 12, right: 12, zIndex: 100,
             background: 'rgba(0,0,0,0.3)', border: 'none', borderRadius: '50%',
@@ -153,7 +154,7 @@ export default function AuthModal({ initialMode, onClose, onSuccess }: AuthModal
         </button>
 
         {/* ═══════════════ SIGN IN FORM (left side) ═══════════════ */}
-        <div
+        <div className="sl-auth-form" inert={rightPanelActive} aria-hidden={rightPanelActive}
           style={{
             position: 'absolute',
             top: 0,
@@ -191,22 +192,18 @@ export default function AuthModal({ initialMode, onClose, onSuccess }: AuthModal
               Sign In
             </h1>
 
-            {/* Social icons */}
-            <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
-              {socialIcons.map(s => (
-                <SocialIcon key={s.label} {...s} />
-              ))}
-            </div>
+
 
             <span style={{ fontSize: 12, color: '#64748b', marginBottom: 16 }}>
-              or use your account
+              Use your StageLink email and password
             </span>
 
             <input
               type="email"
+              autoComplete="email" maxLength={200}
               placeholder="Email Address"
               required
-              value={loginEmail}
+              aria-label="Sign-in email" value={loginEmail}
               onChange={e => setLoginEmail(e.target.value)}
               style={inputStyle}
               onFocus={e => (e.currentTarget.style.borderColor = '#7c3aed')}
@@ -214,9 +211,11 @@ export default function AuthModal({ initialMode, onClose, onSuccess }: AuthModal
             />
             <input
               type="password"
+              maxLength={128}
               placeholder="Password"
               required
-              value={loginPassword}
+              autoComplete="current-password"
+              aria-label="Sign-in password" value={loginPassword}
               onChange={e => setLoginPassword(e.target.value)}
               style={inputStyle}
               onFocus={e => (e.currentTarget.style.borderColor = '#7c3aed')}
@@ -225,7 +224,7 @@ export default function AuthModal({ initialMode, onClose, onSuccess }: AuthModal
 
             <a
               href="#"
-              onClick={e => { e.preventDefault(); setRecovery(true); }}
+              onClick={e => { e.preventDefault(); onRecover(loginEmail); }}
               style={{
                 fontSize: 12,
                 color: '#a78bfa',
@@ -237,14 +236,15 @@ export default function AuthModal({ initialMode, onClose, onSuccess }: AuthModal
               Forgot your password?
             </a>
 
-            <button type="submit" style={solidBtnStyle}>
-              SIGN IN
+            <p role="alert" style={{ color: '#fda4af', fontSize: 12 }}>{error}</p><p role="status" style={{ color: '#c4b5fd', fontSize: 12 }}>{notice}</p>
+            <button type="submit" disabled={busy} style={solidBtnStyle}>
+              {busy ? 'PLEASE WAIT…' : 'SIGN IN'}
             </button>
           </form>
         </div>
 
         {/* ═══════════════ SIGN UP FORM (right side) ═══════════════ */}
-        <div
+        <div className="sl-auth-form" inert={!rightPanelActive} aria-hidden={!rightPanelActive}
           style={{
             position: 'absolute',
             top: 0,
@@ -282,21 +282,17 @@ export default function AuthModal({ initialMode, onClose, onSuccess }: AuthModal
               Create Account
             </h1>
 
-            {/* Social icons */}
-            <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
-              {socialIcons.map(s => (
-                <SocialIcon key={s.label} {...s} />
-              ))}
-            </div>
+
 
             <span style={{ fontSize: 12, color: '#64748b', marginBottom: 14 }}>
-              or use your email for registration
+              Create your StageLink account
             </span>
 
             <input
               type="text"
               placeholder="Full Name"
-              value={signupName}
+              required minLength={2} maxLength={80}
+              aria-label="Full name" value={signupName}
               onChange={e => setSignupName(e.target.value)}
               style={inputStyle}
               onFocus={e => (e.currentTarget.style.borderColor = '#7c3aed')}
@@ -304,9 +300,10 @@ export default function AuthModal({ initialMode, onClose, onSuccess }: AuthModal
             />
             <input
               type="email"
+              autoComplete="email" maxLength={200}
               placeholder="Email Address"
               required
-              value={signupEmail}
+              aria-label="Registration email" value={signupEmail}
               onChange={e => setSignupEmail(e.target.value)}
               style={inputStyle}
               onFocus={e => (e.currentTarget.style.borderColor = '#7c3aed')}
@@ -314,9 +311,12 @@ export default function AuthModal({ initialMode, onClose, onSuccess }: AuthModal
             />
             <input
               type="password"
+              maxLength={128}
               placeholder="Password"
               required
-              value={signupPassword}
+              minLength={12}
+              autoComplete="new-password"
+              aria-label="Registration password" value={signupPassword}
               onChange={e => setSignupPassword(e.target.value)}
               style={inputStyle}
               onFocus={e => (e.currentTarget.style.borderColor = '#7c3aed')}
@@ -333,7 +333,7 @@ export default function AuthModal({ initialMode, onClose, onSuccess }: AuthModal
                 <button
                   key={r.value}
                   type="button"
-                  onClick={() => setSignupRole(r.value)}
+                  disabled={busy} onClick={() => setSignupRole(r.value)}
                   style={{
                     flex: 1,
                     padding: '7px 0',
@@ -356,14 +356,15 @@ export default function AuthModal({ initialMode, onClose, onSuccess }: AuthModal
               ))}
             </div>
 
-            <button type="submit" style={solidBtnStyle}>
-              SIGN UP
+            <p role="alert" style={{ color: '#fda4af', fontSize: 12 }}>{error}</p><p role="status" style={{ color: '#c4b5fd', fontSize: 12 }}>{notice}</p>
+            <button type="submit" disabled={busy} style={solidBtnStyle}>
+              {busy ? 'PLEASE WAIT…' : 'SIGN UP'}
             </button>
           </form>
         </div>
 
         {/* ═══════════════ SLIDING OVERLAY ═══════════════ */}
-        <div
+        <div className="sl-auth-overlay"
           style={{
             position: 'absolute',
             top: 0,
@@ -407,7 +408,7 @@ export default function AuthModal({ initialMode, onClose, onSuccess }: AuthModal
             }}
           >
             {/* LEFT OVERLAY PANEL — "Welcome Back!" */}
-            <div
+            <div inert={!rightPanelActive}
               style={{
                 width: '50%',
                 height: '100%',
@@ -443,7 +444,7 @@ export default function AuthModal({ initialMode, onClose, onSuccess }: AuthModal
               </p>
               <button
                 style={ghostBtnStyle}
-                onClick={() => setRightPanelActive(false)}
+                disabled={busy} onClick={() => setRightPanelActive(false)}
                 onMouseEnter={e => {
                   e.currentTarget.style.background = 'rgba(255,255,255,0.15)';
                   e.currentTarget.style.transform = 'scale(1.03)';
@@ -453,12 +454,12 @@ export default function AuthModal({ initialMode, onClose, onSuccess }: AuthModal
                   e.currentTarget.style.transform = 'scale(1)';
                 }}
               >
-                SIGN IN
+                {busy ? 'PLEASE WAIT…' : 'SIGN IN'}
               </button>
             </div>
 
             {/* RIGHT OVERLAY PANEL — "Hey There!" */}
-            <div
+            <div inert={rightPanelActive}
               style={{
                 width: '50%',
                 height: '100%',
@@ -494,7 +495,7 @@ export default function AuthModal({ initialMode, onClose, onSuccess }: AuthModal
               </p>
               <button
                 style={ghostBtnStyle}
-                onClick={() => setRightPanelActive(true)}
+                disabled={busy} onClick={() => setRightPanelActive(true)}
                 onMouseEnter={e => {
                   e.currentTarget.style.background = 'rgba(255,255,255,0.15)';
                   e.currentTarget.style.transform = 'scale(1.03)';
@@ -504,11 +505,12 @@ export default function AuthModal({ initialMode, onClose, onSuccess }: AuthModal
                   e.currentTarget.style.transform = 'scale(1)';
                 }}
               >
-                SIGN UP
+                {busy ? 'PLEASE WAIT…' : 'SIGN UP'}
               </button>
             </div>
           </div>
         </div>
+        <button className="sl-auth-mobile-switch" type="button" disabled={busy} onClick={() => { setRightPanelActive(value => !value); setError(''); }}>{rightPanelActive ? 'Already have an account? Sign in' : 'New to StageLink? Create an account'}</button>
       </div>
     </div>
     </>

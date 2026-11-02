@@ -1,30 +1,31 @@
-# Backend implementation checkpoint
+# StageLink backend checkpoint
 
-Date: 2026-11-02. Branch: `backend`. Base: `main` at `9cbbe0ded3112a347c8ba1ffdf7029bd4fde268e`. The original frontend checkout stays on `main`.
+Date: 2026-11-02. Work stays on `backend` in the separate `StageLink-backend` worktree. GitHub's `frontend` branch remains at the original UI commit `9cbbe0ded3112a347c8ba1ffdf7029bd4fde268e`; the original UI checkout remains on its local `main` branch. No merge or deployment is performed.
 
-## Implemented in this checkpoint
+## Completed
 
-- P00: separate branch/worktree, approved whole-backend plan and 55-feature UI inventory in version control, architecture/policy decision record, frontend baseline checks.
-- P01 code: NestJS API, versioned health endpoints, validated configuration, server-owned request IDs, safe structured errors/logs and exact-origin CORS.
-- PostgreSQL schema/SQL migration, Prisma ESM client and PostgreSQL driver adapter with bounded connection/query timeouts.
-- Redis/BullMQ worker, leased transactional outbox dispatcher, atomic consumer deduplication and harmless CLI diagnostic. Unknown event types remain as dead letters. Redis publication alone never marks an event processed.
-- Separate FastAPI health-only shell; no fabricated generation, provider status or model metrics.
-- Pinned/locked dependencies, local and isolated-test Compose configurations, Dockerfiles, environment examples, OpenAPI-to-TypeScript contracts and GitHub Actions checks.
+P00: whole-backend plan, 65-ticket backlog, 55-feature coverage inventory, separate branch and baseline validation.
+
+P01: NestJS/Prisma/PostgreSQL API, Redis/BullMQ worker with recoverable transactional outbox, FastAPI health shell, migrations, contracts, Docker and CI. The local API/worker/AI/web images build and all services boot. A committed CLI event produced exactly one worker receipt. The corrected GitHub foundation run [41389043819](https://github.com/Nezz77/StageLink/actions/runs/41389043819) passed all three jobs at `0b41611`.
+
+P02: persistent public account registration, login, assigned-role selection, email verification, password recovery, refresh rotation/replay protection and sign-out. Administrator creation is an operator-only, create-only CLI; ordinary signup cannot request admin. PostgreSQL stores identity, hashed credentials/tokens and revocable sessions. The mail worker delivers transactionally queued, encrypted payloads to a local Mailpit inbox. No external email provider is enabled.
+
+The backend branch now defaults to the real account UI. A newly signed-in account sees its own identity and assigned roles. Sample bookings/balances/messages stay in the explicit demo app; catalog browsing is clearly labeled as a preview. Profile/payout/booking/chat/payment APIs remain to be implemented. Artist/renter account types are not provider approval.
+
+New Figma material is recorded in `figma-auth-mapping.json`: 18 editable design states, 18 monochrome wireframes and 18 prototype states, with 80 native reactions and four named starting flows. Existing frontend journeys are preserved. The prototype simulates outcomes; it does not call the account backend.
 
 ## Validation
 
-See `foundation-validation.json` for exact results. Frontend: 158 tests, type checking and Vite production build passed; existing large-file warning remains. Frontend source was not changed. Browser screenshots were not captured because computer-use permission was unavailable.
+See `foundation-validation.json` for P01 and `auth-validation.json` for P02. Local P02 checks passed: six backend unit tests, two real dependency integration scenarios, 163 frontend tests, both TypeScript checks, generated contracts, website/API/worker/AI container builds and healthy Compose boot. Runtime backend dependencies have zero audit findings; three moderate development-only findings remain in the OpenAPI generator dependency chain, as documented in ADR 001.
 
-Backend type checking/build and all three API/configuration tests passed with the patched NestJS/Prisma versions. Clean lockfile installation, contract generation, and both compiled/development API startup with real HTTP readiness passed. The AI health test passed. Compose files validate. PostgreSQL/Redis integration passed: empty database migration, safe repeat migration, actual dependency outages, rollback, queue failure, Redis job loss, duplicate handling, worker stop/restart and retained unsupported-event dead letters. An initial immediate-delivery assertion was changed to poll for asynchronous dispatch; the recovery scenario passed again afterward.
+Integration verifies two independent accounts, attempted privilege escalation, token expiry/single use, actual SMTP capture, refresh replay revocation, real password replacement, revoked sessions and controlled admin bootstrap. It also retains the existing outbox recovery/restart tests. Browser QA verifies sign-in/reload, role persistence, sign-out, incorrect-password feedback, recovery email feedback, responsive account layouts at actual CSS widths 312/375/1440, and dark/light themes. Credential mutation is verified through HTTP integration rather than automated browser password entry.
 
-The runtime dependency audit reports zero vulnerabilities. The development-only OpenAPI generator retains three moderate package findings for one underlying Redocly/minimatch glob-amplification advisory (see ADR 001); high/critical findings are zero.
+Figma structural checks found editable text/components/SVGs, Geist/Fraunces fonts, no flattened image fills, and no broken prototype destinations. Screenshots were inspected for account, sign-in and wireframe views. Design mapping and local browser evidence are committed with this checkpoint.
 
-API/worker, AI and website images built successfully on local ARM64 Docker. PostgreSQL, Redis, migration, API, worker and AI booted healthy; a CLI outbox event produced one persisted worker receipt. The original website container required the project pnpm version and its Figma site configuration in the build context; both are fixed. Remote CI initially failed on service-command quoting and an unavailable uv-managed Python patch; the workflow now uses proper Docker argument quoting and setup-python. CI rerun is pending. No production deployment is claimed.
+P02 remote CI is recorded in `auth-validation.json`; local completion is separate from remote verification. No production readiness or deployment is claimed.
 
-## Next work
+## Next phase
 
-1. Verify the corrected remote CI run. Local API/worker/AI/web image builds, full core-service boot and host runtime recovery checks passed.
-2. P02: persistent accounts, sessions, password reset/verification, role authorization and frontend authentication integration.
-3. Follow the remaining phases in `backend-backlog.json`. No business UI has been switched to a live API yet; existing sample/demo data remains until the corresponding integration phase.
+P03: persist customer/artist/renter profiles, specialized onboarding and payout destination metadata, with ownership/approval checks. Follow the remaining phases in `backend-backlog.json` as each preview feature is converted.
 
-The foundation commits were pushed to the same GitHub repository on `backend`; GitHub’s `frontend` branch remains at the original UI baseline. No merge, deployment, provider account creation or real payment/model/SMS call was performed. Figma, wireframes and prototype do not need changes for health-only infrastructure; update them when integration adds visible UI states.
+P10/BE-041 explicitly retains the socket-security follow-through: authenticate socket connections/messages using persisted sessions and disconnect revoked sessions. There are no sockets to disconnect in P02. Provider approvals, hosted SMTP, payment/model providers, final retention/security/load checks and deployment remain later work.

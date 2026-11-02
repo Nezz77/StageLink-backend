@@ -3,7 +3,7 @@ import { createApp } from '../api/src/app.js';
 import { readConfig } from '../shared/config.js';
 async function main() {
   // Contract generation never opens connections or needs real credentials.
-  const { app, document } = await createApp(readConfig({ NODE_ENV: 'test',
+  const { app, document } = await createApp(readConfig({ NODE_ENV: 'test', AUTH_JWT_SECRET: '01'.repeat(32), AUTH_MAIL_KEY: '02'.repeat(32),
     DATABASE_URL: 'postgresql://unused:unused@127.0.0.1:1/unused?connect_timeout=1',
     REDIS_URL: 'redis://127.0.0.1:1',
   }));

@@ -2,6 +2,11 @@
 # Run from repository root. Explicit isolated test infrastructure only.
 set -eu
 export NODE_ENV=test
+export AUTH_JWT_SECRET=0101010101010101010101010101010101010101010101010101010101010101
+export AUTH_MAIL_KEY=0202020202020202020202020202020202020202020202020202020202020202
+export SMTP_HOST=127.0.0.1
+export SMTP_PORT=11025
+export MAILPIT_API_URL=http://127.0.0.1:18025
 export DATABASE_URL='postgresql://stagelink:local-test-only@127.0.0.1:55433/stagelink_test?connect_timeout=3'
 export REDIS_URL='redis://127.0.0.1:56380'
 docker compose -f infra/compose.test.yml up -d --wait

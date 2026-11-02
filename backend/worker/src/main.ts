@@ -4,11 +4,13 @@ import { Redis } from 'ioredis';
 import { readConfig } from '../../shared/config.js';
 import { resources, closeResources, readiness } from '../../shared/resources.js';
 import { consume, dispatchBatch, QUEUE } from '../../shared/outbox.js';
+import { createMailer, deliverAuthMail } from '../../shared/auth-mail.js';
 import { log } from '../../shared/log.js';
 
 async function main() {
   const config = readConfig();
   const deps = resources(config);
+  const mailer = createMailer(config);
   const publisher = new Redis(config.REDIS_URL, { maxRetriesPerRequest: 1, enableOfflineQueue: false, connectTimeout: 1000, commandTimeout: 2000 });
   const subscriber = new Redis(config.REDIS_URL, { maxRetriesPerRequest: null, connectTimeout: 1000 });
   for (const connection of [publisher, subscriber]) connection.on('error', () => {});
@@ -27,7 +29,7 @@ async function main() {
   async function scan() {
     if (running || stopping) return;
     running = true;
-    try { await dispatchBatch(deps.db, queue); lastScan = Date.now(); }
+    try { await dispatchBatch(deps.db, queue); await deliverAuthMail(deps, config, mailer); lastScan = Date.now(); }
     catch { log('outbox.scan_failed', { code: 'DATABASE_OR_QUEUE_UNAVAILABLE' }); }
     finally { running = false; }
   }
@@ -47,7 +49,7 @@ async function main() {
     stopping = true; clearInterval(timer); server.close();
     void (async () => {
       while (running) await new Promise(resolve => setTimeout(resolve, 50));
-      await worker.close(); await queue.close();
+      await worker.close(); await queue.close(); mailer.close();
       await Promise.allSettled([publisher.quit(), subscriber.quit(), closeResources(deps)]);
     })().catch(() => { process.exitCode = 1; });
   });

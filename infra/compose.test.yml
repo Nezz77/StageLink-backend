@@ -21,3 +21,6 @@ services:
       interval: 3s
       timeout: 3s
       retries: 20
+  mailpit:
+    image: axllent/mailpit:v1.27.8
+    ports: ['127.0.0.1:18025:8025', '127.0.0.1:11025:1025']

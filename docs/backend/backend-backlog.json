@@ -1,12 +1,12 @@
 {
-  "date": "2026-11-01",
-  "status": "foundation_in_progress",
+  "date": "2026-11-02",
+  "status": "backend_in_progress",
   "repository": "/Users/nezz/Desktop/Git/Antigravity/StageLink_UI",
   "baseline_branch": "main",
   "baseline_commit": "9cbbe0ded3112a347c8ba1ffdf7029bd4fde268e",
   "planned_integration_branch": "backend",
   "branch_created": true,
-  "next_phase": "P01",
+  "next_phase": "P03",
   "phase_count": 19,
   "ticket_count": 65,
   "coverage_rows": 55,
@@ -27,7 +27,7 @@
       "depends_on": [
         "P00"
       ],
-      "status": "in_progress",
+      "status": "complete",
       "tickets": [
         "BE-003",
         "BE-004",
@@ -40,7 +40,7 @@
       "depends_on": [
         "P01"
       ],
-      "status": "not_started",
+      "status": "complete",
       "tickets": [
         "BE-014",
         "BE-017",
@@ -334,7 +334,7 @@
       "acceptance": [
         "Empty DB migrates; CI boots isolated dependencies; current frontend build remains valid"
       ],
-      "status": "in_progress",
+      "status": "complete",
       "ui_coverage_ids": []
     },
     {
@@ -565,10 +565,12 @@
         "Applicable schema/API/auth/UI/reload/failure tests and checkpoint evidence complete"
       ],
       "requires_new_report_ui": false,
-      "status": "not_started",
+      "status": "complete",
       "ui_coverage_ids": [
         "UI-004"
-      ]
+      ],
+      "implemented_contract": "POST /api/v1/auth/register; POST /api/v1/auth/login; GET /api/v1/me",
+      "implementation_note": "Account identity persists; customer profile belongs to P03. Artist/renter account type does not constitute provider approval."
     },
     {
       "id": "BE-015",
@@ -647,7 +649,8 @@
       ],
       "supporting_phases": [],
       "source_files": [
-        "src/components/AccountRecovery.tsx"
+        "src/components/PersistentAccountRecovery.tsx",
+        "src/components/AccountHome.tsx"
       ],
       "proposed_contract": "POST /auth/email-verification; POST /auth/email-verification/confirm; POST /auth/password-reset; POST /auth/password-reset/complete",
       "entities": [
@@ -661,10 +664,11 @@
         "Applicable schema/API/auth/UI/reload/failure tests and checkpoint evidence complete"
       ],
       "requires_new_report_ui": false,
-      "status": "not_started",
+      "status": "complete",
       "ui_coverage_ids": [
         "UI-007"
-      ]
+      ],
+      "implemented_contract": "POST /api/v1/auth/email-verification; POST /api/v1/auth/email-verification/confirm; POST /api/v1/auth/password-reset; POST /api/v1/auth/password-reset/verify; POST /api/v1/auth/password-reset/complete"
     },
     {
       "id": "BE-018",
@@ -690,13 +694,21 @@
       ],
       "remove_or_replace": "Unrestricted demo role dropdown and reset identity",
       "acceptance": [
-        "Only approved memberships can be selected; admin cannot be self-assigned; logout revokes socket access",
+        "Only assigned memberships can be selected; admin cannot be self-assigned; logout revokes the persisted session. P10 must enforce and disconnect revoked socket sessions.",
         "Applicable schema/API/auth/UI/reload/failure tests and checkpoint evidence complete"
       ],
       "requires_new_report_ui": false,
-      "status": "not_started",
+      "status": "complete",
       "ui_coverage_ids": [
         "UI-008"
+      ],
+      "implemented_contract": "POST /api/v1/auth/refresh; POST /api/v1/auth/logout; GET /api/v1/me (includes roles); POST /api/v1/me/active-role; GET /api/v1/admin/access",
+      "deferred_checks": [
+        {
+          "phase": "P10",
+          "ticket": "BE-041",
+          "requirement": "Apply session revocation to live socket connections and messages; no sockets exist in P02."
+        }
       ]
     },
     {
@@ -1445,7 +1457,8 @@
       "remove_or_replace": "File map local messages and fake reply/typing/seen controls",
       "acceptance": [
         "Two independent users; persist-before-ack; duplicate IDs dedupe; reconnect cursor; unauthorized joins blocked",
-        "Applicable schema/API/auth/UI/reload/failure tests and checkpoint evidence complete"
+        "Applicable schema/API/auth/UI/reload/failure tests and checkpoint evidence complete",
+        "Socket connections and messages check persisted account/session permissions; revoked/logout/reset sessions are disconnected and cannot send or read messages (P02 follow-through)."
       ],
       "requires_new_report_ui": false,
       "status": "not_started",
@@ -2252,5 +2265,6 @@
   ],
   "implementation_branch": "backend",
   "implementation_checkout": "/Users/nezz/Desktop/UOM/Software Project/StageLink-backend",
-  "updated_at": "2026-11-02"
+  "updated_at": "2026-11-02",
+  "remote_frontend_branch": "frontend"
 }

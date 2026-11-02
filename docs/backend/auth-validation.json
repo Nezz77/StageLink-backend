@@ -1,0 +1,87 @@
+{
+  "date": "2026-11-02",
+  "branch": "backend",
+  "phase": "P02",
+  "status": "local_validation_passed",
+  "backend": {
+    "unit_tests_passed": 6,
+    "integration_scenarios_passed": 2,
+    "typecheck": "passed",
+    "contract_generation": "passed",
+    "database_migrations": "two applied successfully; repeat deploy safe",
+    "runtime_dependency_audit_total": 0,
+    "development_dependency_audit": {
+      "moderate": 3,
+      "high": 0,
+      "critical": 0
+    }
+  },
+  "frontend": {
+    "tests_passed": 163,
+    "typecheck": "passed",
+    "production_build": "passed (Docker web build)",
+    "warning": "existing large bundle warning",
+    "api_auth_default": true,
+    "demo_identity_fallback": false
+  },
+  "real_integration_coverage": [
+    "two independent persistent accounts and public projections",
+    "strict payload validation and rejected public admin registration",
+    "assigned-role authorization and controlled admin bootstrap",
+    "Origin and CSRF checks, rate limiting",
+    "refresh rotation, replay-family revocation and independent sessions",
+    "SMTP verification/reset messages captured by local Mailpit",
+    "expired, single-use and reused token/grant rejection",
+    "actual password replacement and all-user-session revocation",
+    "tampered/expired JWTs, disabled accounts and logout including blocked-cookie fallback",
+    "transactional outbox rollback, duplicate delivery, Redis loss and real worker restart"
+  ],
+  "browser": {
+    "status": "passed",
+    "fixture": "disposable .test account; no real user data",
+    "checks": [
+      "successful login and cookie-backed reload",
+      "customer/artist membership selection and role persistence after reload",
+      "sign-out returns to public preview",
+      "incorrect credentials show error and remain signed out",
+      "recovery request opens inbox/code step",
+      "actual CSS width 312: no horizontal overflow",
+      "actual CSS width 375: no horizontal overflow; dark/light inspected",
+      "actual CSS width 1440: account view inspected"
+    ],
+    "credential_mutation": "verified by real HTTP integration; browser did not enter a new password",
+    "viewport_override": "reset"
+  },
+  "containers": {
+    "api_worker": "built and healthy",
+    "ai": "built and healthy; health-only",
+    "web": "built and healthy",
+    "postgres_redis_mailpit": "healthy",
+    "external_email_delivery": false
+  },
+  "figma": {
+    "mapping": "figma-auth-mapping.json",
+    "design_states": 18,
+    "wireframe_states": 18,
+    "prototype_states": 18,
+    "native_reactions": 80,
+    "broken_destinations": 0,
+    "editable": true,
+    "image_filled_nodes": 0,
+    "fonts": [
+      "Geist",
+      "Fraunces"
+    ]
+  },
+  "remote_ci": {
+    "status": "pending push"
+  },
+  "deployed": false,
+  "remaining": [
+    "P03 profiles and onboarding next",
+    "provider approval is separate from requested signup type",
+    "P10 socket revocation enforcement",
+    "remaining catalog, booking, payment, AI and admin backend phases",
+    "production email, retention, trusted proxy and deployment checks"
+  ]
+}

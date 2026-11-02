@@ -42,3 +42,76 @@ model FoundationReceipt {
   event OutboxEvent @relation(fields: [eventId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   @@map("foundation_receipts")
 }
+
+enum AuthRole {
+  customer
+  artist
+  renter
+  admin
+}
+model AuthUser {
+  id String @id @default(uuid()) @db.Uuid
+  email String @unique @db.VarChar(200)
+  displayName String @map("display_name") @db.VarChar(80)
+  passwordHash String @map("password_hash")
+  roles AuthRole[] @default([customer])
+  emailVerifiedAt DateTime? @map("email_verified_at") @db.Timestamptz(3)
+  disabledAt DateTime? @map("disabled_at") @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  sessions AuthSession[]
+  tokens AuthToken[]
+  mail AuthMail[]
+  @@map("auth_users")
+}
+model AuthSession {
+  id String @id @default(uuid()) @db.Uuid
+  userId String @map("user_id") @db.Uuid
+  activeRole AuthRole @map("active_role")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(3)
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(3)
+  user AuthUser @relation(fields:[userId], references:[id], onDelete:Cascade, onUpdate:Cascade)
+  credentials AuthRefresh[]
+  @@index([userId, revokedAt])
+  @@map("auth_sessions")
+}
+model AuthRefresh {
+  id String @id @default(uuid()) @db.Uuid
+  sessionId String @map("session_id") @db.Uuid
+  secretDigest String @map("secret_digest") @db.VarChar(64)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(3)
+  consumedAt DateTime? @map("consumed_at") @db.Timestamptz(3)
+  session AuthSession @relation(fields:[sessionId], references:[id], onDelete:Cascade, onUpdate:Cascade)
+  @@index([sessionId])
+  @@map("auth_refresh_credentials")
+}
+model AuthToken {
+  id String @id @default(uuid()) @db.Uuid
+  userId String @map("user_id") @db.Uuid
+  purpose String
+  email String @db.VarChar(200)
+  digest String @unique @db.VarChar(64)
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(3)
+  usedAt DateTime? @map("used_at") @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  user AuthUser @relation(fields:[userId], references:[id], onDelete:Cascade, onUpdate:Cascade)
+  @@index([userId,purpose,usedAt])
+  @@map("auth_tokens")
+}
+model AuthMail {
+  id String @id @default(uuid()) @db.Uuid
+  userId String @map("user_id") @db.Uuid
+  sealedPayload String? @map("sealed_payload")
+  status String @default("pending")
+  attempts Int @default(0)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  availableAt DateTime @default(now()) @map("available_at") @db.Timestamptz(3)
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(3)
+  lockedUntil DateTime? @map("locked_until") @db.Timestamptz(3)
+  leaseOwner String? @map("lease_owner") @db.Uuid
+  deliveredAt DateTime? @map("delivered_at") @db.Timestamptz(3)
+  lastErrorCode String? @map("last_error_code")
+  user AuthUser @relation(fields:[userId], references:[id], onDelete:Cascade, onUpdate:Cascade)
+  @@map("auth_mail_outbox")
+}

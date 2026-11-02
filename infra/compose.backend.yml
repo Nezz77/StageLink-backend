@@ -7,6 +7,11 @@ x-node: &node
   init: true
   environment: &node-env
     NODE_ENV: development
+    AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:?Run node backend/scripts/setup-env.mjs}
+    AUTH_MAIL_KEY: ${AUTH_MAIL_KEY:?Run node backend/scripts/setup-env.mjs}
+    SMTP_HOST: mailpit
+    SMTP_PORT: 1025
+    SMTP_FROM: noreply@stagelink.local
     DATABASE_URL: postgresql://${POSTGRES_USER:?Set POSTGRES_USER}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:?Set POSTGRES_DB}?connect_timeout=3&pool_timeout=3
     REDIS_URL: redis://redis:6379
     WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
@@ -63,6 +68,9 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+  mailpit:
+    image: axllent/mailpit:v1.27.8
+    ports: ["127.0.0.1:8025:8025", "127.0.0.1:1025:1025"]
   ai:
     image: stagelink-ai:foundation
     build: { context: ../backend/ai }
@@ -77,6 +85,9 @@ services:
     profiles: ["web"]
     build: { context: .., dockerfile: Dockerfile }
     ports: ["127.0.0.1:3000:80"]
+    volumes: ["./nginx.backend.conf:/etc/nginx/conf.d/default.conf:ro"]
+    depends_on:
+      api: { condition: service_healthy }
 volumes:
   postgres-data:
   redis-data:

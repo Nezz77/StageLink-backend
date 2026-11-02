@@ -51,7 +51,9 @@
   "remote_ci": {
     "initial_run": "failed setup: service health command quoting and uv Python download catalog",
     "fix": "double-quoted health commands and setup-python action",
-    "rerun": "pending"
+    "rerun": "passed",
+    "run_url": "https://github.com/Nezz77/StageLink/actions/runs/41389043819",
+    "commit": "0b41611"
   },
   "pushed": true,
   "deployed": false,

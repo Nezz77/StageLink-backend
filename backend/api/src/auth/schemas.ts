@@ -1,0 +1,14 @@
+import { z } from 'zod';
+import { tokenPattern } from './security.js';
+export const roleSchema = z.enum(['customer', 'artist', 'renter', 'admin']);
+export const publicRoleSchema = z.enum(['customer', 'artist', 'renter']);
+export const emailSchema = z.string().trim().toLowerCase().email().max(200);
+export const passwordSchema = z.string().min(12).max(128);
+export const registerSchema = z.object({ displayName: z.string().trim().min(2).max(80), email: emailSchema, password: passwordSchema, role: publicRoleSchema }).strict();
+export const loginSchema = z.object({ email: emailSchema, password: z.string().min(1).max(128) }).strict();
+export const emailRequestSchema = z.object({ email: emailSchema }).strict();
+export const tokenSchema = z.object({ token: z.string().regex(tokenPattern) }).strict();
+export const resetSchema = z.object({ grant: z.string().regex(tokenPattern), password: passwordSchema }).strict();
+export const activeRoleSchema = z.object({ role: roleSchema }).strict();
+export type AccountRole = z.infer<typeof roleSchema>;
+export type Registration = z.infer<typeof registerSchema>;

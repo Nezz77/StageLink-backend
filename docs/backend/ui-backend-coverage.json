@@ -74,7 +74,7 @@
     "hardcoded_replacement": "Form-only signup and role-based demo access",
     "acceptance": "Two independent customer accounts persist and cannot access each other",
     "requires_new_report_ui": false,
-    "status": "planned",
+    "status": "implemented",
     "ticket_id": "BE-014"
   },
   {
@@ -124,14 +124,15 @@
     "phase": "P02",
     "supporting_phases": [],
     "current_files": [
-      "src/components/AccountRecovery.tsx"
+      "src/components/PersistentAccountRecovery.tsx",
+      "src/components/AccountHome.tsx"
     ],
     "proposed_contract": "POST /auth/email-verification; POST /auth/email-verification/confirm; POST /auth/password-reset; POST /auth/password-reset/complete",
     "entities": "auth_tokens; sessions; delivery records",
     "hardcoded_replacement": "Universal 246810 code and fake reset success",
     "acceptance": "Expiring single-use hashed tokens; actual credential changed; no account enumeration; rate limits",
     "requires_new_report_ui": false,
-    "status": "planned",
+    "status": "implemented",
     "ticket_id": "BE-017"
   },
   {
@@ -148,9 +149,9 @@
     "proposed_contract": "POST /auth/refresh; POST /auth/logout; GET /me/roles; POST /me/active-role",
     "entities": "users; user_roles; sessions; admin_memberships",
     "hardcoded_replacement": "Unrestricted demo role dropdown and reset identity",
-    "acceptance": "Only approved memberships can be selected; admin cannot be self-assigned; logout revokes socket access",
+    "acceptance": "Only assigned account memberships selectable; admin never self-assigned; persisted-session revocation implemented. Live socket disconnect enforcement is required in P10/BE-041.",
     "requires_new_report_ui": false,
-    "status": "planned",
+    "status": "implemented",
     "ticket_id": "BE-018"
   },
   {

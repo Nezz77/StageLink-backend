@@ -17,7 +17,8 @@
     "db:generate": "prisma generate --schema prisma/schema.prisma",
     "db:migrate": "prisma migrate deploy --schema prisma/schema.prisma",
     "contracts": "npm run build && node dist/scripts/openapi.js && openapi-typescript ../contracts/openapi.json -o ../packages/contracts/src/api.d.ts",
-    "outbox:ping": "node dist/scripts/ping.js"
+    "outbox:ping": "node dist/scripts/ping.js",
+    "admin:create": "node dist/scripts/bootstrap-admin.js"
   },
   "dependencies": {
     "@nestjs/common": "12.3.2",
@@ -30,6 +31,8 @@
     "class-transformer": "0.5.1",
     "class-validator": "0.14.2",
     "ioredis": "5.8.2",
+    "jose": "6.2.15",
+    "nodemailer": "10.3.1",
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.2",
     "zod": "4.6.7"
