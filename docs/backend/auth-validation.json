@@ -74,7 +74,9 @@
     ]
   },
   "remote_ci": {
-    "status": "pending push"
+    "status": "See linked GitHub Actions run for its final result",
+    "implementation_commit": "d5b145b089ea8df083d19088b51c487c15abb604",
+    "run_url": "https://github.com/Nezz77/StageLink/actions/runs/41398253663"
   },
   "deployed": false,
   "remaining": [
