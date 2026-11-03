@@ -31,17 +31,17 @@ export async function passwordMatches(password: string, stored?: string) {
   const matches = await verifyPassword(password, stored ?? await dummy);
   return Boolean(stored && matches);
 }
-export function seal(key: string, data: unknown) {
+export function seal(key: string, data: unknown, context = 'stagelink-auth-mail-v1') {
   const iv = randomBytes(12), cipher = createCipheriv('aes-256-gcm', Buffer.from(key, 'hex'), iv);
-  cipher.setAAD(Buffer.from('stagelink-auth-mail-v1'));
+  cipher.setAAD(Buffer.from(context));
   const encrypted = Buffer.concat([cipher.update(JSON.stringify(data)), cipher.final()]);
   return [iv.toString('base64url'), cipher.getAuthTag().toString('base64url'), encrypted.toString('base64url')].join('.');
 }
-export function unseal(key: string, value: string): unknown {
+export function unseal(key: string, value: string, context = 'stagelink-auth-mail-v1'): unknown {
   const [iv, tag, payload, extra] = value.split('.');
   if (!iv || !tag || !payload || extra) throw new Error('INVALID_MAIL_PAYLOAD');
   const cipher = createDecipheriv('aes-256-gcm', Buffer.from(key, 'hex'), Buffer.from(iv, 'base64url'));
-  cipher.setAAD(Buffer.from('stagelink-auth-mail-v1'));
+  cipher.setAAD(Buffer.from(context));
   cipher.setAuthTag(Buffer.from(tag, 'base64url'));
   return JSON.parse(Buffer.concat([cipher.update(Buffer.from(payload, 'base64url')), cipher.final()]).toString());
 }

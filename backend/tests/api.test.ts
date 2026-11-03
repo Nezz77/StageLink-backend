@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createApp } from '../api/src/app.js';
 import { readConfig } from '../shared/config.js';
 import { MIGRATION, type Resources } from '../shared/resources.js';
-const config = readConfig({ NODE_ENV: 'test', AUTH_JWT_SECRET: '01'.repeat(32), AUTH_MAIL_KEY: '02'.repeat(32), DATABASE_URL: 'postgresql://unused:unused@localhost/test', REDIS_URL: 'redis://localhost:6379' });
+const config = readConfig({ NODE_ENV: 'test', AUTH_JWT_SECRET: '01'.repeat(32), AUTH_MAIL_KEY: '02'.repeat(32), PAYOUT_DATA_KEY: '03'.repeat(32), DATABASE_URL: 'postgresql://unused:unused@localhost/test', REDIS_URL: 'redis://localhost:6379' });
 function fakeResources(up: boolean): Resources {
   return { db: {
     $queryRaw: async () => { if (!up) throw new Error('password=do-not-leak'); return [{ migration_name: MIGRATION }]; },

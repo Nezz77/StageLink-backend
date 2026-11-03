@@ -204,6 +204,7 @@ export class AuthService {
       await tx.authUser.update({ where: { id: user.id }, data: { passwordHash } });
       await tx.authSession.updateMany({ where: { userId: user.id, revokedAt: null }, data: { revokedAt: new Date() } });
       await tx.authToken.updateMany({ where: { userId: user.id, usedAt: null }, data: { usedAt: new Date() } });
+      await tx.pendingEmailChange.deleteMany({where:{userId:user.id}});
     });
   }
 }

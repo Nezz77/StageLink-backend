@@ -18,7 +18,7 @@ test('local setup fills missing keys, preserves valid settings and never prints 
     const output = run();
     const first = await read('infra/.env'), host = parseEnv(await read('backend/.env'));
     const keys = parseEnv(first);
-    for (const name of ['AUTH_JWT_SECRET', 'AUTH_MAIL_KEY']) {
+    for (const name of ['AUTH_JWT_SECRET', 'AUTH_MAIL_KEY', 'PAYOUT_DATA_KEY']) {
       assert.match(keys[name]!, /^[0-9a-f]{64}$/);
       assert.equal(keys[name], host[name]);
       assert.ok(!output.includes(keys[name]!));

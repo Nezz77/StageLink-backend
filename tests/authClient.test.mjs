@@ -46,3 +46,17 @@ test('a failed logout does not falsely claim the server session ended', async ()
     await assert.rejects(client.logout()); assert.equal(client.state.status, 'authenticated');
   });
 });
+test('a protected profile update preserves PUT and credentials after token refresh',async()=>{
+ const updates=[];let failed=false;
+ await mocked(async(path,options)=>{
+  if(path.endsWith('/login')||path.endsWith('/refresh'))return response(session('Alice'));
+  if(path.endsWith('/csrf'))return response({csrfToken:'fixture-csrf'});
+  updates.push(options);if(!failed){failed=true;return response({message:'Expired'},401);}return response({revision:2});
+ },async()=>{const client=new AccountClient();await client.login('alice@stagelink.test','fixture');assert.deepEqual(await client.api('me/profile',{revision:1},'PUT'),{revision:2});assert.equal(updates.length,2);for(const request of updates){assert.equal(request.method,'PUT');assert.equal(request.credentials,'include');assert.equal(request.headers['X-CSRF-Token'],'fixture-csrf');assert.ok(request.headers.Authorization);}});
+});
+test('a previous account profile response is rejected after switching users',async()=>{
+ let finish;
+ await mocked(async(path,options)=>path.endsWith('/login')?response(session(JSON.parse(options.body).email.startsWith('alice')?'Alice':'Bob')):new Promise(resolve=>{finish=resolve;}),async()=>{
+  const client=new AccountClient();await client.login('alice@stagelink.test','fixture');const old=client.api('me/profile');await new Promise(resolve=>setTimeout(resolve,0));await client.login('bob@stagelink.test','fixture');finish(response({displayName:'Alice private profile'}));await assert.rejects(old,/account changed/);assert.equal(client.state.user.id,'Bob');
+ });
+});

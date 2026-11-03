@@ -86,15 +86,15 @@
       "P02"
     ],
     "current_files": [
-      "src/components/AuthModal.tsx",
-      "src/components/MemberProfile.tsx"
+      "src/components/PersistentProfiles.tsx",
+      "src/components/AccountHome.tsx"
     ],
     "proposed_contract": "POST /me/artist-profile; PATCH /me/artist-profile",
     "entities": "artist_profiles; genres; profile_locations",
     "hardcoded_replacement": "One seeded artist and local-only onboarding",
     "acceptance": "Category/genre/experience/rate/service area survive reload and owner checks",
     "requires_new_report_ui": false,
-    "status": "planned",
+    "status": "implemented",
     "ticket_id": "BE-015"
   },
   {
@@ -106,15 +106,15 @@
       "P02"
     ],
     "current_files": [
-      "src/components/AuthModal.tsx",
-      "src/components/MemberProfile.tsx"
+      "src/components/PersistentProfiles.tsx",
+      "src/components/AccountHome.tsx"
     ],
     "proposed_contract": "POST /me/renter-profile; PATCH /me/renter-profile",
     "entities": "renter_profiles; profile_locations; operational terms",
     "hardcoded_replacement": "One seeded storefront and sample contact/location",
     "acceptance": "Multiple providers have independent approved profiles and private/public fields",
     "requires_new_report_ui": false,
-    "status": "planned",
+    "status": "implemented",
     "ticket_id": "BE-016"
   },
   {
@@ -161,14 +161,15 @@
     "phase": "P03",
     "supporting_phases": [],
     "current_files": [
-      "src/components/MemberProfile.tsx"
+      "src/components/PersistentProfiles.tsx",
+      "src/components/AccountHome.tsx"
     ],
     "proposed_contract": "GET /me/profile; PATCH /me/profile; POST /me/email-change",
     "entities": "profiles; pending_email_changes; auth_tokens",
     "hardcoded_replacement": "Profiles stored by role instead of account",
     "acceptance": "Unverified email does not replace trusted delivery contact; per-user persistence and revisions",
     "requires_new_report_ui": false,
-    "status": "planned",
+    "status": "implemented",
     "ticket_id": "BE-019"
   },
   {
@@ -743,14 +744,15 @@
     "phase": "P03",
     "supporting_phases": [],
     "current_files": [
-      "src/components/PayoutAccount.tsx"
+      "src/components/PersistentProfiles.tsx",
+      "src/components/AccountHome.tsx"
     ],
     "proposed_contract": "GET /me/payout-destination; PUT /me/payout-destination",
     "entities": "payout_destinations; destination_revisions",
     "hardcoded_replacement": "Seeded verified demo bank accounts",
     "acceptance": "Masked restricted/tokenized data; update requires review and pauses stale payout execution",
     "requires_new_report_ui": false,
-    "status": "planned",
+    "status": "implemented",
     "ticket_id": "BE-050"
   },
   {
@@ -762,15 +764,15 @@
       "P16"
     ],
     "current_files": [
-      "src/components/PayoutAccount.tsx",
-      "src/components/AdminPayments.tsx"
+      "src/components/PersistentProfiles.tsx",
+      "src/components/AccountHome.tsx"
     ],
     "proposed_contract": "GET /admin/payout-destinations; POST /admin/payout-destinations/:id/decisions",
     "entities": "payout_destination_reviews; audit_logs",
     "hardcoded_replacement": "Client review_bank verified flag",
     "acceptance": "Permission/reason/revision checks; review is not assumed provider onboarding verification",
     "requires_new_report_ui": false,
-    "status": "planned",
+    "status": "implemented",
     "ticket_id": "BE-051"
   },
   {

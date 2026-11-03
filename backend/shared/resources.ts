@@ -3,7 +3,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { Redis } from 'ioredis';
 import type { Config } from './config.js';
 
-export const MIGRATION = '20261102000000_auth';
+export const MIGRATION = '20261102010000_profiles';
 export function createDb(config: Config) {
   return new PrismaClient({ adapter: new PrismaPg({
     connectionString: config.DATABASE_URL, connectionTimeoutMillis: 3000,
@@ -21,6 +21,17 @@ export function resources(config: Config) {
   return { db, redis };
 }
 export type Resources = ReturnType<typeof resources>;
+const connecting = new WeakMap<Redis,Promise<void>>();
+export async function ensureRedis(redis:Redis):Promise<void>{
+  if(redis.status==='ready')return;
+  const existing=connecting.get(redis);if(existing)return existing;
+  const pending=(redis.status==='wait'||redis.status==='end')?redis.connect().then(()=>undefined):new Promise<void>((resolve,reject)=>{
+    const cleanup=()=>{clearTimeout(timer);redis.off('ready',ready);redis.off('error',failed);redis.off('end',failed);};
+    const ready=()=>{cleanup();resolve();},failed=()=>{cleanup();reject(new Error('Redis unavailable'));};
+    const timer=setTimeout(failed,2000);redis.once('ready',ready);redis.once('error',failed);redis.once('end',failed);
+  });
+  connecting.set(redis,pending);try{await pending;}finally{if(connecting.get(redis)===pending)connecting.delete(redis);}
+}
 
 export async function readiness({ db, redis }: Resources) {
   const checks = await Promise.allSettled([
@@ -29,7 +40,7 @@ export async function readiness({ db, redis }: Resources) {
       WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL
       ORDER BY started_at DESC LIMIT 1`,
     (async () => {
-      if (redis.status === 'wait' || redis.status === 'end') await redis.connect();
+      await ensureRedis(redis);
       if (await redis.ping() !== 'PONG') throw new Error('Redis unavailable');
     })(),
   ]);

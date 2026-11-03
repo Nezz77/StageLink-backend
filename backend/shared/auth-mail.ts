@@ -4,7 +4,7 @@ import { z } from 'zod';
 import type { Config } from './config.js';
 import type { Resources } from './resources.js';
 import { digest, unseal } from '../api/src/auth/security.js';
-const payloadSchema = z.object({ to: z.string().email(), token: z.string().regex(/^[A-Za-z0-9_-]{43}$/), purpose: z.enum(['verify_email', 'password_reset']) }).strict();
+const payloadSchema = z.object({ to: z.string().email(), token: z.string().regex(/^[A-Za-z0-9_-]{43}$/), purpose: z.enum(['verify_email', 'password_reset', 'email_change']) }).strict();
 export function createMailer(config: Config) {
   return nodemailer.createTransport({ host: config.SMTP_HOST, port: config.SMTP_PORT,
     secure: config.SMTP_SECURE === 'true', requireTLS: config.NODE_ENV === 'production' && config.SMTP_SECURE !== 'true',
@@ -26,16 +26,18 @@ export async function deliverAuthMail(deps: Resources, config: Config, transport
     try {
       const data = payloadSchema.parse(unseal(config.AUTH_MAIL_KEY, job.sealed_payload));
       const token = await deps.db.authToken.findUnique({ where: { digest: digest(data.token) }, include: { user: true } });
-      if (!token || token.usedAt || token.expiresAt <= new Date() || token.email !== data.to || token.user.email !== data.to || token.user.disabledAt) {
+      const pending=data.purpose==='email_change'&&token?await deps.db.pendingEmailChange.findUnique({where:{userId:token.userId}}):null;
+      const recipientEligible=data.purpose==='email_change'?Boolean(pending&&pending.newEmail===data.to&&pending.fromEmail===token?.user.email&&pending.tokenDigest===token.digest&&pending.expiresAt>new Date()):token?.user.email===data.to;
+      if (!token || token.purpose!==data.purpose || token.usedAt || token.expiresAt <= new Date() || token.email !== data.to || !recipientEligible || token.user.disabledAt) {
         await deps.db.authMail.updateMany({ where: { id: job.id, leaseOwner: owner, status: 'pending' }, data: { status: 'expired', sealedPayload: null, lockedUntil: null, leaseOwner: null } });
         continue;
       }
       const verify = data.purpose === 'verify_email';
       const result = await transport.sendMail({ from: config.SMTP_FROM, to: data.to,
-        subject: verify ? 'Verify your StageLink email' : 'Reset your StageLink password',
+        subject: verify ? 'Verify your StageLink email' : data.purpose==='email_change'?'Confirm your StageLink email change':'Reset your StageLink password',
         messageId: `<${job.id}@${config.SMTP_FROM.split('@')[1]}>`,
-        text: [verify ? 'Verify your email address.' : 'A password reset was requested for your account.',
-          `${config.WEB_ORIGIN}/#${verify ? 'verify' : 'reset'}=${data.token}`,
+        text: [verify ? 'Verify your email address.' : data.purpose==='email_change'?'Confirm your new account email. Your previous email remains active until you confirm.':'A password reset was requested for your account.',
+          `${config.WEB_ORIGIN}/#${verify ? 'verify' : data.purpose==='email_change'?'emailchange':'reset'}=${data.token}`,
           `Your one-time code: ${data.token}`, 'If you did not request this, you can ignore this message.'].join('\n\n'),
       });
       if (!result.accepted?.length) throw new Error('SMTP_NOT_ACCEPTED');

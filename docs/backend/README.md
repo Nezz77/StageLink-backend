@@ -2,7 +2,7 @@
 
 Development stays on `backend` in the same [StageLink repository](https://github.com/Nezz77/StageLink/tree/backend). GitHub's `frontend` branch remains the original UI baseline. See the [whole-backend plan](StageLink-Backend-Implementation-Plan.md), [backlog](backend-backlog.json), [coverage](UI-Backend-Coverage.csv), [foundation decisions](ADR-001-foundation.md), [account decisions](ADR-002-accounts.md), and [progress](PROGRESS.md).
 
-P01 infrastructure and P02 accounts are implemented. Account creation, sign-in, verification, recovery, assigned-role selection and sign-out use PostgreSQL. Catalog content remains a labeled preview. Profiles, verification approval, uploads, bookings, chat and payments become persistent in their scheduled phases. Public artist/renter registration does not approve a provider to publish or receive payouts.
+P01 infrastructure, P02 accounts and P03 profiles/onboarding are implemented. Account creation, sign-in, verification, recovery, assigned-role selection and sign-out use PostgreSQL. Catalog content remains a labeled preview. Contact details, artist/renter applications, approved profile snapshots and restricted payout destination review now persist. Uploads, KYC, bookings, chat and payments follow in their scheduled phases. Public artist/renter registration does not approve a provider to publish or receive payouts.
 
 ## Start locally
 
@@ -13,7 +13,7 @@ node backend/scripts/setup-env.mjs
 docker compose --env-file infra/.env -f infra/compose.backend.yml --profile web up --build -d --wait
 ```
 
-Setup creates ignored configuration files with separate random signing/encryption keys. It fills missing settings and preserves valid existing keys and custom values. Do not copy an example over an existing `.env`. If setup reports mismatched existing keys, align the intended configuration explicitly; it does not rotate them silently. Database passwords in these defaults are for this loopback development stack only.
+Setup creates ignored configuration files with separate random signing, mail-encryption and payout-encryption keys. It fills missing settings and preserves valid existing keys and custom values. Do not copy an example over an existing `.env`. If setup reports mismatched existing keys, align the intended configuration explicitly; it does not rotate them silently. Database passwords in these defaults are for this loopback development stack only.
 
 - Website and real account forms: [localhost:3000](http://localhost:3000).
 - API docs through the same origin: [localhost:3000/api/docs](http://localhost:3000/api/docs).
@@ -86,3 +86,7 @@ npm run --silent admin:create -- --email administrator@example.com --name 'Stage
 ```
 
 The command refuses terminal password input and refuses to overwrite any account. It prints only the new user ID. Replace the example address with the intended administrator. Setup/tests create no real administrator. Provider approval and admin-management screens remain separate backlog work.
+
+## Profiles and onboarding
+
+From your account, choose **Edit your profile**, **Set up artist profile** / **Set up equipment storefront**, or **Payout destination**. Verify your account email before submitting an application/destination. Current-password checks protect email and bank changes. Approved public profile previews omit contact details and exact coordinates. Administrators use **Review submissions**; review approval does not enable real transfers or verify KYC. See [ADR 003](ADR-003-profiles.md) for revision/approval boundaries. P04 durable media is next.

@@ -20,3 +20,11 @@ test('encrypted mail payloads reject tampering and CSRF values are session-bound
   assert.throws(() => unseal(key, parts.join('.')));
   assert.notEqual(csrfFor(key, 'session-one'), csrfFor(key, 'session-two'));
 });
+test('payout encryption cannot be moved between owners, revisions or mail payloads',()=>{
+  const key=randomBytes(32).toString('hex'),context='stagelink-payout-v1:owner-a:2';
+  const sealed=seal(key,{number:'000012345678'},context);
+  assert.deepEqual(unseal(key,sealed,context),{number:'000012345678'});
+  assert.throws(()=>unseal(key,sealed,'stagelink-payout-v1:owner-b:2'));
+  assert.throws(()=>unseal(key,sealed,'stagelink-payout-v1:owner-a:3'));
+  assert.throws(()=>unseal(key,sealed));
+});

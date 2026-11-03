@@ -6,6 +6,7 @@ const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   AUTH_JWT_SECRET: z.string().regex(/^[0-9a-f]{64}$/),
   AUTH_MAIL_KEY: z.string().regex(/^[0-9a-f]{64}$/),
+  PAYOUT_DATA_KEY: z.string().regex(/^[0-9a-f]{64}$/),
   AUTH_RATE_PREFIX: z.string().regex(/^[a-zA-Z0-9:_-]{1,96}$/).default('stagelink-auth-v1'),
   SMTP_HOST: z.string().min(1).max(253).default('127.0.0.1'),
   SMTP_PORT: z.coerce.number().int().min(1).max(65535).default(1025),
@@ -24,7 +25,7 @@ const schema = z.object({
     } catch { return false; }
   }, 'Must be an HTTP origin without a trailing slash or path'),
 }).superRefine((config, ctx) => {
-  if (config.AUTH_JWT_SECRET === config.AUTH_MAIL_KEY) ctx.addIssue({ code: 'custom', path: ['AUTH_MAIL_KEY'], message: 'Keys must differ' });
+  if (new Set([config.AUTH_JWT_SECRET, config.AUTH_MAIL_KEY, config.PAYOUT_DATA_KEY]).size !== 3) ctx.addIssue({ code: 'custom', path: ['AUTH_MAIL_KEY'], message: 'Keys must differ' });
   if (Boolean(config.SMTP_USER) !== Boolean(config.SMTP_PASSWORD)) ctx.addIssue({ code: 'custom', path: ['SMTP_USER'], message: 'SMTP credentials must be paired' });
   if (config.NODE_ENV === 'production' && !config.WEB_ORIGIN.startsWith('https://')) ctx.addIssue({ code: 'custom', path: ['WEB_ORIGIN'], message: 'HTTPS required' });
 });

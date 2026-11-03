@@ -26,14 +26,14 @@ export class AccountClient {
     this.sessionQueue = task.catch(() => undefined);
     return task;
   }
-  private async request<T>(path: string, body?: unknown, authorized = false, retried = false): Promise<T> {
+  private async request<T>(path: string, body?: unknown, authorized = false, retried = false, method?: 'GET'|'POST'|'PUT'|'PATCH'): Promise<T> {
     if (authorized && !this.token) await this.refresh();
     let response: Response;
-    try { response = await fetch('/api/v1/' + path, { credentials: 'include', method: body === undefined ? 'GET' : 'POST',
+    try { response = await fetch('/api/v1/' + path, { credentials: 'include', method: method ?? (body === undefined ? 'GET' : 'POST'),
       headers: { 'Content-Type': 'application/json', ...(this.csrf ? { 'X-CSRF-Token': this.csrf } : {}), ...(authorized && this.token ? { Authorization: 'Bearer ' + this.token } : {}) },
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     }); } catch { throw new AccountError('Account services are unavailable. Please try again.'); }
-    if (response.status === 401 && authorized && !retried) { await this.refresh(); return this.request(path, body, authorized, true); }
+    if (response.status === 401 && authorized && !retried) { await this.refresh(); return this.request(path, body, authorized, true, method); }
     const text = await response.text();
     let data: any;
     try { data = text ? JSON.parse(text) : null; } catch { throw new AccountError('Account services are unavailable. Please try again.'); }
@@ -115,6 +115,12 @@ export class AccountClient {
   requestVerification() { return this.request('auth/email-verification', {}, true); }
   async confirmEmail(token: string) { await this.request('auth/email-verification/confirm', { token }); await this.restore(); }
   requestReset(email: string) { return this.request('auth/password-reset', { email }); }
+  async api<T>(path: string, body?: unknown, method?: 'GET'|'POST'|'PUT'|'PATCH'): Promise<T> {
+    const epoch = this.epoch, result = await this.request<T>(path, body, true, false, method);
+    if (epoch !== this.epoch) throw new AccountError('Your account changed. Reload this page before continuing.', 409);
+    return result;
+  }
+  async confirmEmailChange(token: string) { await this.request('auth/email-change/confirm', { token }); await this.restore(); }
   verifyReset(token: string) { return this.request<{ grant: string; expiresIn: number }>('auth/password-reset/verify', { token }); }
   async completeReset(grant: string, password: string) {
     await this.request('auth/password-reset/complete', { grant, password });

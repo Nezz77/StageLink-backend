@@ -61,6 +61,11 @@ model AuthUser {
   sessions AuthSession[]
   tokens AuthToken[]
   mail AuthMail[]
+  profile MemberProfile?
+  providers ProviderProfile[]
+  payout PayoutDestination?
+  payoutVersions PayoutDestinationVersion[]
+  pendingEmail PendingEmailChange?
   @@map("auth_users")
 }
 model AuthSession {
@@ -114,4 +119,98 @@ model AuthMail {
   lastErrorCode String? @map("last_error_code")
   user AuthUser @relation(fields:[userId], references:[id], onDelete:Cascade, onUpdate:Cascade)
   @@map("auth_mail_outbox")
+}
+
+model MemberProfile {
+  userId String @id @map("user_id") @db.Uuid
+  revision Int @default(1)
+  city String @db.VarChar(100)
+  phone String @db.VarChar(32)
+  organization String @db.VarChar(120)
+  bio String @db.VarChar(2000)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
+  user AuthUser @relation(fields:[userId], references:[id], onDelete:Cascade)
+  @@map("member_profiles")
+}
+
+model ProviderProfile {
+  userId String @map("user_id") @db.Uuid
+  kind AuthRole
+  revision Int @default(1)
+  displayName String @map("display_name") @db.VarChar(120)
+  bio String @db.VarChar(2000)
+  city String @db.VarChar(100)
+  serviceRadiusKm Int @map("service_radius_km")
+  latitude Decimal? @db.Decimal(9,6)
+  longitude Decimal? @db.Decimal(9,6)
+  address String @db.VarChar(200)
+  category String @db.VarChar(40)
+  genres String[]
+  experienceYears Int @map("experience_years")
+  baseRateMinor Int @map("base_rate_minor")
+  currency String @default("LKR") @db.Char(3)
+  equipmentCategories String[] @map("equipment_categories")
+  operatingHours Json @map("operating_hours")
+  rentalTerms String @map("rental_terms") @db.VarChar(2000)
+  deliveryOffered Boolean @default(false) @map("delivery_offered")
+  reviewStatus String @default("draft") @map("review_status")
+  reviewReason String? @map("review_reason") @db.VarChar(2000)
+  approvedRevision Int? @map("approved_revision")
+  approvedSnapshot Json? @map("approved_snapshot")
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
+  user AuthUser @relation(fields:[userId], references:[id], onDelete:Cascade)
+  @@id([userId,kind])
+  @@index([reviewStatus,updatedAt])
+  @@map("provider_profiles")
+}
+
+model PendingEmailChange {
+  userId String @id @map("user_id") @db.Uuid
+  fromEmail String @map("from_email") @db.VarChar(200)
+  newEmail String @map("new_email") @db.VarChar(200)
+  tokenDigest String @unique @map("token_digest") @db.VarChar(64)
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(3)
+  user AuthUser @relation(fields:[userId], references:[id], onDelete:Cascade)
+  @@map("pending_email_changes")
+}
+
+model PayoutDestination {
+  userId String @id @map("user_id") @db.Uuid
+  revision Int @default(1)
+  sealedDetails String @map("sealed_details")
+  accountLast4 String @map("account_last4") @db.Char(4)
+  status String @default("pending")
+  reviewReason String? @map("review_reason") @db.VarChar(2000)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
+  user AuthUser @relation(fields:[userId], references:[id], onDelete:Cascade)
+  @@index([status,updatedAt])
+  @@map("payout_destinations")
+}
+
+model ProfileAudit {
+  id String @id @default(uuid()) @db.Uuid
+  actorId String @map("actor_id") @db.Uuid
+  targetUserId String @map("target_user_id") @db.Uuid
+  entity String @db.VarChar(40)
+  action String @db.VarChar(40)
+  revision Int
+  reason String? @db.VarChar(2000)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  @@index([targetUserId,createdAt])
+  @@map("profile_audits")
+}
+
+model PayoutDestinationVersion {
+  userId String @map("user_id") @db.Uuid
+  revision Int
+  sealedDetails String @map("sealed_details")
+  accountLast4 String @map("account_last4") @db.Char(4)
+  status String @default("pending")
+  reviewReason String? @map("review_reason") @db.VarChar(2000)
+  reviewerId String? @map("reviewer_id") @db.Uuid
+  reviewedAt DateTime? @map("reviewed_at") @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  user AuthUser @relation(fields:[userId], references:[id], onDelete:Cascade)
+  @@id([userId,revision])
+  @@map("payout_destination_versions")
 }

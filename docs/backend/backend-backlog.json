@@ -6,7 +6,7 @@
   "baseline_commit": "9cbbe0ded3112a347c8ba1ffdf7029bd4fde268e",
   "planned_integration_branch": "backend",
   "branch_created": true,
-  "next_phase": "P03",
+  "next_phase": "P04",
   "phase_count": 19,
   "ticket_count": 65,
   "coverage_rows": 55,
@@ -53,7 +53,7 @@
       "depends_on": [
         "P02"
       ],
-      "status": "not_started",
+      "status": "complete",
       "tickets": [
         "BE-015",
         "BE-016",
@@ -600,10 +600,11 @@
         "Applicable schema/API/auth/UI/reload/failure tests and checkpoint evidence complete"
       ],
       "requires_new_report_ui": false,
-      "status": "not_started",
+      "status": "complete",
       "ui_coverage_ids": [
         "UI-005"
-      ]
+      ],
+      "implementation_note": "Persistent account-owned UI and revision/authorization checks implemented; see ADR-003-profiles.md and profiles-validation.json."
     },
     {
       "id": "BE-016",
@@ -633,10 +634,11 @@
         "Applicable schema/API/auth/UI/reload/failure tests and checkpoint evidence complete"
       ],
       "requires_new_report_ui": false,
-      "status": "not_started",
+      "status": "complete",
       "ui_coverage_ids": [
         "UI-006"
-      ]
+      ],
+      "implementation_note": "Persistent account-owned UI and revision/authorization checks implemented; see ADR-003-profiles.md and profiles-validation.json."
     },
     {
       "id": "BE-017",
@@ -736,10 +738,11 @@
         "Applicable schema/API/auth/UI/reload/failure tests and checkpoint evidence complete"
       ],
       "requires_new_report_ui": false,
-      "status": "not_started",
+      "status": "complete",
       "ui_coverage_ids": [
         "UI-009"
-      ]
+      ],
+      "implementation_note": "Persistent account-owned UI and revision/authorization checks implemented; see ADR-003-profiles.md and profiles-validation.json."
     },
     {
       "id": "BE-020",
@@ -1749,9 +1752,16 @@
         "Applicable schema/API/auth/UI/reload/failure tests and checkpoint evidence complete"
       ],
       "requires_new_report_ui": false,
-      "status": "not_started",
+      "status": "complete",
       "ui_coverage_ids": [
         "UI-040"
+      ],
+      "implementation_note": "Persistent account-owned UI and revision/authorization checks implemented; see ADR-003-profiles.md and profiles-validation.json.",
+      "deferred_checks": [
+        {
+          "phase": "P12",
+          "requirement": "Use assertReviewedDestination inside real payout authorization/execution and require all financial/KYC/provider capabilities. No payment executor exists in P03."
+        }
       ]
     },
     {
@@ -1781,10 +1791,11 @@
         "Applicable schema/API/auth/UI/reload/failure tests and checkpoint evidence complete"
       ],
       "requires_new_report_ui": false,
-      "status": "not_started",
+      "status": "complete",
       "ui_coverage_ids": [
         "UI-041"
-      ]
+      ],
+      "implementation_note": "Administrative review of exact destination revisions and profile publication implemented with reasons, recent login and self-review rejection. KYC/provider capability approval remains P16/P12."
     },
     {
       "id": "BE-052",

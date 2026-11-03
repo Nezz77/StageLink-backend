@@ -1,6 +1,6 @@
 # StageLink Marketplace UI
 
-This is the **backend development branch**. Persistent registration, login, email verification, recovery and account roles are connected to NestJS/PostgreSQL. Other marketplace features remain a labeled preview while their APIs are implemented. Start with the [backend setup guide](docs/backend/README.md) and [phase progress](docs/backend/PROGRESS.md).
+This is the **backend development branch**. Persistent accounts, contact profiles, artist/renter onboarding, verified email changes and reviewed payout destinations are connected to NestJS/PostgreSQL. Other marketplace features remain a labeled preview while their APIs are implemented. Start with the [backend setup guide](docs/backend/README.md) and [phase progress](docs/backend/PROGRESS.md).
 
 The UI overview below describes the original demonstration, available explicitly with `VITE_AUTH_MODE=demo`. The real account flow does not use the demo role switcher, universal recovery code or sample private dashboards.
 

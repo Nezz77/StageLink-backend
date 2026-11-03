@@ -9,6 +9,7 @@ x-node: &node
     NODE_ENV: development
     AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:?Run node backend/scripts/setup-env.mjs}
     AUTH_MAIL_KEY: ${AUTH_MAIL_KEY:?Run node backend/scripts/setup-env.mjs}
+    PAYOUT_DATA_KEY: ${PAYOUT_DATA_KEY:?Run node backend/scripts/setup-env.mjs}
     SMTP_HOST: mailpit
     SMTP_PORT: 1025
     SMTP_FROM: noreply@stagelink.local
