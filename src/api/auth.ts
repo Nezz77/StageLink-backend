@@ -26,14 +26,17 @@ export class AccountClient {
     this.sessionQueue = task.catch(() => undefined);
     return task;
   }
-  private async request<T>(path: string, body?: unknown, authorized = false, retried = false, method?: 'GET'|'POST'|'PUT'|'PATCH'): Promise<T> {
+  private async request<T>(path: string, body?: unknown, authorized = false, retried = false, method?: 'GET'|'POST'|'PUT'|'PATCH', expectedEpoch = authorized ? this.epoch : undefined): Promise<T> {
+    const checkAccount = () => { if (expectedEpoch !== undefined && expectedEpoch !== this.epoch) throw new AccountError('Your account changed. Reload this page before continuing.', 409); };
+    checkAccount();
     if (authorized && !this.token) await this.refresh();
+    checkAccount();
     let response: Response;
     try { response = await fetch('/api/v1/' + path, { credentials: 'include', method: method ?? (body === undefined ? 'GET' : 'POST'),
       headers: { 'Content-Type': 'application/json', ...(this.csrf ? { 'X-CSRF-Token': this.csrf } : {}), ...(authorized && this.token ? { Authorization: 'Bearer ' + this.token } : {}) },
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     }); } catch { throw new AccountError('Account services are unavailable. Please try again.'); }
-    if (response.status === 401 && authorized && !retried) { await this.refresh(); return this.request(path, body, authorized, true, method); }
+    if (response.status === 401 && authorized && !retried) { checkAccount(); await this.refresh(); checkAccount(); return this.request(path, body, authorized, true, method, expectedEpoch); }
     const text = await response.text();
     let data: any;
     try { data = text ? JSON.parse(text) : null; } catch { throw new AccountError('Account services are unavailable. Please try again.'); }
@@ -119,6 +122,14 @@ export class AccountClient {
     const epoch = this.epoch, result = await this.request<T>(path, body, true, false, method);
     if (epoch !== this.epoch) throw new AccountError('Your account changed. Reload this page before continuing.', 409);
     return result;
+  }
+  async uploadBytes(path:string,file:File):Promise<void>{
+    const epoch=this.epoch;
+    const check=()=>{if(epoch!==this.epoch)throw new AccountError('Your account changed. Reload this page before continuing.',409);};
+    if(!this.token)await this.refresh();check();
+    const send=()=>fetch('/api/v1/'+path,{method:'PUT',credentials:'include',headers:{'Content-Type':'application/octet-stream',Authorization:'Bearer '+this.token,'X-CSRF-Token':this.csrf},body:file,signal:AbortSignal.timeout(60000)});
+    let response:Response;try{response=await send();check();if(response.status===401){await this.refresh();check();response=await send();}}catch(error){if(error instanceof AccountError)throw error;throw new AccountError('Upload interrupted. Refresh the library before trying again.');}
+    check();if(!response.ok){let message='Upload failed. Refresh the library and try again.';try{message=(await response.json()).message??message;}catch{}throw new AccountError(message,response.status);}
   }
   async confirmEmailChange(token: string) { await this.request('auth/email-change/confirm', { token }); await this.restore(); }
   verifyReset(token: string) { return this.request<{ grant: string; expiresIn: number }>('auth/password-reset/verify', { token }); }

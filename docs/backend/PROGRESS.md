@@ -18,6 +18,10 @@ P03: current-account contact details, separate confirmed email changes, artist/r
 
 P03 Figma adds 15 editable design states, 15 wireframe states and 15 prototype states, with 59 native connections and four starting flows. Field component widths were repaired and final screenshots inspected. The mapping in `figma-profile-mapping.json` records the actual final nodes; these prototypes simulate outcomes.
 
+P04: durable private media library, profile-photo binding, real image/audio/video validation and derivatives, artist/renter portfolios, allowlisted video embeds, publication review and expiring read capabilities. PostgreSQL owns processing/lease/revision state; bytes use the S3 adapter with a persistent local development emulator. Future business modules will attach files under their own authorization. PDF/archive/SVG uploads remain unsupported. Live AWS is not configured or verified.
+
+P04 Figma adds 18 editable design states, 18 wireframes and 18 prototype states with 103 internal/outgoing native reactions plus one incoming account-to-media bridge. All new prototype destinations resolve. See `figma-media-mapping.json` and ADR 004.
+
 ## Validation
 
 See `foundation-validation.json` for P01 and `auth-validation.json` for P02. Local P02 checks passed: six backend unit tests, two real dependency integration scenarios, 163 frontend tests, both TypeScript checks, generated contracts, website/API/worker/AI container builds and healthy Compose boot. Runtime backend dependencies have zero audit findings; three moderate development-only findings remain in the OpenAPI generator dependency chain, as documented in ADR 001.
@@ -28,12 +32,14 @@ Figma structural checks found editable text/components/SVGs, Geist/Fraunces font
 
 P03 local checks passed: seven backend unit tests, three real dependency integration scenarios, 166 frontend tests, both TypeScript checks, regenerated contracts, API/worker/web builds and healthy Compose services. Browser checks cover saved contact reload, provider submissions, keyboard-edited opening hours, account separation, unsaved guards, masked payout details, admin queue rendering, light/dark themes and CSS widths 375/1440. Sensitive mutations were tested through isolated HTTP integration, not automated browser credential entry or approval clicks. Disposable QA accounts were removed after verification. See `profiles-validation.json`.
 
-P03 implementation is committed separately before beginning P04. The GitHub Actions history for the backend branch records remote results. No deployment is performed.
+P03 implementation was committed separately before P04. Its remote run 41556410593 passed all three jobs at 06ed822. The GitHub Actions history for the backend branch records remote results. No deployment is performed.
+
+P04 local validation passed: nine backend unit tests, four real dependency integration scenarios, 168 frontend tests, both TypeScript checks and generated contracts. Real browser checks covered account separation, stored image loading, measured 30-second audio playback, avatar loading, portfolio save/submission/reload, unsaved mobile edits, review queue/forms, light/dark themes and CSS widths 375/1440. Browser approval and upload-file entry were not automated; binary upload/approval are covered by real HTTP integration. Runtime dependency audit remains zero. See `media-validation.json` for the final runtime/remote handoff.
 
 P02 remote CI is recorded in `auth-validation.json`; local completion is separate from remote verification. No production readiness or deployment is claimed.
 
 ## Next phase
 
-P04: durable private media uploads, processing, portfolio and allowlisted embeds. Connect future listing/evidence ownership when their business phases land. Follow the remaining phases in `backend-backlog.json` as each preview feature is converted.
+P05: persistent catalog listings, gig/package/spec versions and rental policies. Bind the P04 storage assets to listing ownership as this phase goes live. Follow the remaining phases in `backend-backlog.json` as each preview feature is converted.
 
 P10/BE-041 explicitly retains the socket-security follow-through: authenticate socket connections/messages using persisted sessions and disconnect revoked sessions. There are no sockets to disconnect in P02. Provider approvals, hosted SMTP, payment/model providers, final retention/security/load checks and deployment remain later work.

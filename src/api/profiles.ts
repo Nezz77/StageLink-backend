@@ -2,7 +2,7 @@ import type { operations } from '../../packages/contracts/src/api';
 import { accountClient } from './auth';
 type Result<K extends keyof operations> = operations[K] extends {responses:{200:{content:{'application/json':infer T}}}} ? T : never;
 type Input<K extends keyof operations> = operations[K] extends {requestBody:{content:{'application/json':infer T}}} ? T : never;
-export type WorkspaceTab = 'profile'|'provider'|'payout'|'review';
+export type WorkspaceTab = 'profile'|'provider'|'payout'|'review'|'media';
 export type ProviderKind = 'artist'|'renter';
 export type MemberProfile = Result<'ProfilesController_profile'>;
 export type MemberInput = Input<'ProfilesController_saveProfile'>;

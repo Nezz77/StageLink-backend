@@ -64,7 +64,11 @@
     ],
     "final_screenshots": "outputs/stagelink-profiles-checkpoint-2026-11-02"
   },
-  "remote_ci": "See backend branch GitHub Actions history for the implementation commit result.",
+  "remote_ci": {
+    "status": "success",
+    "implementation_commit": "06ed82298bd9f09014de51431da1a9ca4335e537",
+    "run_url": "https://github.com/Nezz77/StageLink/actions/runs/41556410593"
+  },
   "deployed": false,
   "remaining": [
     "P04 media next",

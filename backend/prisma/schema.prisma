@@ -66,6 +66,9 @@ model AuthUser {
   payout PayoutDestination?
   payoutVersions PayoutDestinationVersion[]
   pendingEmail PendingEmailChange?
+  assets Asset[]
+  portfolio PortfolioItem[]
+  avatar AvatarBinding?
   @@map("auth_users")
 }
 model AuthSession {
@@ -213,4 +216,70 @@ model PayoutDestinationVersion {
   user AuthUser @relation(fields:[userId], references:[id], onDelete:Cascade)
   @@id([userId,revision])
   @@map("payout_destination_versions")
+}
+
+model Asset {
+  id String @id @default(uuid()) @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  purpose String @db.VarChar(20)
+  filename String @db.VarChar(120)
+  mime String @db.VarChar(80)
+  bytes Int
+  sha256 String @db.Char(64)
+  status String @default("pending")
+  variants Json @default("{}")
+  metadata Json @default("{}")
+  reason String? @db.VarChar(240)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(3)
+  availableAt DateTime @default(now()) @map("available_at") @db.Timestamptz(3)
+  leaseOwner String? @map("lease_owner") @db.Uuid
+  leaseUntil DateTime? @map("lease_until") @db.Timestamptz(3)
+  attempts Int @default(0)
+  deleteAfter DateTime? @map("delete_after") @db.Timestamptz(3)
+  owner AuthUser @relation(fields:[ownerId],references:[id],onDelete:Restrict)
+  portfolio PortfolioItem[]
+  avatars AvatarBinding[]
+  holds AssetHold[]
+  @@index([status,availableAt])
+  @@index([ownerId,createdAt])
+  @@map("assets")
+}
+
+model PortfolioItem {
+  id String @id @default(uuid()) @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  kind AuthRole
+  assetId String? @map("asset_id") @db.Uuid
+  embedUrl String? @map("embed_url") @db.VarChar(200)
+  caption String @db.VarChar(240)
+  transcript String @db.VarChar(4000)
+  featured Boolean @default(false)
+  revision Int @default(1)
+  status String @default("draft")
+  reason String? @db.VarChar(2000)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
+  owner AuthUser @relation(fields:[ownerId],references:[id],onDelete:Cascade)
+  asset Asset? @relation(fields:[assetId],references:[id],onDelete:Restrict)
+  @@index([ownerId,kind])
+  @@index([status,updatedAt])
+  @@map("portfolio_items")
+}
+
+model AvatarBinding {
+  ownerId String @id @map("owner_id") @db.Uuid
+  assetId String @map("asset_id") @db.Uuid
+  owner AuthUser @relation(fields:[ownerId],references:[id],onDelete:Cascade)
+  asset Asset @relation(fields:[assetId],references:[id],onDelete:Restrict)
+  @@map("avatar_bindings")
+}
+
+// Internal-only references. Future booking/KYC/support modules set holds in their own authorized transactions.
+model AssetHold {
+  id String @id @default(uuid()) @db.Uuid
+  assetId String @map("asset_id") @db.Uuid
+  reference String @unique @db.VarChar(120)
+  until DateTime @db.Timestamptz(3)
+  asset Asset @relation(fields:[assetId],references:[id],onDelete:Restrict)
+  @@map("asset_holds")
 }

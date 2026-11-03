@@ -5,12 +5,18 @@ import { readConfig } from '../../shared/config.js';
 import { resources, closeResources, readiness } from '../../shared/resources.js';
 import { consume, dispatchBatch, QUEUE } from '../../shared/outbox.js';
 import { createMailer, deliverAuthMail } from '../../shared/auth-mail.js';
+import { MediaStore } from '../../shared/media-store.js';
+import { processMediaBatch, cleanupMediaBatch } from '../../shared/media-processing.js';
 import { log } from '../../shared/log.js';
 
 async function main() {
   const config = readConfig();
   const deps = resources(config);
   const mailer = createMailer(config);
+  const mediaStore = new MediaStore(config);
+  let mediaRunning=false, mediaStopping=false;
+  async function mediaScan(){if(mediaRunning||mediaStopping)return;mediaRunning=true;try{await processMediaBatch(deps,mediaStore);await cleanupMediaBatch(deps,mediaStore);}catch{log('media.scan_failed',{code:'MEDIA_RETRY'});}finally{mediaRunning=false;}}
+  const mediaTimer=setInterval(()=>void mediaScan(),1000);
   const publisher = new Redis(config.REDIS_URL, { maxRetriesPerRequest: 1, enableOfflineQueue: false, connectTimeout: 1000, commandTimeout: 2000 });
   const subscriber = new Redis(config.REDIS_URL, { maxRetriesPerRequest: null, connectTimeout: 1000 });
   for (const connection of [publisher, subscriber]) connection.on('error', () => {});
@@ -46,10 +52,10 @@ async function main() {
   });
   server.listen(config.WORKER_HEALTH_PORT, '0.0.0.0');
   for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => {
-    stopping = true; clearInterval(timer); server.close();
+    stopping = true; mediaStopping=true; clearInterval(mediaTimer); clearInterval(timer); server.close();
     void (async () => {
-      while (running) await new Promise(resolve => setTimeout(resolve, 50));
-      await worker.close(); await queue.close(); mailer.close();
+      while (running || mediaRunning) await new Promise(resolve => setTimeout(resolve, 50));
+      await worker.close(); await queue.close(); mailer.close(); mediaStore.close();
       await Promise.allSettled([publisher.quit(), subscriber.quit(), closeResources(deps)]);
     })().catch(() => { process.exitCode = 1; });
   });

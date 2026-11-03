@@ -289,17 +289,19 @@
     "phase": "P04",
     "supporting_phases": [],
     "current_files": [
-      "src/components/PortfolioManager.tsx",
-      "src/components/ArtistAudition.tsx",
-      "src/components/ListingManager.tsx"
+      "src/components/PersistentMedia.tsx",
+      "src/api/media.ts",
+      "src/components/PersistentProfiles.tsx"
     ],
     "proposed_contract": "POST /assets/uploads; POST /assets/:id/finalize; POST /me/portfolio; PATCH /me/portfolio/:id; DELETE /me/portfolio/:id",
     "entities": "assets; listing_media; asset_processing_jobs",
     "hardcoded_replacement": "Blob-only media and fallback performances",
     "acceptance": "Actual media survives reload; waveform/preview derived from asset; allowlisted embeds; empty profile has no fake performance",
     "requires_new_report_ui": false,
-    "status": "planned",
-    "ticket_id": "BE-026"
+    "status": "implemented",
+    "ticket_id": "BE-026",
+    "implemented_contract": "POST /assets/uploads; PUT /assets/:id/content; POST /assets/:id/finalize; GET /me/assets; PUT /me/avatar; GET/POST/PATCH /me/portfolio; submit/remove/review/read-capability endpoints",
+    "implementation_notes": "Durable owned library, avatar and provider portfolios implemented. Asset row is the durable leased processing job. Specific listing/booking/review/KYC/support/inspection references connect in their owning later phases; PDF is not accepted in this image/audio/video checkpoint."
   },
   {
     "coverage_id": "UI-017",

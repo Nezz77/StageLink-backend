@@ -10,6 +10,9 @@ x-node: &node
     AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:?Run node backend/scripts/setup-env.mjs}
     AUTH_MAIL_KEY: ${AUTH_MAIL_KEY:?Run node backend/scripts/setup-env.mjs}
     PAYOUT_DATA_KEY: ${PAYOUT_DATA_KEY:?Run node backend/scripts/setup-env.mjs}
+    MEDIA_DRIVER: local-s3
+    S3_ENDPOINT: http://storage:9090
+    S3_BUCKET: stagelink-media
     SMTP_HOST: mailpit
     SMTP_PORT: 1025
     SMTP_FROM: noreply@stagelink.local
@@ -69,6 +72,19 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+  storage:
+    image: adobe/s3mock:5.2.3
+    environment:
+      COM_ADOBE_TESTING_S3MOCK_STORE_ROOT: /s3mockroot
+      COM_ADOBE_TESTING_S3MOCK_STORE_INITIAL_BUCKETS: stagelink-media
+      COM_ADOBE_TESTING_S3MOCK_STORE_RETAIN_FILES_ON_EXIT: "true"
+    ports: ["127.0.0.1:59090:9090"]
+    volumes: ["media-data:/s3mockroot"]
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/favicon.ico"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
   mailpit:
     image: axllent/mailpit:v1.27.8
     ports: ["127.0.0.1:8025:8025", "127.0.0.1:1025:1025"]
@@ -92,3 +108,4 @@ services:
 volumes:
   postgres-data:
   redis-data:
+  media-data:

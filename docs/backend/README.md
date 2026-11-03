@@ -89,4 +89,13 @@ The command refuses terminal password input and refuses to overwrite any account
 
 ## Profiles and onboarding
 
-From your account, choose **Edit your profile**, **Set up artist profile** / **Set up equipment storefront**, or **Payout destination**. Verify your account email before submitting an application/destination. Current-password checks protect email and bank changes. Approved public profile previews omit contact details and exact coordinates. Administrators use **Review submissions**; review approval does not enable real transfers or verify KYC. See [ADR 003](ADR-003-profiles.md) for revision/approval boundaries. P04 durable media is next.
+From your account, choose **Edit your profile**, **Set up artist profile** / **Set up equipment storefront**, or **Payout destination**. Verify your account email before submitting an application/destination. Current-password checks protect email and bank changes. Approved public profile previews omit contact details and exact coordinates. Administrators use **Review submissions**; review approval does not enable real transfers or verify KYC. See [ADR 003](ADR-003-profiles.md) for revision/approval boundaries. P04 media is implemented; P05 catalog is next.
+
+
+## Persistent media (P04)
+
+From your account choose **Media library**. Verify email before uploading. Choose a purpose, upload your own supported file, wait for Ready, then preview or add it to your portfolio. Profile-photo files can be bound using **Use as profile photo**. Portfolio edits stay private until submitted and approved; administrators review under their own **Media library → Portfolio review**. Published portfolio content appears in **Artist profile / Equipment storefront → Preview public profile** once the provider profile is also approved.
+
+The local Compose stack includes persistent S3Mock on loopback port 59090 (test: 59091). Host configuration uses `MEDIA_DRIVER=local-s3`, `S3_BUCKET=stagelink-media`, `S3_REGION=us-east-1` and `S3_ENDPOINT=http://127.0.0.1:59090`. Production must use `MEDIA_DRIVER=aws`, the intended private bucket/region and the AWS credential chain; do not use the emulator for real hosted evidence. Live AWS has not been configured/tested. FFmpeg/FFprobe are required for the host worker/tests and included in the backend image. CI installs them explicitly.
+
+Images: JPEG/PNG/WebP ≤8 MiB and 16 MP. Artist audio: MP3/WAV ≤20 MiB. Artist video: MP4/WebM ≤40 MiB. Audio/video ≤10 minutes, with actual previews up to 30 seconds. PDF/SVG/archive/executable formats are not accepted. See [ADR 004](ADR-004-media.md) for processing, retention, capability and future business-reference boundaries.

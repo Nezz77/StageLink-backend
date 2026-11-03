@@ -14,6 +14,11 @@ const schema = z.object({
   SMTP_FROM: z.string().email().default('noreply@stagelink.local'),
   SMTP_USER: z.string().optional(), SMTP_PASSWORD: z.string().optional(),
 
+  MEDIA_DRIVER: z.enum(['local-s3','aws']).default('local-s3'),
+  S3_REGION: z.string().regex(/^[a-z0-9-]{3,40}$/).default('us-east-1'),
+  S3_BUCKET: z.string().regex(/^[a-z0-9][a-z0-9-]{2,62}$/).default('stagelink-media'),
+  S3_ENDPOINT: networkUrl(['http:', 'https:']).default('http://127.0.0.1:59090'),
+
   DATABASE_URL: networkUrl(['postgresql:', 'postgres:']),
   REDIS_URL: networkUrl(['redis:', 'rediss:']),
   PORT: z.coerce.number().int().min(1).max(65535).default(4000),
@@ -27,6 +32,7 @@ const schema = z.object({
 }).superRefine((config, ctx) => {
   if (new Set([config.AUTH_JWT_SECRET, config.AUTH_MAIL_KEY, config.PAYOUT_DATA_KEY]).size !== 3) ctx.addIssue({ code: 'custom', path: ['AUTH_MAIL_KEY'], message: 'Keys must differ' });
   if (Boolean(config.SMTP_USER) !== Boolean(config.SMTP_PASSWORD)) ctx.addIssue({ code: 'custom', path: ['SMTP_USER'], message: 'SMTP credentials must be paired' });
+  if(config.NODE_ENV==='production'&&config.MEDIA_DRIVER!=='aws')ctx.addIssue({code:'custom',path:['MEDIA_DRIVER'],message:'AWS required in production'});
   if (config.NODE_ENV === 'production' && !config.WEB_ORIGIN.startsWith('https://')) ctx.addIssue({ code: 'custom', path: ['WEB_ORIGIN'], message: 'HTTPS required' });
 });
 export type Config = z.infer<typeof schema>;

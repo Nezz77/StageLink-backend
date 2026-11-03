@@ -60,3 +60,9 @@ test('a previous account profile response is rejected after switching users',asy
   const client=new AccountClient();await client.login('alice@stagelink.test','fixture');const old=client.api('me/profile');await new Promise(resolve=>setTimeout(resolve,0));await client.login('bob@stagelink.test','fixture');finish(response({displayName:'Alice private profile'}));await assert.rejects(old,/account changed/);assert.equal(client.state.user.id,'Bob');
  });
 });
+test('an old account mutation rejected with 401 is never retried as the new account',async()=>{
+ let finishSave;const mutations=[];
+ await mocked(async(path,options)=>{if(path.endsWith('/login'))return response(session(JSON.parse(options.body).email.startsWith('alice')?'Alice':'Bob'));if(path.endsWith('/me/profile')){mutations.push(options.headers.Authorization);return new Promise(resolve=>{finishSave=resolve;});}throw Error('Unexpected refresh or replay');},async()=>{
+  const client=new AccountClient();await client.login('alice@stagelink.test','fixture');const save=client.api('me/profile',{displayName:'Alice private data'},'PUT');await new Promise(r=>setTimeout(r,0));await client.login('bob@stagelink.test','fixture');finishSave(response({message:'Expired'},401));await assert.rejects(save,/account changed/);assert.deepEqual(mutations,['Bearer fixture-token-Alice']);
+ });
+});
