@@ -25,7 +25,8 @@ A checked box marks implemented backend code. PostgreSQL integration, client wir
 - [x] P09 provider decisions and calendar/history projections.
 - [x] P09 quotation revisions, counteroffers, authenticated acceptance and SHA-256 agreement evidence.
 - [x] P10 booking text persistence, retry deduplication, read receipts, and history catch-up.
-- [ ] P10 Socket.IO delivery and typing, authorized attachments, and session revocation.
+- [x] P10 private image attachments with validated derivatives, participant-only access, and retention while referenced.
+- [ ] P10 Socket.IO delivery, typing, and socket session revocation.
 - [ ] P11–P14 financial journal, PayHere and Stripe, reconciliation, completion, settlements, documents, verified reviews, inspections and deposit settlement.
 - [ ] P15–P17 AI, KYC, support, disputes, reminders and system controls.
 - [ ] P18 analytics, security, accessibility, backup and rollback, and end-to-end release verification.

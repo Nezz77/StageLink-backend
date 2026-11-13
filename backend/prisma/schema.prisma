@@ -258,6 +258,7 @@ model Asset {
   portfolio PortfolioItem[]
   avatars AvatarBinding[]
   holds AssetHold[]
+  bookingAttachments BookingMessageAttachment[]
   @@index([status,availableAt])
   @@index([ownerId,createdAt])
   @@map("assets")
@@ -654,6 +655,7 @@ model BookingMessage {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   booking Booking @relation(fields: [bookingId], references: [id], onDelete: Restrict)
   author AuthUser @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  attachments BookingMessageAttachment[]
   @@unique([bookingId, authorId, requestKey])
   @@index([bookingId, id])
   @@map("booking_messages")
@@ -667,4 +669,16 @@ model BookingMessageRead {
   reader AuthUser @relation(fields: [readerId], references: [id], onDelete: Restrict)
   @@id([bookingId, readerId])
   @@map("booking_message_reads")
+}
+
+model BookingMessageAttachment {
+  messageId BigInt @map("message_id")
+  assetId String @map("asset_id") @db.Uuid
+  position Int
+  message BookingMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  asset Asset @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  @@id([messageId, assetId])
+  @@unique([messageId, position])
+  @@index([assetId])
+  @@map("booking_message_attachments")
 }

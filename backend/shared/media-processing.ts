@@ -90,7 +90,7 @@ export async function cleanupMediaBatch(deps:Resources,store:MediaStore){
   await tx.$queryRaw`SELECT id FROM assets WHERE id=${candidate.id}::uuid FOR UPDATE`;
   const a=await tx.asset.findUniqueOrThrow({where:{id:candidate.id}});
   if(!(['pending','uploading','staged'].includes(a.status)&&a.expiresAt<new Date()||['deleted','rejected'].includes(a.status)&&a.deleteAfter&&a.deleteAfter<new Date()))return;
-  if(await tx.assetHold.count({where:{assetId:a.id,until:{gt:new Date()}}})||await tx.portfolioItem.count({where:{assetId:a.id}})||await tx.avatarBinding.count({where:{assetId:a.id}}))return;
+  if(await tx.assetHold.count({where:{assetId:a.id,until:{gt:new Date()}}})||await tx.portfolioItem.count({where:{assetId:a.id}})||await tx.avatarBinding.count({where:{assetId:a.id}})||await tx.bookingMessageAttachment.count({where:{assetId:a.id}}))return;
   for(const keyofasset of [originalKey(a.id),...['display','preview','poster'].map(v=>derivativeKey(a.id,v))])await store.remove(keyofasset);
   await tx.asset.update({where:{id:a.id},data:{status:'purged',variants:{},metadata:{},reason:null,leaseOwner:null,leaseUntil:null}});
  },{timeout:60000});

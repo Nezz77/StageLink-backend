@@ -1,13 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
+import sharp from 'sharp';
 import { createApp } from '../api/src/app.js';
 import { hashPassword } from '../api/src/auth/security.js';
 import { readConfig } from '../shared/config.js';
 import { resources } from '../shared/resources.js';
+import { MediaStore, derivativeKey, originalKey } from '../shared/media-store.js';
+import { processMediaBatch } from '../shared/media-processing.js';
 
 const config = readConfig({ ...process.env, AUTH_RATE_PREFIX: 'rentals-test-' + randomUUID() });
-if (config.NODE_ENV !== 'test' || !new URL(config.DATABASE_URL).pathname.endsWith('_test')) {
+if (config.NODE_ENV !== 'test' || !new URL(config.DATABASE_URL).pathname.endsWith('_test') || !config.S3_BUCKET.endsWith('-test')) {
   throw new Error('Equipment listing integration requires an isolated *_test database.');
 }
 
@@ -15,6 +18,8 @@ test('renter owns revisions and public browse only shows approved published equi
   const deps = resources(config);
   const { app } = await createApp(config, deps);
   const ids: string[] = [];
+  const attachmentAssets: string[] = [];
+  const store = new MediaStore(config);
   const announcements: string[] = [];
   const password = 'A private fixture password 12!';
   type Login = { accessToken: string; csrfToken: string; user: { id: string } };
@@ -355,6 +360,49 @@ test('renter owns revisions and public browse only shows approved published equi
     const chatHistory = await call(chat + '/messages', undefined, renter);
     assert.ok(chatHistory.data.receipts.some((receipt: { readerId: string; throughId: string }) =>
       receipt.readerId === winnerCustomer.user.id && receipt.throughId === response.data.id));
+    const photo = await sharp({ create: { width: 32, height: 32, channels: 3, background: '#123456' } }).png().toBuffer();
+    const upload = await call('assets/uploads', {
+      purpose: 'chat', filename: 'pickup.png', mime: 'image/png', bytes: photo.length,
+      sha256: createHash('sha256').update(photo).digest('hex'),
+    }, winnerCustomer);
+    assert.equal(upload.status, 200);
+    const attachmentId = upload.data.id as string;
+    attachmentAssets.push(attachmentId);
+    const assetPath = 'assets/' + attachmentId;
+    const attachPhoto = { requestKey: randomUUID(), body: '', attachmentIds: [attachmentId] };
+    assert.equal((await call(chat + '/messages', attachPhoto, winnerCustomer)).status, 404);
+    assert.equal((await call(chat + '/messages', { ...attachPhoto, attachmentIds: [] }, winnerCustomer)).status, 400);
+    const uploaded = await fetch(base + '/api/v1/' + assetPath + '/content', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/octet-stream', Origin: config.WEB_ORIGIN,
+        Authorization: 'Bearer ' + winnerCustomer.accessToken, 'X-CSRF-Token': winnerCustomer.csrfToken,
+      },
+      body: new Uint8Array(photo),
+    });
+    assert.equal(uploaded.status, 200);
+    assert.equal((await call(assetPath + '/finalize', {}, winnerCustomer)).status, 200);
+    assert.equal(await processMediaBatch(deps, store), true);
+    assert.equal((await call(assetPath + '/access', { variant: 'display' }, renter)).status, 404);
+    assert.equal((await call(chat + '/messages', attachPhoto, renter)).status, 404);
+    const attachedPhoto = await call(chat + '/messages', attachPhoto, winnerCustomer);
+    assert.equal(attachedPhoto.status, 200);
+    assert.deepEqual(attachedPhoto.data.attachments, [
+      { id: attachmentId, filename: 'pickup.png', mime: 'image/png', bytes: photo.length },
+    ]);
+    assert.equal((await call(chat + '/messages', attachPhoto, winnerCustomer)).data.id, attachedPhoto.data.id);
+    assert.equal((await call(chat + '/messages', { ...attachPhoto, body: 'Changed', attachmentIds: [] }, winnerCustomer)).status, 409);
+    const withPhoto = await call(chat + '/messages?after=' + response.data.id, undefined, renter);
+    assert.deepEqual(withPhoto.data.items, [attachedPhoto.data]);
+    assert.equal((await call(assetPath + '/access', { variant: 'display' }, other)).status, 404);
+    assert.equal((await call(assetPath + '/access', { variant: 'display' }, admin)).status, 404);
+    const capability = await call(assetPath + '/access', { variant: 'display' }, renter);
+    assert.equal(capability.status, 200);
+    const preview = await fetch(base + capability.data.url);
+    assert.equal(preview.status, 200);
+    assert.equal(preview.headers.get('Content-Type'), 'image/webp');
+    assert.equal((await sharp(Buffer.from(await preview.arrayBuffer())).metadata()).width, 32);
+    assert.equal((await call(assetPath + '/remove', {}, winnerCustomer)).status, 409);
     const versions = await call(quotations, undefined, renter);
     assert.deepEqual(versions.data.items.map((item: { status: string }) => item.status), ['accepted', 'superseded']);
     await deps.db.booking.update({ where: { id: winner.id }, data: { holdExpiresAt: new Date(Date.now() - 1000) } });
@@ -393,9 +441,13 @@ test('renter owns revisions and public browse only shows approved published equi
       await deps.db.rentalListing.deleteMany({ where: owned });
       await deps.db.profileAudit.deleteMany({ where: { targetUserId: { in: ids } } });
       await deps.db.portfolioItem.deleteMany({ where: owned });
-      await deps.db.asset.deleteMany({ where: owned });
       await deps.db.bookingMessageRead.deleteMany({ where: { booking: { customerId: { in: ids } } } });
       await deps.db.bookingMessage.deleteMany({ where: { booking: { customerId: { in: ids } } } });
+      for (const assetId of attachmentAssets) {
+        await store.remove(originalKey(assetId));
+        await store.remove(derivativeKey(assetId, 'display'));
+      }
+      await deps.db.asset.deleteMany({ where: owned });
       await deps.db.bookingAgreement.deleteMany({ where: { booking: { customerId: { in: ids } } } });
       await deps.db.bookingQuotation.deleteMany({ where: { booking: { customerId: { in: ids } } } });
       await deps.db.booking.deleteMany({ where: { customerId: { in: ids } } });
@@ -408,6 +460,7 @@ test('renter owns revisions and public browse only shows approved published equi
         if (keys.length) await deps.redis.del(...keys);
       } while (cursor !== '0');
     } finally {
+      store.close();
       await app.close();
     }
   }

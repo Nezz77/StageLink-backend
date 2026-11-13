@@ -53,7 +53,7 @@ export class MediaService {
  async finalize(i:Identity,id:string,csrf:string|undefined){this.profiles.checkCsrf(i,csrf);await this.db.$transaction(async tx=>{await this.profiles.actor(tx,i);await tx.$queryRaw`SELECT id FROM assets WHERE id=${id}::uuid FOR UPDATE`;const a=await tx.asset.findUnique({where:{id}});if(!a||a.ownerId!==i.user.id)throw missing();if(!['staged','uploaded','processing','ready'].includes(a.status))throw conflict();if(a.status==='staged'){if(a.expiresAt<new Date())throw conflict();await tx.$executeRaw`UPDATE assets SET status='uploaded', available_at=now() WHERE id=${id}::uuid`;}});return{message:'Validation is queued. This file stays private until it is ready.'};}
  async remove(i:Identity,id:string,csrf:string|undefined){this.profiles.checkCsrf(i,csrf);await this.db.$transaction(async tx=>{
   await this.profiles.actor(tx,i);await tx.$queryRaw`SELECT id FROM assets WHERE id=${id}::uuid FOR UPDATE`;const a=await tx.asset.findUnique({where:{id}});if(!a||a.ownerId!==i.user.id)throw missing();
-  if(['uploading','uploaded','processing'].includes(a.status)||await tx.avatarBinding.count({where:{assetId:id}})||await tx.portfolioItem.count({where:{assetId:id}})||await tx.assetHold.count({where:{assetId:id,until:{gt:new Date()}}}))throw conflict();
+  if(['uploading','uploaded','processing'].includes(a.status)||await tx.avatarBinding.count({where:{assetId:id}})||await tx.portfolioItem.count({where:{assetId:id}})||await tx.bookingMessageAttachment.count({where:{assetId:id}})||await tx.assetHold.count({where:{assetId:id,until:{gt:new Date()}}}))throw conflict();
   if(!['deleted','purged'].includes(a.status))await tx.asset.update({where:{id},data:{status:'deleted',deleteAfter:new Date(Date.now()+86400000)}});
  });return{message:'File removed. Unreferenced stored bytes are scheduled for cleanup in 24 hours.'};}
  async avatar(i:Identity,assetId:string|null,csrf:string|undefined){this.profiles.checkCsrf(i,csrf);await this.db.$transaction(async tx=>{await this.profiles.actor(tx,i);if(!assetId){await tx.avatarBinding.deleteMany({where:{ownerId:i.user.id}});return;}await this.readyAsset(tx,i.user.id,assetId,['avatar']);await tx.avatarBinding.upsert({where:{ownerId:i.user.id},create:{ownerId:i.user.id,assetId},update:{assetId}});});return{message:assetId?'Profile photo saved.':'Profile photo removed.'};}
@@ -98,7 +98,17 @@ export class MediaService {
   this.profiles.checkCsrf(i,csrf);await this.auth.limits.check('media-access',i.user.id,180,60);const a=await this.db.asset.findUnique({where:{id}});if(!a||a.status!=='ready'||!await this.canRead(i,a))throw missing();
   return this.sign(id,variant,{uid:i.user.id,sid:i.session.id});
  }
- private async canRead(i:Identity,a:Asset){return a.ownerId===i.user.id||i.session.activeRole==='admin'&&await this.db.portfolioItem.count({where:{assetId:a.id,status:'pending'}})>0;}
+ private async canRead(i:Identity,a:Asset){
+  if(a.ownerId===i.user.id)return true;
+  if(a.purpose==='chat'){
+   const userId=i.user.id;
+   return Boolean(await this.db.bookingMessageAttachment.findFirst({
+    where:{assetId:a.id,message:{authorId:a.ownerId,booking:{OR:[{customerId:userId},{providerId:userId}]}}},
+    select:{messageId:true},
+   }));
+  }
+  return i.session.activeRole==='admin'&&await this.db.portfolioItem.count({where:{assetId:a.id,status:'pending'}})>0;
+ }
  async publicCapability(itemId:string,variant:z.infer<typeof S.variant>,ip:string){await this.auth.limits.check('public-media-access',ip,180,60);const p=await this.db.portfolioItem.findUnique({where:{id:itemId}});if(!p?.assetId||!await this.isPublic(p))throw missing();return this.sign(p.assetId,variant,{pid:p.id,rev:p.revision});}
  private async sign(assetId:string,variant:string,scope:Record<string,unknown>){const a=await this.db.asset.findUnique({where:{id:assetId}});if(!a||a.status!=='ready'||!(variant in(a.variants as object)))throw missing();const token=await new SignJWT({...scope,variant}).setProtectedHeader({alg:'HS256',typ:'JWT'}).setIssuer('stagelink-media').setAudience('stagelink-media-content').setSubject(assetId).setIssuedAt().setExpirationTime('60s').sign(Buffer.from(this.auth.config.AUTH_JWT_SECRET,'hex'));return{url:`/api/v1/media/content/${assetId}?token=${token}`,expiresIn:60 as const};}
  async content(id:string,raw:string,ip:string){

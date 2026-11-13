@@ -1478,7 +1478,7 @@
       "ui_coverage_ids": [
         "UI-031"
       ],
-      "remaining": "Socket.IO delivery and typing, authorized attachments, session revocation, and PostgreSQL integration."
+      "remaining": "Socket.IO delivery and typing, socket session revocation, and PostgreSQL/S3 integration."
     },
     {
       "id": "BE-042",

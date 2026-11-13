@@ -2,7 +2,7 @@ import { Body, Controller, Get, HttpCode, Param, Post, Put, Query, Req } from '@
 import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiParam, ApiQuery, ApiTags, type SchemaObject } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { z } from 'zod';
-import type { Booking, BookingMessage, Prisma } from '../../../generated/prisma/client.js';
+import type { Booking, Prisma } from '../../../generated/prisma/client.js';
 import type { AuthService } from '../auth/service.js';
 import { PublicError } from '../auth/errors.js';
 import { ProfileService } from '../profiles/service.js';
@@ -11,24 +11,42 @@ import { member } from './requests.js';
 
 const uuid = z.string().uuid();
 const sequence = z.string().regex(/^[1-9][0-9]{0,18}$/).refine(value => BigInt(value) <= 9_223_372_036_854_775_807n);
-const messageText = z.string().trim().min(1).max(4000);
-const send = z.object({ requestKey: uuid, body: messageText, draft: draftReference.optional() }).strict();
+const messageText = z.string().trim().max(4000);
+const send = z.object({
+  requestKey: uuid, body: messageText, draft: draftReference.optional(),
+  attachmentIds: z.array(uuid).max(4).optional(),
+}).strict().refine(input => {
+  const ids = input.attachmentIds ?? [];
+  return (input.body.length > 0 || ids.length > 0) && new Set(ids.map(id => id.toLowerCase())).size === ids.length;
+});
 const read = z.object({ throughId: sequence }).strict();
 const query = z.object({ before: sequence.optional(), after: sequence.optional() }).strict().refine(input => !input.before || !input.after);
-const message = z.object({ id: sequence, authorId: uuid, body: messageText, createdAt: z.iso.datetime() });
+const attachment = z.object({ id: uuid, filename: z.string(), mime: z.string(), bytes: z.number().int().positive() });
+const message = z.object({
+  id: sequence, authorId: uuid, body: messageText, createdAt: z.iso.datetime(), attachments: z.array(attachment),
+});
 const receipt = read.extend({ readerId: uuid });
 const page = z.object({ items: z.array(message), nextCursor: sequence.nullable(), receipts: z.array(receipt) });
 const schema = (value: z.ZodType) => z.toJSONSchema(value, { target: 'openapi-3.0' }) as SchemaObject;
 const pageSize = 40;
+const includeAttachments = {
+  attachments: { orderBy: { position: 'asc' }, select: {
+    asset: { select: { id: true, filename: true, mime: true, bytes: true } },
+  } },
+} satisfies Prisma.BookingMessageInclude;
+type MessageWithAttachments = Prisma.BookingMessageGetPayload<{ include: typeof includeAttachments }>;
 
 function parse<T>(type: z.ZodType<T>, value: unknown): T {
   const parsed = type.safeParse(value);
-  if (!parsed.success) throw new PublicError(400, 'INVALID_BOOKING_MESSAGE', 'Check the message or cursor.');
+  if (!parsed.success) throw new PublicError(400, 'INVALID_BOOKING_MESSAGE', 'Provide text or up to four distinct image attachments and check the cursor.');
   return parsed.data;
 }
 
-function present(record: BookingMessage) {
-  return { id: String(record.id), authorId: record.authorId, body: record.body, createdAt: record.createdAt.toISOString() };
+function present(record: MessageWithAttachments) {
+  return {
+    id: String(record.id), authorId: record.authorId, body: record.body,
+    createdAt: record.createdAt.toISOString(), attachments: record.attachments.map(link => link.asset),
+  };
 }
 
 export function makeBookingMessagesController(auth: AuthService) {
@@ -68,7 +86,7 @@ export function makeBookingMessagesController(auth: AuthService) {
         await member(tx, bookingId, user.id);
         const rows = await tx.bookingMessage.findMany({
           where: { bookingId, ...(before ? { id: { lt: BigInt(before) } } : after ? { id: { gt: BigInt(after) } } : {}) },
-          orderBy: { id: after ? 'asc' : 'desc' }, take: pageSize + 1,
+          include: includeAttachments, orderBy: { id: after ? 'asc' : 'desc' }, take: pageSize + 1,
         });
         const readRows = await tx.bookingMessageRead.findMany({ where: { bookingId } });
         const items = rows.slice(0, pageSize).map(present);
@@ -86,14 +104,32 @@ export function makeBookingMessagesController(auth: AuthService) {
       const input = parse(send, raw);
       return write(req, bookingId, async (tx, booking, authorId) => {
         const key = { bookingId, authorId, requestKey: input.requestKey };
-        const previous = await tx.bookingMessage.findUnique({ where: { bookingId_authorId_requestKey: key } });
+        const ids = (input.attachmentIds ?? []).map(id => id.toLowerCase());
+        const previous = await tx.bookingMessage.findUnique({
+          where: { bookingId_authorId_requestKey: key }, include: includeAttachments,
+        });
         if (previous) {
-          if (previous.body !== input.body) throw new PublicError(409, 'REQUEST_KEY_REUSED', 'Use a new request key for a different message.');
+          if (previous.body !== input.body || previous.attachments.length !== ids.length ||
+            previous.attachments.some((link, index) => link.asset.id !== ids[index])) {
+            throw new PublicError(409, 'REQUEST_KEY_REUSED', 'Use a new request key for a different message.');
+          }
           return present(previous);
         }
         if (booking.providerDecision === 'rejected') throw new PublicError(409, 'CONVERSATION_CLOSED', 'This booking conversation is closed.');
+        for (const id of [...ids].sort()) {
+          const eligible = await tx.$queryRaw<{ id: string }[]>`
+            SELECT id FROM assets
+            WHERE id=${id}::uuid AND owner_id=${authorId}::uuid AND purpose='chat' AND status='ready'
+              AND variants ? 'display'
+            FOR UPDATE
+          `;
+          if (!eligible.length) throw new PublicError(404, 'ATTACHMENT_UNAVAILABLE', 'Choose a validated chat image from your uploads.');
+        }
         if (input.draft) await consumeDraft(tx, authorId, input.draft, 'message');
-        return present(await tx.bookingMessage.create({ data: { ...key, body: input.body } }));
+        return present(await tx.bookingMessage.create({
+          data: { ...key, body: input.body, attachments: { create: ids.map((assetId, position) => ({ assetId, position })) } },
+          include: includeAttachments,
+        }));
       });
     }
 

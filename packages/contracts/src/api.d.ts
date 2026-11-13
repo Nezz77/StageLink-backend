@@ -5118,7 +5118,7 @@ export interface operations {
                             /** Format: uuid */
                             id: string;
                             /** @enum {string} */
-                            purpose: "avatar" | "portfolio" | "equipment" | "evidence";
+                            purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat";
                             /** @enum {string} */
                             status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                             filename: string;
@@ -5261,7 +5261,7 @@ export interface operations {
             content: {
                 "application/json": {
                     /** @enum {string} */
-                    purpose: "avatar" | "portfolio" | "equipment" | "evidence";
+                    purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat";
                     filename: string;
                     /** @enum {string} */
                     mime: "image/jpeg" | "image/png" | "image/webp" | "audio/mpeg" | "audio/wav" | "video/mp4" | "video/webm";
@@ -5280,7 +5280,7 @@ export interface operations {
                         /** Format: uuid */
                         id: string;
                         /** @enum {string} */
-                        purpose: "avatar" | "portfolio" | "equipment" | "evidence";
+                        purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat";
                         /** @enum {string} */
                         status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                         filename: string;
@@ -6120,7 +6120,7 @@ export interface operations {
                                 /** Format: uuid */
                                 id: string;
                                 /** @enum {string} */
-                                purpose: "avatar" | "portfolio" | "equipment" | "evidence";
+                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat";
                                 /** @enum {string} */
                                 status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                                 filename: string;
@@ -6299,7 +6299,7 @@ export interface operations {
                                 /** Format: uuid */
                                 id: string;
                                 /** @enum {string} */
-                                purpose: "avatar" | "portfolio" | "equipment" | "evidence";
+                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat";
                                 /** @enum {string} */
                                 status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                                 filename: string;
@@ -6481,7 +6481,7 @@ export interface operations {
                                 /** Format: uuid */
                                 id: string;
                                 /** @enum {string} */
-                                purpose: "avatar" | "portfolio" | "equipment" | "evidence";
+                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat";
                                 /** @enum {string} */
                                 status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                                 filename: string;
@@ -6655,7 +6655,7 @@ export interface operations {
                                 /** Format: uuid */
                                 id: string;
                                 /** @enum {string} */
-                                purpose: "avatar" | "portfolio" | "equipment" | "evidence";
+                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat";
                                 /** @enum {string} */
                                 status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                                 filename: string;
@@ -6829,7 +6829,7 @@ export interface operations {
                                 /** Format: uuid */
                                 id: string;
                                 /** @enum {string} */
-                                purpose: "avatar" | "portfolio" | "equipment" | "evidence";
+                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat";
                                 /** @enum {string} */
                                 status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                                 filename: string;
@@ -6995,7 +6995,7 @@ export interface operations {
                                 /** Format: uuid */
                                 id: string;
                                 /** @enum {string} */
-                                purpose: "avatar" | "portfolio" | "equipment" | "evidence";
+                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat";
                                 /** @enum {string} */
                                 status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                                 filename: string;
@@ -7302,7 +7302,7 @@ export interface operations {
                                 /** Format: uuid */
                                 id: string;
                                 /** @enum {string} */
-                                purpose: "avatar" | "portfolio" | "equipment" | "evidence";
+                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat";
                                 /** @enum {string} */
                                 status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                                 filename: string;
@@ -10978,6 +10978,13 @@ export interface operations {
                             body: string;
                             /** Format: date-time */
                             createdAt: string;
+                            attachments: {
+                                /** Format: uuid */
+                                id: string;
+                                filename: string;
+                                mime: string;
+                                bytes: number;
+                            }[];
                         }[];
                         nextCursor: string | null;
                         receipts: {
@@ -11012,6 +11019,7 @@ export interface operations {
                         revision: number;
                         key: string;
                     };
+                    attachmentIds?: string[];
                 };
             };
         };
@@ -11028,6 +11036,13 @@ export interface operations {
                         body: string;
                         /** Format: date-time */
                         createdAt: string;
+                        attachments: {
+                            /** Format: uuid */
+                            id: string;
+                            filename: string;
+                            mime: string;
+                            bytes: number;
+                        }[];
                     };
                 };
             };
