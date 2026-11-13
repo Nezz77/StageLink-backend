@@ -24,6 +24,8 @@ const schema = z.object({
   REDIS_URL: networkUrl(['redis:', 'rediss:']),
   PORT: z.coerce.number().int().min(1).max(65535).default(4000),
   WORKER_HEALTH_PORT: z.coerce.number().int().min(1).max(65535).default(4001),
+  STRIPE_TEST_SECRET_KEY: optionalSetting(z.string().regex(/^sk_test_[A-Za-z0-9_]{1,250}$/)),
+  STRIPE_TEST_WEBHOOK_SECRET: optionalSetting(z.string().regex(/^whsec_[A-Za-z0-9_]{1,250}$/)),
   PAYHERE_SANDBOX_MERCHANT_ID: optionalSetting(z.string().regex(/^\d{1,30}$/)),
   PAYHERE_SANDBOX_MERCHANT_SECRET: optionalSetting(z.string().min(1).max(256)),
   PAYHERE_SANDBOX_NOTIFY_URL: optionalSetting(z.url({ protocol: /^https$/ }).refine(value => {
@@ -38,6 +40,9 @@ const schema = z.object({
     } catch { return false; }
   }, 'Must be an HTTP origin without a trailing slash or path'),
 }).superRefine((config, ctx) => {
+  if (Boolean(config.STRIPE_TEST_SECRET_KEY) !== Boolean(config.STRIPE_TEST_WEBHOOK_SECRET)) {
+    ctx.addIssue({ code: 'custom', path: ['STRIPE_TEST_SECRET_KEY'], message: 'Configure both Stripe test settings together.' });
+  }
   const payHereSettings = [config.PAYHERE_SANDBOX_MERCHANT_ID, config.PAYHERE_SANDBOX_MERCHANT_SECRET, config.PAYHERE_SANDBOX_NOTIFY_URL];
   if (payHereSettings.some(Boolean) && !payHereSettings.every(Boolean)) {
     ctx.addIssue({ code: 'custom', path: ['PAYHERE_SANDBOX_MERCHANT_ID'], message: 'Configure all PayHere sandbox settings together.' });

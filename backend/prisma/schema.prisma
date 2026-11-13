@@ -717,6 +717,7 @@ model JournalTransaction {
   postedAt DateTime? @map("posted_at") @db.Timestamptz(3)
   entries JournalEntry[]
   payhereEvent PayHereEvent?
+  stripeAttempt StripeAttempt?
   @@unique([source, reference])
   @@unique([id, currency, purpose])
   @@map("journal_transactions")
@@ -760,6 +761,7 @@ model PaymentOrder {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   booking Booking @relation(fields: [bookingId], references: [id], onDelete: Restrict)
   payhereAttempt PayHereAttempt?
+  stripeAttempt StripeAttempt?
   @@unique([bookingId, purpose])
   @@map("payment_orders")
 }
@@ -784,4 +786,30 @@ model PayHereEvent {
   journal JournalTransaction? @relation(fields: [journalId], references: [id], onDelete: Restrict)
   @@id([attemptId, statusCode])
   @@map("payhere_events")
+}
+
+model StripeAttempt {
+  id String @id @default(uuid()) @db.Uuid
+  orderId String @unique @map("order_id") @db.Uuid
+  sessionId String? @unique @map("session_id") @db.VarChar(150)
+  checkoutUrl String? @map("checkout_url") @db.VarChar(2048)
+  returnUrl String @map("return_url") @db.VarChar(2048)
+  createdAt DateTime @map("created_at") @db.Timestamptz(3)
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(3)
+  journalId String? @unique @map("journal_id") @db.Uuid
+  order PaymentOrder @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  journal JournalTransaction? @relation(fields: [journalId], references: [id], onDelete: Restrict)
+  events StripeEvent[]
+  @@map("stripe_attempts")
+}
+
+model StripeEvent {
+  id String @id @db.VarChar(150)
+  attemptId String @map("attempt_id") @db.Uuid
+  eventType String @map("event_type") @db.VarChar(80)
+  createdAt DateTime @map("created_at") @db.Timestamptz(3)
+  receivedAt DateTime @default(now()) @map("received_at") @db.Timestamptz(3)
+  attempt StripeAttempt @relation(fields: [attemptId], references: [id], onDelete: Restrict)
+  @@index([attemptId])
+  @@map("stripe_events")
 }

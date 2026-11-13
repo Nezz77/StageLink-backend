@@ -56,8 +56,9 @@ export function makePayHereController(auth: AuthService) {
         const { booking } = await readOrder(tx, orderId, actor.user.id);
         if (booking.customerId !== actor.user.id) throw new PublicError(403, 'PAYMENT_CUSTOMER_REQUIRED', 'Only the booking customer can start checkout.');
         await tx.$queryRaw`SELECT id FROM payment_orders WHERE id=${orderId}::uuid FOR UPDATE`;
-        const order = await tx.paymentOrder.findUniqueOrThrow({ where: { id: orderId }, include: { payhereAttempt: true } });
+        const order = await tx.paymentOrder.findUniqueOrThrow({ where: { id: orderId }, include: { payhereAttempt: true, stripeAttempt: { select: { id: true } } } });
         const now = new Date();
+        if (order.stripeAttempt) throw new PublicError(409, 'CHECKOUT_GATEWAY_SELECTED', 'This order already has a Stripe checkout.');
         if (!booking.agreedAt || booking.startsAt <= now || !['open', 'pending'].includes(order.status)) {
           throw new PublicError(409, 'CHECKOUT_NOT_ELIGIBLE', 'This order is unavailable for checkout.');
         }

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash, createHmac, randomUUID } from 'node:crypto';
 import sharp from 'sharp';
 import { createApp } from '../api/src/app.js';
 import { hashPassword } from '../api/src/auth/security.js';
@@ -11,9 +11,11 @@ import { processMediaBatch } from '../shared/media-processing.js';
 
 const merchantId = '1210000';
 const merchantSecret = 'sandbox-fixture-secret';
+const stripeSigningSecret = 'whsec_stage_fixture';
 const config = readConfig({
   ...process.env, AUTH_RATE_PREFIX: 'rentals-test-' + randomUUID(),
   PAYHERE_SANDBOX_MERCHANT_ID: merchantId, PAYHERE_SANDBOX_MERCHANT_SECRET: merchantSecret,
+  STRIPE_TEST_SECRET_KEY: 'sk_test_stage_fixture', STRIPE_TEST_WEBHOOK_SECRET: stripeSigningSecret,
   PAYHERE_SANDBOX_NOTIFY_URL: 'https://stage.test/api/v1/payments/webhooks/payhere',
 });
 if (config.NODE_ENV !== 'test' || !new URL(config.DATABASE_URL).pathname.endsWith('_test') || !config.S3_BUCKET.endsWith('-test')) {
@@ -391,6 +393,42 @@ test('renter owns revisions and public browse only shows approved published equi
     assert.equal(await deps.db.payHereEvent.count({ where: { attemptId: form.order_id } }), 1);
     assert.equal((await call('payment-orders/' + advanceOrder.id, undefined, winnerCustomer)).data.status, 'cancelled');
     assert.equal((await call(checkoutPath, billing, winnerCustomer)).status, 409);
+    assert.equal((await call(checkoutPath + '/stripe', {}, winnerCustomer)).data.code, 'CHECKOUT_GATEWAY_SELECTED');
+    const stripeOrder = await deps.db.paymentOrder.create({
+      data: { bookingId: winner.id, purpose: 'deposit', amountMinor: 100000, status: 'pending' },
+    });
+    const stripeAttempt = await deps.db.stripeAttempt.create({
+      data: {
+        orderId: stripeOrder.id, createdAt: new Date(), expiresAt: new Date(Math.floor(Date.now() / 1000 + 2100) * 1000),
+        returnUrl: 'https://stage.test/', sessionId: 'cs_test_' + randomUUID().replaceAll('-', ''),
+      },
+    });
+    assert.equal((await call('payment-orders/' + stripeOrder.id + '/sessions', billing, winnerCustomer)).data.code, 'CHECKOUT_GATEWAY_SELECTED');
+    const seconds = Math.floor(Date.now() / 1000);
+    const stripeEvent = {
+      id: 'evt_' + randomUUID().replaceAll('-', ''), object: 'event', livemode: false, created: seconds,
+      type: 'checkout.session.expired', data: { object: {
+        id: stripeAttempt.sessionId, object: 'checkout.session', livemode: false, mode: 'payment',
+        client_reference_id: stripeAttempt.id, amount_total: stripeOrder.amountMinor, currency: 'lkr',
+        expires_at: stripeAttempt.expiresAt.getTime() / 1000, status: 'expired', payment_status: 'unpaid', url: null,
+      } },
+    };
+    async function stripeNotify(value: unknown, tamper = false) {
+      const raw = JSON.stringify(value, null, 2);
+      const digest = createHmac('sha256', stripeSigningSecret).update(seconds + '.' + raw).digest('hex');
+      return fetch(base + '/api/v1/payments/webhooks/stripe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Stripe-Signature': `t=${seconds},v1=${digest}` },
+        body: tamper ? raw + ' ' : raw,
+      });
+    }
+    assert.equal((await stripeNotify(stripeEvent, true)).status, 401);
+    const wrongTotal = { ...stripeEvent, data: { object: { ...stripeEvent.data.object, amount_total: 1 } } };
+    assert.equal((await stripeNotify(wrongTotal)).status, 409);
+    assert.equal((await stripeNotify(stripeEvent)).status, 200);
+    assert.equal((await stripeNotify(stripeEvent)).status, 200);
+    assert.equal(await deps.db.stripeEvent.count({ where: { attemptId: stripeAttempt.id } }), 1);
+    assert.equal((await deps.db.paymentOrder.findUniqueOrThrow({ where: { id: stripeOrder.id } })).status, 'cancelled');
     const chat = 'conversations/' + winner.id;
     assert.equal((await call(chat + '/messages', undefined, other)).status, 404);
     const message = { requestKey: randomUUID(), body: 'Please confirm the pickup time.' };
@@ -497,6 +535,8 @@ test('renter owns revisions and public browse only shows approved published equi
       }
       await deps.db.asset.deleteMany({ where: owned });
       const orderFixtures = { booking: { customerId: { in: ids } } };
+      await deps.db.stripeEvent.deleteMany({ where: { attempt: { order: orderFixtures } } });
+      await deps.db.stripeAttempt.deleteMany({ where: { order: orderFixtures } });
       await deps.db.payHereEvent.deleteMany({ where: { attempt: { order: orderFixtures } } });
       await deps.db.payHereAttempt.deleteMany({ where: { order: orderFixtures } });
       await deps.db.paymentOrder.deleteMany({ where: { booking: { customerId: { in: ids } } } });

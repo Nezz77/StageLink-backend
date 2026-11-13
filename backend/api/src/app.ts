@@ -27,6 +27,7 @@ import { makeQuotationsController } from './bookings/quotations.js';
 import { makeBookingMessagesController } from './bookings/messages.js';
 import { makePaymentOrdersController } from './payments/orders.js';
 import { makePayHereController } from './payments/payhere.js';
+import { makeStripeController } from './payments/stripe.js';
 import { MediaStore } from '../../shared/media-store.js';
 import { PublicError } from './auth/errors.js';
 
@@ -82,11 +83,11 @@ export async function createApp(config: Config, dependencies: Resources = resour
   }
   const auth = new AuthService(config, dependencies);
   const mediaStore = new MediaStore(config);
-  @Module({ controllers: [HealthController, makeAuthController(auth), ...makeProfileControllers(auth), ...makeMediaControllers(auth, mediaStore), ...makeGigControllers(auth), ...makeRentalControllers(auth), makeInventoryController(auth), ...makeRentalGalleryControllers(auth), makePublicFeedController(dependencies.db), makeEventBriefController(auth), makeSavedItemsController(auth), makeDraftsController(auth), makeInquiriesController(auth), ...makeAvailabilityControllers(auth), makeBookingRequestsController(auth), makeQuotationsController(auth), makeBookingMessagesController(auth), makePaymentOrdersController(auth), makePayHereController(auth)] })
+  @Module({ controllers: [HealthController, makeAuthController(auth), ...makeProfileControllers(auth), ...makeMediaControllers(auth, mediaStore), ...makeGigControllers(auth), ...makeRentalControllers(auth), makeInventoryController(auth), ...makeRentalGalleryControllers(auth), makePublicFeedController(dependencies.db), makeEventBriefController(auth), makeSavedItemsController(auth), makeDraftsController(auth), makeInquiriesController(auth), ...makeAvailabilityControllers(auth), makeBookingRequestsController(auth), makeQuotationsController(auth), makeBookingMessagesController(auth), makePaymentOrdersController(auth), makePayHereController(auth), makeStripeController(auth)] })
   class AppModule {
     async onApplicationShutdown() { mediaStore.close(); await closeResources(dependencies); }
   }
-  const app = await NestFactory.create(AppModule, { logger: false });
+  const app = await NestFactory.create(AppModule, { logger: false, rawBody: true });
   app.getHttpAdapter().getInstance().disable('x-powered-by');
   app.setGlobalPrefix('api/v1');
   app.enableCors({ origin: config.WEB_ORIGIN, credentials: true });

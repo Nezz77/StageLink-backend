@@ -1592,10 +1592,10 @@
         "src/components/PaymentCheckout.tsx",
         "src/components/AdminPayments.tsx"
       ],
-      "proposed_contract": "POST /payment-orders/:id/sessions; POST /payments/webhooks/stripe; provider capability status",
+      "proposed_contract": "POST /payment-orders/:id/sessions/stripe; POST /payments/webhooks/stripe; provider capability status pending",
       "entities": [
-        "payment_attempts",
-        "provider_events",
+        "stripe_attempts",
+        "stripe_events",
         "transfer_orders"
       ],
       "remove_or_replace": "No real Stripe SDK/notification/connected destination",
@@ -1604,10 +1604,11 @@
         "Applicable schema/API/auth/UI/reload/failure tests and checkpoint evidence complete"
       ],
       "requires_new_report_ui": false,
-      "status": "not_started",
+      "status": "in_progress",
       "ui_coverage_ids": [
         "UI-035"
-      ]
+      ],
+      "remaining": "Verify LKR Checkout and signed webhook delivery with an actual Stripe test account. Confirm merchant and Connect eligibility before implementing capability status, transfers and settlement reconciliation."
     },
     {
       "id": "BE-046",

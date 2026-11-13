@@ -24,3 +24,10 @@ test('PayHere sandbox requires all three settings and an HTTPS webhook path', ()
   assert.throws(() => readConfig({ ...valid, ...sandbox, PAYHERE_SANDBOX_NOTIFY_URL: 'http://localhost:4000/api/v1/payments/webhooks/payhere' }));
   assert.equal(readConfig({ ...valid, PAYHERE_SANDBOX_MERCHANT_ID: '' }).PAYHERE_SANDBOX_MERCHANT_ID, undefined);
 });
+
+test('Stripe requires paired test-mode configuration', () => {
+  const stripe = { STRIPE_TEST_SECRET_KEY: 'sk_test_fixture', STRIPE_TEST_WEBHOOK_SECRET: 'whsec_fixture' };
+  assert.equal(readConfig({ ...valid, ...stripe }).STRIPE_TEST_SECRET_KEY, stripe.STRIPE_TEST_SECRET_KEY);
+  assert.throws(() => readConfig({ ...valid, ...stripe, STRIPE_TEST_SECRET_KEY: 'sk_live_fixture' }));
+  assert.throws(() => readConfig({ ...valid, STRIPE_TEST_SECRET_KEY: 'sk_test_fixture' }));
+});
