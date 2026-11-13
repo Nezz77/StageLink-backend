@@ -7374,6 +7374,18 @@ export interface operations {
                         version: number;
                         /** @enum {string} */
                         currency: "LKR";
+                        /** @enum {string} */
+                        kind: "equipment" | "venue" | "bundle";
+                        hourlyRateMinor: number | null;
+                        weeklyRateMinor: number | null;
+                        venueCapacity: number | null;
+                        bundleItems: {
+                            /** Format: uuid */
+                            listingId: string;
+                            quantity: number;
+                            title: string;
+                            version: number;
+                        }[];
                         revision: number;
                         /** @enum {string} */
                         status: "draft" | "published" | "paused" | "archived";
@@ -7406,6 +7418,16 @@ export interface operations {
                         specWeight?: string;
                         packageInclusions?: string;
                     };
+                    /** @enum {string} */
+                    kind?: "equipment" | "venue" | "bundle";
+                    hourlyRateMinor?: number | null;
+                    weeklyRateMinor?: number | null;
+                    venueCapacity?: number | null;
+                    bundleItems?: {
+                        /** Format: uuid */
+                        listingId: string;
+                        quantity: number;
+                    }[];
                 };
             };
         };
@@ -7434,6 +7456,18 @@ export interface operations {
                         version: number;
                         /** @enum {string} */
                         currency: "LKR";
+                        /** @enum {string} */
+                        kind: "equipment" | "venue" | "bundle";
+                        hourlyRateMinor: number | null;
+                        weeklyRateMinor: number | null;
+                        venueCapacity: number | null;
+                        bundleItems: {
+                            /** Format: uuid */
+                            listingId: string;
+                            quantity: number;
+                            title: string;
+                            version: number;
+                        }[];
                         revision: number;
                         /** @enum {string} */
                         status: "draft" | "published" | "paused" | "archived";
@@ -7469,6 +7503,14 @@ export interface operations {
                         packageInclusions?: string;
                     };
                     revision: number;
+                    hourlyRateMinor?: number | null;
+                    weeklyRateMinor?: number | null;
+                    venueCapacity?: number | null;
+                    bundleItems?: {
+                        /** Format: uuid */
+                        listingId: string;
+                        quantity: number;
+                    }[];
                 };
             };
         };
@@ -7497,6 +7539,18 @@ export interface operations {
                         version: number;
                         /** @enum {string} */
                         currency: "LKR";
+                        /** @enum {string} */
+                        kind: "equipment" | "venue" | "bundle";
+                        hourlyRateMinor: number | null;
+                        weeklyRateMinor: number | null;
+                        venueCapacity: number | null;
+                        bundleItems: {
+                            /** Format: uuid */
+                            listingId: string;
+                            quantity: number;
+                            title: string;
+                            version: number;
+                        }[];
                         revision: number;
                         /** @enum {string} */
                         status: "draft" | "published" | "paused" | "archived";
@@ -7549,6 +7603,18 @@ export interface operations {
                         version: number;
                         /** @enum {string} */
                         currency: "LKR";
+                        /** @enum {string} */
+                        kind: "equipment" | "venue" | "bundle";
+                        hourlyRateMinor: number | null;
+                        weeklyRateMinor: number | null;
+                        venueCapacity: number | null;
+                        bundleItems: {
+                            /** Format: uuid */
+                            listingId: string;
+                            quantity: number;
+                            title: string;
+                            version: number;
+                        }[];
                         revision: number;
                         /** @enum {string} */
                         status: "draft" | "published" | "paused" | "archived";
@@ -7593,6 +7659,18 @@ export interface operations {
                             version: number;
                             /** @enum {string} */
                             currency: "LKR";
+                            /** @enum {string} */
+                            kind: "equipment" | "venue" | "bundle";
+                            hourlyRateMinor: number | null;
+                            weeklyRateMinor: number | null;
+                            venueCapacity: number | null;
+                            bundleItems: {
+                                /** Format: uuid */
+                                listingId: string;
+                                quantity: number;
+                                title: string;
+                                version: number;
+                            }[];
                             storefront: {
                                 displayName: string;
                                 city: string;

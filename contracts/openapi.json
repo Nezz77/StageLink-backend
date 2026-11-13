@@ -17556,6 +17556,69 @@
                           "LKR"
                         ]
                       },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "equipment",
+                          "venue",
+                          "bundle"
+                        ]
+                      },
+                      "hourlyRateMinor": {
+                        "nullable": true,
+                        "type": "integer",
+                        "minimum": 0,
+                        "exclusiveMinimum": true,
+                        "maximum": 100000000
+                      },
+                      "weeklyRateMinor": {
+                        "nullable": true,
+                        "type": "integer",
+                        "minimum": 0,
+                        "exclusiveMinimum": true,
+                        "maximum": 100000000
+                      },
+                      "venueCapacity": {
+                        "nullable": true,
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 100000
+                      },
+                      "bundleItems": {
+                        "maxItems": 12,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "listingId": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "quantity": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 100000
+                            },
+                            "title": {
+                              "type": "string"
+                            },
+                            "version": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "exclusiveMinimum": true,
+                              "maximum": 2147483647
+                            }
+                          },
+                          "required": [
+                            "listingId",
+                            "quantity",
+                            "title",
+                            "version"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
                       "revision": {
                         "type": "integer",
                         "minimum": 0,
@@ -17589,6 +17652,11 @@
                       "id",
                       "version",
                       "currency",
+                      "kind",
+                      "hourlyRateMinor",
+                      "weeklyRateMinor",
+                      "venueCapacity",
+                      "bundleItems",
                       "revision",
                       "status",
                       "publishedVersion"
@@ -17673,6 +17741,58 @@
                       }
                     },
                     "additionalProperties": false
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "equipment",
+                      "venue",
+                      "bundle"
+                    ]
+                  },
+                  "hourlyRateMinor": {
+                    "nullable": true,
+                    "type": "integer",
+                    "minimum": 0,
+                    "exclusiveMinimum": true,
+                    "maximum": 100000000
+                  },
+                  "weeklyRateMinor": {
+                    "nullable": true,
+                    "type": "integer",
+                    "minimum": 0,
+                    "exclusiveMinimum": true,
+                    "maximum": 100000000
+                  },
+                  "venueCapacity": {
+                    "nullable": true,
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100000
+                  },
+                  "bundleItems": {
+                    "maxItems": 12,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "listingId": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        },
+                        "quantity": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 100000
+                        }
+                      },
+                      "required": [
+                        "listingId",
+                        "quantity"
+                      ],
+                      "additionalProperties": false
+                    }
                   }
                 },
                 "required": [
@@ -17768,6 +17888,69 @@
                         "LKR"
                       ]
                     },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "equipment",
+                        "venue",
+                        "bundle"
+                      ]
+                    },
+                    "hourlyRateMinor": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": 0,
+                      "exclusiveMinimum": true,
+                      "maximum": 100000000
+                    },
+                    "weeklyRateMinor": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": 0,
+                      "exclusiveMinimum": true,
+                      "maximum": 100000000
+                    },
+                    "venueCapacity": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 100000
+                    },
+                    "bundleItems": {
+                      "maxItems": 12,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "listingId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "quantity": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 100000
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "version": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "exclusiveMinimum": true,
+                            "maximum": 2147483647
+                          }
+                        },
+                        "required": [
+                          "listingId",
+                          "quantity",
+                          "title",
+                          "version"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
                     "revision": {
                       "type": "integer",
                       "minimum": 0,
@@ -17801,6 +17984,11 @@
                     "id",
                     "version",
                     "currency",
+                    "kind",
+                    "hourlyRateMinor",
+                    "weeklyRateMinor",
+                    "venueCapacity",
+                    "bundleItems",
                     "revision",
                     "status",
                     "publishedVersion"
@@ -17902,6 +18090,50 @@
                     "minimum": 0,
                     "exclusiveMinimum": true,
                     "maximum": 2147483647
+                  },
+                  "hourlyRateMinor": {
+                    "nullable": true,
+                    "type": "integer",
+                    "minimum": 0,
+                    "exclusiveMinimum": true,
+                    "maximum": 100000000
+                  },
+                  "weeklyRateMinor": {
+                    "nullable": true,
+                    "type": "integer",
+                    "minimum": 0,
+                    "exclusiveMinimum": true,
+                    "maximum": 100000000
+                  },
+                  "venueCapacity": {
+                    "nullable": true,
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100000
+                  },
+                  "bundleItems": {
+                    "maxItems": 12,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "listingId": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        },
+                        "quantity": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 100000
+                        }
+                      },
+                      "required": [
+                        "listingId",
+                        "quantity"
+                      ],
+                      "additionalProperties": false
+                    }
                   }
                 },
                 "required": [
@@ -17998,6 +18230,69 @@
                         "LKR"
                       ]
                     },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "equipment",
+                        "venue",
+                        "bundle"
+                      ]
+                    },
+                    "hourlyRateMinor": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": 0,
+                      "exclusiveMinimum": true,
+                      "maximum": 100000000
+                    },
+                    "weeklyRateMinor": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": 0,
+                      "exclusiveMinimum": true,
+                      "maximum": 100000000
+                    },
+                    "venueCapacity": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 100000
+                    },
+                    "bundleItems": {
+                      "maxItems": 12,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "listingId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "quantity": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 100000
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "version": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "exclusiveMinimum": true,
+                            "maximum": 2147483647
+                          }
+                        },
+                        "required": [
+                          "listingId",
+                          "quantity",
+                          "title",
+                          "version"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
                     "revision": {
                       "type": "integer",
                       "minimum": 0,
@@ -18031,6 +18326,11 @@
                     "id",
                     "version",
                     "currency",
+                    "kind",
+                    "hourlyRateMinor",
+                    "weeklyRateMinor",
+                    "venueCapacity",
+                    "bundleItems",
                     "revision",
                     "status",
                     "publishedVersion"
@@ -18176,6 +18476,69 @@
                         "LKR"
                       ]
                     },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "equipment",
+                        "venue",
+                        "bundle"
+                      ]
+                    },
+                    "hourlyRateMinor": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": 0,
+                      "exclusiveMinimum": true,
+                      "maximum": 100000000
+                    },
+                    "weeklyRateMinor": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": 0,
+                      "exclusiveMinimum": true,
+                      "maximum": 100000000
+                    },
+                    "venueCapacity": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 100000
+                    },
+                    "bundleItems": {
+                      "maxItems": 12,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "listingId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "quantity": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 100000
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "version": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "exclusiveMinimum": true,
+                            "maximum": 2147483647
+                          }
+                        },
+                        "required": [
+                          "listingId",
+                          "quantity",
+                          "title",
+                          "version"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
                     "revision": {
                       "type": "integer",
                       "minimum": 0,
@@ -18209,6 +18572,11 @@
                     "id",
                     "version",
                     "currency",
+                    "kind",
+                    "hourlyRateMinor",
+                    "weeklyRateMinor",
+                    "venueCapacity",
+                    "bundleItems",
                     "revision",
                     "status",
                     "publishedVersion"
@@ -18322,6 +18690,69 @@
                               "LKR"
                             ]
                           },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "equipment",
+                              "venue",
+                              "bundle"
+                            ]
+                          },
+                          "hourlyRateMinor": {
+                            "nullable": true,
+                            "type": "integer",
+                            "minimum": 0,
+                            "exclusiveMinimum": true,
+                            "maximum": 100000000
+                          },
+                          "weeklyRateMinor": {
+                            "nullable": true,
+                            "type": "integer",
+                            "minimum": 0,
+                            "exclusiveMinimum": true,
+                            "maximum": 100000000
+                          },
+                          "venueCapacity": {
+                            "nullable": true,
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 100000
+                          },
+                          "bundleItems": {
+                            "maxItems": 12,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "listingId": {
+                                  "type": "string",
+                                  "format": "uuid",
+                                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                                },
+                                "quantity": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 100000
+                                },
+                                "title": {
+                                  "type": "string"
+                                },
+                                "version": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "exclusiveMinimum": true,
+                                  "maximum": 2147483647
+                                }
+                              },
+                              "required": [
+                                "listingId",
+                                "quantity",
+                                "title",
+                                "version"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
                           "storefront": {
                             "type": "object",
                             "properties": {
@@ -18348,6 +18779,11 @@
                           "id",
                           "version",
                           "currency",
+                          "kind",
+                          "hourlyRateMinor",
+                          "weeklyRateMinor",
+                          "venueCapacity",
+                          "bundleItems",
                           "storefront"
                         ],
                         "additionalProperties": false

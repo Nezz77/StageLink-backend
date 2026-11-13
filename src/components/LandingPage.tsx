@@ -190,7 +190,7 @@ export default function LandingPage({ onAuth, isDark, onThemeChange, isSplashLog
               {([
                 { id: 'home', label: 'How It Works' },
                 { id: 'browse', label: 'Browse Artists' },
-                { id: 'rent', label: 'Rent Equipment' },
+                { id: 'rent', label: liveCatalog ? 'Rent Equipment & Venues' : 'Rent Equipment' },
               ] as const).map(item => (
                 <button key={item.id} type="button" onClick={() => { if (item.id === 'home') startHeroVideo(); setActiveTab(item.id); }} aria-current={activeTab === item.id ? 'page' : undefined} className={`landing-nav-link ${activeTab === item.id ? 'is-active' : ''}`}>
                   {activeTab === item.id && <motion.span layoutId="landing-nav-active" className="landing-nav-active" transition={{ type: 'spring', stiffness: 380, damping: 32 }} />}

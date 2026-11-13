@@ -327,7 +327,14 @@ enum RentalStatus {
   archived
 }
 
+enum RentalKind {
+  equipment
+  venue
+  bundle
+}
+
 model RentalListing {
+  kind RentalKind @default(equipment)
   id String @id @default(uuid()) @db.Uuid
   ownerId String @map("owner_id") @db.Uuid
   revision Int @default(1)
@@ -348,6 +355,10 @@ model RentalListingVersion {
   description String @db.VarChar(2000)
   category String @db.VarChar(40)
   dailyRateMinor Int @map("daily_rate_minor")
+  hourlyRateMinor Int? @map("hourly_rate_minor")
+  weeklyRateMinor Int? @map("weekly_rate_minor")
+  venueCapacity Int? @map("venue_capacity")
+  bundleItems Json @default("[]") @map("bundle_items")
   stockQuantity Int @map("stock_quantity")
   specs Json @default("{}")
   listing RentalListing @relation("RentalVersions", fields: [listingId], references: [id], onDelete: Restrict)

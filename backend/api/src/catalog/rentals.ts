@@ -20,6 +20,16 @@ const specs = z.object({
   specWeight: measurement(100_000).optional(),
   packageInclusions: z.string().trim().max(1000).optional(),
 }).strict();
+const kind = z.enum(['equipment', 'venue', 'bundle']);
+const optionalRate = z.number().int().positive().max(100_000_000).nullable();
+const component = z.object({
+  listingId: uuid, quantity: z.number().int().min(1).max(100_000),
+}).strict();
+const bundleItems = z.array(component).max(12).refine(items =>
+  new Set(items.map(item => item.listingId)).size === items.length, 'Use each equipment listing once.',
+);
+const storedBundle = z.array(component.extend({ title: z.string(), version: revision })).max(12);
+const capacity = z.number().int().min(1).max(100_000).nullable();
 const fields = z.object({
   title: z.string().trim().min(1).max(120),
   description: z.string().trim().min(1).max(2000),
@@ -28,10 +38,19 @@ const fields = z.object({
   stockQuantity: z.number().int().min(0).max(100_000),
   specs,
 }).strict();
-const edit = fields.extend({ revision });
+const options = {
+  hourlyRateMinor: optionalRate.optional(), weeklyRateMinor: optionalRate.optional(),
+  venueCapacity: capacity.optional(), bundleItems: bundleItems.optional(),
+};
+const create = fields.extend({ kind: kind.optional(), ...options });
+const edit = fields.extend({ revision, ...options });
 const status = z.enum(['draft', 'published', 'paused', 'archived']);
 const transition = z.object({ revision, action: z.enum(['publish', 'pause', 'archive']) }).strict();
-const listing = fields.extend({ id: uuid, version: revision, currency: z.literal('LKR') });
+const listing = fields.extend({
+  id: uuid, version: revision, currency: z.literal('LKR'), kind,
+  hourlyRateMinor: optionalRate, weeklyRateMinor: optionalRate, venueCapacity: capacity,
+  bundleItems: storedBundle,
+});
 const ownerListing = listing.extend({ revision, status, publishedVersion: revision.nullable() });
 const publicListing = listing.omit({ stockQuantity: true }).extend({
   storefront: z.object({ displayName: z.string(), city: z.string() }),
@@ -64,11 +83,51 @@ function parse<T>(type: z.ZodType<T>, value: unknown): T {
 function ownerView(record: RentalListing, version: RentalListingVersion | undefined) {
   if (!version) throw new Error('Equipment listing version is missing.');
   return {
-    id: record.id, version: version.version, revision: record.revision, status: record.status,
+    id: record.id, kind: record.kind, version: version.version, revision: record.revision, status: record.status,
+    hourlyRateMinor: version.hourlyRateMinor, weeklyRateMinor: version.weeklyRateMinor,
+    venueCapacity: version.venueCapacity, bundleItems: storedBundle.parse(version.bundleItems),
     publishedVersion: record.publishedVersion, title: version.title, description: version.description,
     category: version.category, currency: 'LKR' as const, dailyRateMinor: version.dailyRateMinor,
     stockQuantity: version.stockQuantity, specs: specs.parse(version.specs),
   };
+}
+
+async function versionDetails(
+  tx: Prisma.TransactionClient,
+  ownerId: string,
+  listingKind: z.infer<typeof kind>,
+  details: Omit<z.infer<typeof create>, 'kind'>,
+  previous?: RentalListingVersion,
+) {
+  const { hourlyRateMinor, weeklyRateMinor, venueCapacity, bundleItems: items, ...base } = details;
+  const guests = venueCapacity === undefined ? previous?.venueCapacity ?? null : venueCapacity;
+  const selected = items ?? (previous ? storedBundle.parse(previous.bundleItems).map(({ listingId, quantity }) => ({ listingId, quantity })) : []);
+  if ((listingKind === 'venue') !== (guests !== null) || (listingKind === 'bundle') !== (selected.length > 0)) {
+    throw new PublicError(400, 'INVALID_RENTAL_OPTIONS', 'Enter a venue capacity or select equipment quantities for a bundle.');
+  }
+  return {
+    ...base,
+    stockQuantity: listingKind === 'equipment' ? base.stockQuantity : listingKind === 'venue' ? 1 : 0,
+    hourlyRateMinor: hourlyRateMinor === undefined ? previous?.hourlyRateMinor ?? null : hourlyRateMinor,
+    weeklyRateMinor: weeklyRateMinor === undefined ? previous?.weeklyRateMinor ?? null : weeklyRateMinor,
+    venueCapacity: guests,
+    bundleItems: await resolveBundle(tx, ownerId, selected),
+  };
+}
+
+async function resolveBundle(tx: Prisma.TransactionClient, ownerId: string, items: z.infer<typeof bundleItems>) {
+  if (!items.length) return [];
+  const equipment = await tx.rentalListing.findMany({
+    where: { ownerId, kind: 'equipment', status: 'published', id: { in: items.map(item => item.listingId) } },
+    include: { publication: true },
+  });
+  return items.map(item => {
+    const version = equipment.find(record => record.id === item.listingId)?.publication;
+    if (!version || version.stockQuantity < item.quantity) {
+      throw new PublicError(409, 'BUNDLE_EQUIPMENT_UNAVAILABLE', 'Use published equipment from your storefront with enough stock for each bundle item.');
+    }
+    return { ...item, title: version.title, version: version.version };
+  });
 }
 
 export function makeRentalControllers(auth: AuthService) {
@@ -109,6 +168,13 @@ export function makeRentalControllers(auth: AuthService) {
             if (!profile?.approvedRevision || !profile.approvedSnapshot) {
               throw new PublicError(409, 'RENTER_PROFILE_NOT_APPROVED', 'An approved equipment storefront is required to publish.');
             }
+            if (record.kind === 'bundle') {
+              const savedItems = storedBundle.parse(version.bundleItems);
+              const currentItems = await resolveBundle(tx, current.user.id, savedItems);
+              if (currentItems.some((item, index) => item.version !== savedItems[index]?.version)) {
+                throw new PublicError(409, 'BUNDLE_EQUIPMENT_CHANGED', 'Equipment versions changed. Save the bundle draft again before publishing.');
+              }
+            }
             data.status = 'published';
             data.publishedVersion = version.version;
             break;
@@ -123,11 +189,23 @@ export function makeRentalControllers(auth: AuthService) {
         }
       } else {
         const { revision: _revision, ...details } = input;
-        version = await tx.rentalListingVersion.create({ data: { ...details, listingId: id, version: nextRevision } });
+        const values = await versionDetails(tx, current.user.id, record.kind, details, version);
+        version = await tx.rentalListingVersion.create({ data: { ...values, listingId: id, version: nextRevision } });
       }
       const updated = await tx.rentalListing.update({
         where: { id }, data: { ...data, revision: nextRevision, updatedAt: new Date() },
       });
+      if (record.kind === 'equipment' && record.status === 'published' &&
+        (updated.status !== 'published' || updated.publishedVersion !== record.publishedVersion)) {
+        // The owner row lock also serializes bundle publication with changes to its equipment.
+        await tx.rentalListing.updateMany({
+          where: {
+            ownerId: current.user.id, kind: 'bundle', status: 'published',
+            publication: { is: { bundleItems: { array_contains: [{ listingId: id }] } } },
+          },
+          data: { status: 'paused', revision: { increment: 1 }, updatedAt: new Date() },
+        });
+      }
       return ownerView(updated, version);
     });
   }
@@ -150,16 +228,17 @@ export function makeRentalControllers(auth: AuthService) {
 
     @Post()
     @HttpCode(200)
-    @ApiBody({ schema: schema(fields) })
+    @ApiBody({ schema: schema(create) })
     @ApiOkResponse({ schema: schema(ownerListing) })
     async create(@Req() req: Request, @Body() body: unknown) {
       const identity = await mutation(req);
-      const details = parse(fields, body);
+      const { kind: listingKind = 'equipment', ...details } = parse(create, body);
       return db.$transaction(async tx => {
         const current = await profiles.actor(tx, identity);
         profiles.providerRole(current, 'renter');
-        const record = await tx.rentalListing.create({ data: { ownerId: current.user.id } });
-        const version = await tx.rentalListingVersion.create({ data: { ...details, listingId: record.id, version: 1 } });
+        const values = await versionDetails(tx, current.user.id, listingKind, details);
+        const record = await tx.rentalListing.create({ data: { ownerId: current.user.id, kind: listingKind } });
+        const version = await tx.rentalListingVersion.create({ data: { ...values, listingId: record.id, version: 1 } });
         return ownerView(record, version);
       });
     }
@@ -195,8 +274,8 @@ export function makeRentalControllers(auth: AuthService) {
       }), { isolationLevel: 'RepeatableRead' });
       const items = records.slice(0, pageSize).map(record => {
         const profile = providerPublic.parse(record.owner.providers[0]?.approvedSnapshot);
-        const { id, version, title, description, category, currency, dailyRateMinor, specs } = ownerView(record, record.publication ?? undefined);
-        return { id, version, title, description, category, currency, dailyRateMinor, specs,
+        const { revision: _revision, status: _status, publishedVersion: _publication, stockQuantity: _stock, ...published } = ownerView(record, record.publication ?? undefined);
+        return { ...published,
           storefront: { displayName: profile.displayName, city: profile.city } };
       });
       return { items, nextCursor: records.length > pageSize ? items.at(-1)!.id : null };

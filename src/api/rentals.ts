@@ -9,7 +9,7 @@ export type RentalPage = operations['PublicRentalsController_list']['responses']
 export const rentalClient = {
   list: () => accountClient.api<Rental[]>('me/rentals'),
   create: (fields: RentalFields) => accountClient.api<Rental>('me/rentals', fields),
-  edit: (id: string, revision: number, fields: RentalFields) =>
+  edit: (id: string, revision: number, fields: Omit<RentalFields, 'kind'>) =>
     accountClient.api<Rental>(`me/rentals/${id}`, { ...fields, revision }, 'PATCH'),
   transition: (id: string, revision: number, action: 'publish' | 'pause' | 'archive') =>
     accountClient.api<Rental>(`me/rentals/${id}/status`, { revision, action }),

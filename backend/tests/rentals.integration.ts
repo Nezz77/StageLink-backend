@@ -91,9 +91,39 @@ test('renter owns revisions and public browse only shows approved published equi
     assert.deepEqual(original.storefront, { displayName: storefront.displayName, city: storefront.city });
     assert.equal((await call(path + '/status', { revision: 3, action: 'publish' }, renter)).status, 200);
     assert.deepEqual((await publicItem()).specs, edit.specs);
+    assert.equal((await publicItem()).kind, 'equipment');
+    assert.equal((await publicItem()).weeklyRateMinor, null);
+
+    const venue = { ...fields, title: 'Event hall', kind: 'venue', venueCapacity: 120, specs: {},
+      hourlyRateMinor: 80000, dailyRateMinor: 450000, weeklyRateMinor: 2300000 };
+    assert.equal((await call('me/rentals', { ...venue, venueCapacity: 0 }, renter)).status, 400);
+    const venueDraft = await call('me/rentals', venue, renter);
+    assert.equal(venueDraft.status, 200);
+    assert.equal(venueDraft.data.stockQuantity, 1);
+    assert.equal((await call(`me/rentals/${venueDraft.data.id}/status`, { revision: 1, action: 'publish' }, renter)).status, 200);
+    const listedVenue = (await call('rentals')).data.items.find((item: { id: string }) => item.id === venueDraft.data.id);
+    assert.equal(listedVenue.venueCapacity, 120);
+    assert.equal(listedVenue.hourlyRateMinor, 80000);
+    assert.equal(listedVenue.weeklyRateMinor, 2300000);
+
+    const bundle = { ...fields, title: 'Speaker pair', kind: 'bundle', specs: {}, bundleItems: [{ listingId: id, quantity: 2 }] };
+    assert.equal((await call('me/rentals', bundle, other)).status, 409);
+    assert.equal((await call('me/rentals', { ...bundle, bundleItems: [{ listingId: id, quantity: 3 }] }, renter)).status, 409);
+    assert.equal((await call('me/rentals', { ...bundle, bundleItems: [{ listingId: venueDraft.data.id, quantity: 1 }] }, renter)).status, 409);
+    const bundleDraft = await call('me/rentals', bundle, renter);
+    assert.equal(bundleDraft.status, 200);
+    assert.deepEqual(bundleDraft.data.bundleItems, [{ listingId: id, quantity: 2, title: fields.title, version: 3 }]);
+    assert.equal((await call(`me/rentals/${bundleDraft.data.id}/status`, { revision: 1, action: 'publish' }, renter)).status, 200);
+    const staleBundle = await call('me/rentals', bundle, renter);
+    assert.equal(staleBundle.status, 200);
     assert.equal((await publicItem()).dailyRateMinor, edit.dailyRateMinor);
     assert.equal((await call(path + '/status', { revision: 4, action: 'pause' }, renter)).status, 200);
     assert.equal(await publicItem(), undefined);
+    const remaining = await call('rentals');
+    assert.ok(!remaining.data.items.some((item: { id: string }) => item.id === bundleDraft.data.id));
+    const owned = await call('me/rentals', undefined, renter);
+    assert.equal(owned.data.find((item: { id: string }) => item.id === bundleDraft.data.id).status, 'paused');
+    assert.equal((await call(`me/rentals/${staleBundle.data.id}/status`, { revision: 1, action: 'publish' }, renter)).status, 409);
     assert.equal((await call(path + '/status', { revision: 5, action: 'archive' }, renter)).status, 200);
     assert.equal(await deps.db.rentalListingVersion.count({ where: { listingId: id } }), 2);
   } finally {
