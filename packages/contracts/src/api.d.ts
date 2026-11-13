@@ -837,6 +837,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/inventory-units": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["InventoryController_list"];
+        put?: never;
+        post: operations["InventoryController_register"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/inventory-units/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["InventoryController_change"];
+        trace?: never;
+    };
+    "/api/v1/me/inventory-movements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["InventoryController_history"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -7909,6 +7957,182 @@ export interface operations {
                             };
                         }[];
                         /** Format: uuid */
+                        nextCursor: string | null;
+                    };
+                };
+            };
+        };
+    };
+    InventoryController_list: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                listingId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            listingId: string;
+                            serial: string;
+                            revision: number;
+                            /** @enum {string} */
+                            status: "available" | "out" | "inspection" | "maintenance" | "quarantined" | "retired";
+                            overdue: boolean;
+                            custodyReference: string | null;
+                            /** Format: date-time */
+                            dueAt: string | null;
+                            /** Format: date-time */
+                            updatedAt: string;
+                        }[];
+                        /** Format: uuid */
+                        nextCursor: string | null;
+                    };
+                };
+            };
+        };
+    };
+    InventoryController_register: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    listingId: string;
+                    serial: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uuid */
+                        listingId: string;
+                        serial: string;
+                        revision: number;
+                        /** @enum {string} */
+                        status: "available" | "out" | "inspection" | "maintenance" | "quarantined" | "retired";
+                        overdue: boolean;
+                        custodyReference: string | null;
+                        /** Format: date-time */
+                        dueAt: string | null;
+                        /** Format: date-time */
+                        updatedAt: string;
+                    };
+                };
+            };
+        };
+    };
+    InventoryController_change: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    revision: number;
+                    reason: string;
+                    /** @enum {string} */
+                    status: "out";
+                    custodyReference: string;
+                    /** Format: date-time */
+                    dueAt: string;
+                } | {
+                    revision: number;
+                    reason: string;
+                    /** @enum {string} */
+                    status: "available" | "inspection" | "maintenance" | "quarantined" | "retired";
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uuid */
+                        listingId: string;
+                        serial: string;
+                        revision: number;
+                        /** @enum {string} */
+                        status: "available" | "out" | "inspection" | "maintenance" | "quarantined" | "retired";
+                        overdue: boolean;
+                        custodyReference: string | null;
+                        /** Format: date-time */
+                        dueAt: string | null;
+                        /** Format: date-time */
+                        updatedAt: string;
+                    };
+                };
+            };
+        };
+    };
+    InventoryController_history: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                unitId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            id: string;
+                            /** Format: uuid */
+                            unitId: string;
+                            revision: number;
+                            /** @enum {string|null} */
+                            fromStatus: "available" | "out" | "inspection" | "maintenance" | "quarantined" | "retired" | null;
+                            /** @enum {string} */
+                            toStatus: "available" | "out" | "inspection" | "maintenance" | "quarantined" | "retired";
+                            reason: string;
+                            custodyReference: string | null;
+                            /** Format: date-time */
+                            dueAt: string | null;
+                            /** Format: date-time */
+                            createdAt: string;
+                        }[];
                         nextCursor: string | null;
                     };
                 };

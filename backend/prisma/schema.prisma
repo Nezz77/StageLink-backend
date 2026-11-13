@@ -344,6 +344,8 @@ model RentalListing {
   owner AuthUser @relation(fields: [ownerId], references: [id], onDelete: Restrict)
   versions RentalListingVersion[] @relation("RentalVersions")
   publication RentalListingVersion? @relation("RentalPublication", fields: [id, publishedVersion], references: [listingId, version], onDelete: Restrict)
+  inventory InventoryUnit[]
+  @@unique([id, ownerId])
   @@index([ownerId, status])
   @@map("rental_listings")
 }
@@ -366,4 +368,46 @@ model RentalListingVersion {
   publications RentalListing[] @relation("RentalPublication")
   @@id([listingId, version])
   @@map("rental_listing_versions")
+}
+
+enum InventoryStatus {
+  available
+  out
+  inspection
+  maintenance
+  quarantined
+  retired
+}
+
+model InventoryUnit {
+  id String @id @default(uuid()) @db.Uuid
+  listingId String @map("listing_id") @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  serial String @db.VarChar(100)
+  revision Int @default(1)
+  status InventoryStatus @default(available)
+  custodyReference String? @map("custody_reference") @db.VarChar(120)
+  dueAt DateTime? @map("due_at") @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
+  listing RentalListing @relation(fields: [listingId, ownerId], references: [id, ownerId], onDelete: Restrict)
+  movements InventoryMovement[]
+  @@unique([ownerId, serial])
+  @@index([ownerId, id])
+  @@index([listingId, status])
+  @@map("inventory_units")
+}
+
+model InventoryMovement {
+  id BigInt @id @default(autoincrement())
+  unitId String @map("unit_id") @db.Uuid
+  revision Int
+  fromStatus InventoryStatus? @map("from_status")
+  toStatus InventoryStatus @map("to_status")
+  reason String @db.VarChar(500)
+  custodyReference String? @map("custody_reference") @db.VarChar(120)
+  dueAt DateTime? @map("due_at") @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  unit InventoryUnit @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  @@unique([unitId, revision])
+  @@map("inventory_movements")
 }

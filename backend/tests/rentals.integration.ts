@@ -96,6 +96,31 @@ test('renter owns revisions and public browse only shows approved published equi
     assert.equal((await publicItem()).kind, 'equipment');
     assert.equal((await publicItem()).weeklyRateMinor, null);
 
+    const units = 'me/inventory-units';
+    const unit = await call(units, { listingId: id, serial: ' sn-01 ' }, renter);
+    assert.equal(unit.status, 200);
+    assert.equal(unit.data.serial, 'SN-01');
+    assert.equal((await call(units, { listingId: id, serial: 'sn-01' }, renter)).status, 409);
+    assert.equal((await call(units, { listingId: id, serial: 'sn-02' }, other)).status, 404);
+    const unitPath = units + '/' + unit.data.id;
+    const dispatch = { revision: 1, status: 'out', reason: 'Released to customer', custodyReference: 'pickup-123',
+      dueAt: new Date(Date.now() + 3600000).toISOString() };
+    const dispatches = await Promise.all([call(unitPath, dispatch, renter, 'PATCH'), call(unitPath, dispatch, renter, 'PATCH')]);
+    assert.deepEqual(dispatches.map(result => result.status).sort(), [200, 409]);
+    assert.equal((await call(unitPath, { revision: 2, status: 'available', reason: 'Skip inspection' }, renter, 'PATCH')).status, 409);
+    await deps.db.inventoryUnit.update({ where: { id: unit.data.id }, data: { dueAt: new Date(Date.now() - 1000) } });
+    const listedUnits = await call(units + '?listingId=' + id, undefined, renter);
+    assert.equal(listedUnits.data.items[0].overdue, true);
+    assert.equal((await call(unitPath, { revision: 2, status: 'inspection', reason: 'Returned for inspection' }, renter, 'PATCH')).status, 200);
+    assert.equal((await call(unitPath, { revision: 3, status: 'quarantined', reason: 'Damaged on return' }, renter, 'PATCH')).status, 200);
+    assert.equal((await call(unitPath, { revision: 4, status: 'maintenance', reason: 'Repair underway' }, renter, 'PATCH')).status, 200);
+    assert.equal((await call(unitPath, { revision: 5, status: 'available', reason: 'Repair complete' }, renter, 'PATCH')).status, 200);
+    const history = await call('me/inventory-movements?unitId=' + unit.data.id, undefined, renter);
+    assert.deepEqual(history.data.items.map((item: { toStatus: string }) => item.toStatus),
+      ['available', 'maintenance', 'quarantined', 'inspection', 'out', 'available']);
+    assert.equal(history.data.items[3].custodyReference, 'pickup-123');
+    assert.deepEqual((await call('me/inventory-movements?unitId=' + unit.data.id, undefined, other)).data.items, []);
+
     const venue = { ...fields, title: 'Event hall', kind: 'venue', venueCapacity: 120, specs: {},
       hourlyRateMinor: 80000, dailyRateMinor: 450000, weeklyRateMinor: 2300000 };
     assert.equal((await call('me/rentals', { ...venue, venueCapacity: 0 }, renter)).status, 400);
@@ -172,6 +197,8 @@ test('renter owns revisions and public browse only shows approved published equi
     try {
       const owned = { ownerId: { in: ids } };
       await deps.db.rentalListing.updateMany({ where: owned, data: { status: 'archived', publishedVersion: null } });
+      await deps.db.inventoryMovement.deleteMany({ where: { unit: owned } });
+      await deps.db.inventoryUnit.deleteMany({ where: owned });
       await deps.db.rentalListingVersion.deleteMany({ where: { listing: owned } });
       await deps.db.rentalListing.deleteMany({ where: owned });
       await deps.db.profileAudit.deleteMany({ where: { targetUserId: { in: ids } } });
