@@ -352,8 +352,8 @@ test('renter owns revisions and public browse only shows approved published equi
     assert.equal((await call(chat + '/read', { throughId: response.data.id }, winnerCustomer, 'PUT')).status, 200);
     const older = await call(chat + '/read', { throughId: sent.data.id }, winnerCustomer, 'PUT');
     assert.equal(older.data.throughId, response.data.id);
-    const history = await call(chat + '/messages', undefined, renter);
-    assert.ok(history.data.receipts.some((receipt: { readerId: string; throughId: string }) =>
+    const chatHistory = await call(chat + '/messages', undefined, renter);
+    assert.ok(chatHistory.data.receipts.some((receipt: { readerId: string; throughId: string }) =>
       receipt.readerId === winnerCustomer.user.id && receipt.throughId === response.data.id));
     const versions = await call(quotations, undefined, renter);
     assert.deepEqual(versions.data.items.map((item: { status: string }) => item.status), ['accepted', 'superseded']);
