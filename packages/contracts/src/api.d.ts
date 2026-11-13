@@ -725,6 +725,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/listings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["PublicGigsController_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/listings/{id}": {
         parameters: {
             query?: never;
@@ -7165,6 +7181,47 @@ export interface operations {
             };
         };
     };
+    PublicGigsController_list: {
+        parameters: {
+            query?: {
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            title: string;
+                            priceMinor: number;
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            ownerId: string;
+                            version: number;
+                            /** @enum {string} */
+                            currency: "LKR";
+                            artist: {
+                                displayName: string;
+                                city: string;
+                                /** @enum {string} */
+                                category: "Vocalist" | "Band" | "DJ" | "Dancer" | "Instrumentalist";
+                            };
+                        }[];
+                        /** Format: uuid */
+                        nextCursor: string | null;
+                    };
+                };
+            };
+        };
+    };
     PublicGigsController_detail: {
         parameters: {
             query?: never;
@@ -7209,6 +7266,12 @@ export interface operations {
                                 priceMinor: number;
                             }[];
                         }[];
+                        artist: {
+                            displayName: string;
+                            city: string;
+                            /** @enum {string} */
+                            category: "Vocalist" | "Band" | "DJ" | "Dancer" | "Instrumentalist";
+                        };
                     };
                 };
             };

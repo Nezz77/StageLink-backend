@@ -1,11 +1,12 @@
-import { Body, Controller, Get, HttpCode, Param, Patch, Post, Req } from '@nestjs/common';
-import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiParam, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query, Req } from '@nestjs/common';
+import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { z } from 'zod';
-import type { ArtistGig, ArtistGigVersion } from '../../../generated/prisma/client.js';
+import { Prisma, type ArtistGig, type ArtistGigVersion } from '../../../generated/prisma/client.js';
 import type { AuthService, Identity } from '../auth/service.js';
 import { PublicError } from '../auth/errors.js';
 import { ProfileService } from '../profiles/service.js';
+import { artistDetails, providerPublic } from '../profiles/schemas.js';
 import { gigPackages } from './packages.js';
 
 const uuid = z.string().uuid();
@@ -23,6 +24,26 @@ const ownerGig = publicGig.extend({
   revision, status: z.enum(['draft', 'published', 'paused', 'archived']),
   publishedVersion: revision.nullable(),
 });
+const artist = z.object({ displayName: z.string(), city: z.string(), category: artistDetails.shape.category });
+const listing = publicGig.extend({ artist });
+const listingSummary = listing.omit({ description: true, packages: true });
+const listingPage = z.object({ items: z.array(listingSummary), nextCursor: uuid.nullable() });
+const publicProfileFilter = { kind: 'artist', approvedRevision: { not: null }, approvedSnapshot: { not: Prisma.DbNull } } as const;
+const publicFilter = {
+  status: 'published',
+  publishedVersion: { not: null },
+  owner: {
+    disabledAt: null, emailVerifiedAt: { not: null }, roles: { has: 'artist' },
+    providers: { some: publicProfileFilter },
+  },
+} satisfies Prisma.ArtistGigWhereInput;
+const publicInclude = {
+  publication: true,
+  owner: { select: { providers: { where: publicProfileFilter, select: { approvedSnapshot: true } } } },
+} satisfies Prisma.ArtistGigInclude;
+const pageSize = 24;
+type PublicRow = Prisma.ArtistGigGetPayload<{ include: typeof publicInclude }>;
+
 const schema = (value: z.ZodType) => z.toJSONSchema(value, { target: 'openapi-3.0' }) as import('@nestjs/swagger').SchemaObject;
 const missing = () => new PublicError(404, 'GIG_NOT_FOUND', 'This gig is not available.');
 
@@ -38,6 +59,15 @@ function present(gig: ArtistGig, version: ArtistGigVersion) {
   return {
     id: gig.id, ownerId: gig.ownerId, version: version.version, currency: 'LKR' as const,
     title: version.title, description: version.description, priceMinor: version.priceMinor, packages: gigPackages.parse(version.packages),
+  };
+}
+
+function presentPublic(gig: PublicRow) {
+  const profile = providerPublic.parse(gig.owner.providers[0]?.approvedSnapshot);
+  if (!gig.publication || profile.kind !== 'artist') throw new Error('Published gig is missing its artist or version.');
+  return {
+    ...present(gig, gig.publication),
+    artist: { displayName: profile.displayName, city: profile.city, category: artistDetails.parse(profile.details).category },
   };
 }
 
@@ -164,22 +194,33 @@ export function makeGigControllers(auth: AuthService) {
   @ApiTags('Public catalog')
   @Controller('listings')
   class PublicGigsController {
+    @Get()
+    @ApiQuery({ name: 'cursor', required: false, type: String })
+    @ApiOkResponse({ schema: schema(listingPage) })
+    async list(@Query('cursor') cursor?: string) {
+      const gigs = await db.$transaction(tx => tx.artistGig.findMany({
+        where: { ...publicFilter, ...(cursor === undefined ? {} : { id: { gt: parse(uuid, cursor) } }) },
+        include: publicInclude,
+        orderBy: { id: 'asc' },
+        take: pageSize + 1,
+      }), { isolationLevel: 'RepeatableRead' });
+      const items = gigs.slice(0, pageSize).map(gig => {
+        const { description: _description, packages: _packages, ...summary } = presentPublic(gig);
+        return summary;
+      });
+      return { items, nextCursor: gigs.length > pageSize ? items.at(-1)!.id : null };
+    }
+
     @Get(':id')
     @ApiParam({ name: 'id', format: 'uuid' })
-    @ApiOkResponse({ schema: schema(publicGig) })
+    @ApiOkResponse({ schema: schema(listing) })
     async detail(@Param('id') id: string) {
-      const gig = await db.artistGig.findFirst({
-        where: {
-          id: parse(uuid, id), status: 'published',
-          owner: {
-            disabledAt: null, emailVerifiedAt: { not: null }, roles: { has: 'artist' },
-            providers: { some: { kind: 'artist', approvedRevision: { not: null } } },
-          },
-        },
-        include: { publication: true },
-      });
-      if (!gig?.publication) throw missing();
-      return present(gig, gig.publication);
+      const gig = await db.$transaction(tx => tx.artistGig.findFirst({
+        where: { ...publicFilter, id: parse(uuid, id) },
+        include: publicInclude,
+      }), { isolationLevel: 'RepeatableRead' });
+      if (!gig) throw missing();
+      return presentPublic(gig);
     }
   }
 

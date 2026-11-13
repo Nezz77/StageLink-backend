@@ -3,6 +3,7 @@ import type { MouseEvent as ReactMouseEvent } from 'react';
 import { motion, AnimatePresence, useScroll, useTransform, useMotionValueEvent } from 'motion/react';
 import ArtistCollectionCard from './ArtistCollectionCard';
 import BrowseArtistsPage from './BrowseArtistsPage';
+import PublicArtistCatalog from './PublicArtistCatalog';
 import RentEquipmentPage from './RentEquipmentPage';
 import CollectionDetailPage, { type CollectionListing } from './CollectionDetailPage';
 import { Icon, Stars } from './Icons';
@@ -47,12 +48,13 @@ const stats = [
   { label: 'Avg. Response Time', value: '< 2 hrs' },
 ];
 
-export default function LandingPage({ onAuth, isDark, onThemeChange, isSplashLogoTransition, onReturnToDashboard }: {
+export default function LandingPage({ onAuth, isDark, onThemeChange, isSplashLogoTransition, onReturnToDashboard, liveCatalog = false }: {
   onAuth: (type: 'login' | 'register_customer' | 'register_artist' | 'register_renter') => void;
   isDark: boolean;
   onThemeChange: (isDark: boolean, event: ReactMouseEvent<HTMLButtonElement>) => void;
   isSplashLogoTransition: boolean;
   onReturnToDashboard?: () => void;
+  liveCatalog?: boolean;
 }) {
   const [activeTab, setActiveTab] = useState<'home' | 'browse' | 'rent' | 'detail'>('home');
   const [selectedListing, setSelectedListing] = useState<CollectionListing | null>(null);
@@ -246,12 +248,15 @@ export default function LandingPage({ onAuth, isDark, onThemeChange, isSplashLog
                     Connect world-class performing artists with audiences that deserve them &#8212; rent premium event equipment, and create unforgettable live experiences.
                   </p>
                   <div className="flex justify-center mb-12">
-                    <MorphingDiscoveryBar categories={DISCOVERY_CATEGORIES} />
+                    {liveCatalog
+                      ? <button className="btn-primary" onClick={() => { setActiveTab('browse'); window.scrollTo({ top: 0 }); }}>Browse artists</button>
+                      : <MorphingDiscoveryBar categories={DISCOVERY_CATEGORIES} />}
                   </div>
                 </motion.div>
               </div>
             </div>
 
+            {!liveCatalog && <>
             {/* Stats */}
             <section style={{ borderTop: '1px solid var(--color-border)', background: 'var(--color-surface)' }} className="py-8 px-6 relative z-10">
               <div className="max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8">
@@ -329,6 +334,8 @@ export default function LandingPage({ onAuth, isDark, onThemeChange, isSplashLog
 
             <PricingShowcase onBrowse={() => { setActiveTab('browse'); window.scrollTo({ top: 0, behavior: 'instant' }); }} />
 
+            </>}
+
             {/* CTA Banner */}
             <section className="py-16 px-6 relative z-10 bg-[#07090f]">
               <div className="max-w-4xl mx-auto">
@@ -336,7 +343,7 @@ export default function LandingPage({ onAuth, isDark, onThemeChange, isSplashLog
                   <div style={{ position: 'absolute', top: '-40px', right: '-40px', width: 160, height: 160, borderRadius: '50%', background: 'rgba(124,58,237,0.1)', filter: 'blur(30px)' }} />
                   <img src="/stagelink-logo.png" alt="StageLink" className="w-32 h-auto object-contain mx-auto mb-4" />
                   <h2 className="font-display text-3xl font-bold text-white mb-3">Are You a Performer or Equipment Supplier?</h2>
-                  <p className="text-slate-400 mb-8 max-w-lg mx-auto">Join thousands of artists and renters earning on StageLink. Set your own rates, manage bookings, and grow your brand.</p>
+                  <p className="text-slate-400 mb-8 max-w-lg mx-auto">{liveCatalog ? 'Create a provider account to set up your artist profile or equipment storefront.' : 'Join thousands of artists and renters earning on StageLink. Set your own rates, manage bookings, and grow your brand.'}</p>
                   <div className="flex flex-col sm:flex-row gap-3 justify-center">
                     <button className="btn-primary flex items-center gap-2 justify-center" onClick={() => onAuth('register_artist')}>
                       <Icon.Mic className="w-4 h-4" />
@@ -369,11 +376,14 @@ export default function LandingPage({ onAuth, isDark, onThemeChange, isSplashLog
         )}
 
         {activeTab === 'browse' && (
-          <BrowseArtistsPage key="browse" onOpenCollection={openCollection} />
+          liveCatalog ? <PublicArtistCatalog key="browse"/> : <BrowseArtistsPage key="browse" onOpenCollection={openCollection} />
         )}
 
         {activeTab === 'rent' && (
-          <RentEquipmentPage key="rent" onOpenCollection={openCollection} />
+          liveCatalog ? <main key="rent" className="sl-account-home min-h-screen mx-auto max-w-6xl px-5 py-8">
+            <h1 className="text-3xl font-bold mb-6">Rent equipment</h1>
+            <p>Equipment listings are coming soon.</p>
+          </main> : <RentEquipmentPage key="rent" onOpenCollection={openCollection} />
         )}
 
         {activeTab === 'detail' && selectedListing && (

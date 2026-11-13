@@ -57,6 +57,9 @@ test('gig ownership, publication snapshots and concurrent revisions', async () =
     assert.deepEqual((await call('me/gigs', undefined, other)).data, []);
     assert.equal((await call(privatePath, { ...fields, revision: 1 }, other, 'PATCH')).status, 404);
     assert.equal((await call(publicPath)).status, 404);
+    const listed = async () => (await call('listings')).data.items.find((item: { id: string }) => item.id === created.data.id);
+    assert.equal(await listed(), undefined);
+    assert.equal((await call('listings?cursor=invalid')).status, 400);
     assert.equal((await call(privatePath + '/status', { revision: 1, action: 'publish' }, artist)).status, 409);
 
     const profile = {
@@ -89,14 +92,27 @@ test('gig ownership, publication snapshots and concurrent revisions', async () =
     assert.deepEqual(attempts.map(result => result.status).sort(), [200, 409]);
     const stillPublished = await call(publicPath);
     assert.equal(stillPublished.data.title, fields.title);
+    assert.deepEqual(stillPublished.data.artist, { displayName: profile.displayName, city: profile.city, category: 'Vocalist' });
+    assert.ok(!JSON.stringify(stillPublished.data).includes(profile.address));
+    const summary = await listed();
+    assert.equal(summary.title, fields.title);
+    assert.equal('packages' in summary, false);
+    const afterGig = await call('listings?cursor=' + created.data.id);
+    assert.equal(afterGig.status, 200);
+    assert.ok(afterGig.data.items.every((item: { id: string }) => item.id > created.data.id));
     assert.deepEqual(stillPublished.data.packages, []);
     assert.deepEqual((await call('me/gigs', undefined, artist)).data[0].packages, packages);
     assert.equal((await call(privatePath + '/status', { revision: 3, action: 'publish' }, artist)).status, 200);
     const republished = await call(publicPath);
     assert.equal(republished.data.title, change.title);
     assert.deepEqual(republished.data.packages, packages);
+    await deps.db.authUser.update({ where: { id: artist.user.id }, data: { disabledAt: new Date() } });
+    assert.equal((await call(publicPath)).status, 404);
+    assert.equal(await listed(), undefined);
+    await deps.db.authUser.update({ where: { id: artist.user.id }, data: { disabledAt: null } });
     assert.equal((await call(privatePath + '/status', { revision: 4, action: 'pause' }, artist)).status, 200);
     assert.equal((await call(publicPath)).status, 404);
+    assert.equal(await listed(), undefined);
     assert.equal((await call(privatePath + '/status', { revision: 5, action: 'archive' }, artist)).status, 200);
     assert.deepEqual((await call('me/gigs', undefined, artist)).data, []);
     assert.equal(await deps.db.artistGigVersion.count({ where: { gigId: created.data.id } }), 2);
