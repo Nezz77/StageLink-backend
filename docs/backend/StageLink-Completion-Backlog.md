@@ -19,7 +19,7 @@ A checked box marks implemented backend code. PostgreSQL integration, client wir
 - [x] P00–P04 foundation, accounts, profiles and reviewed media.
 - [x] P05 catalog. Versioned gigs and packages, equipment, venues, bundles, rate plans, refundable deposit policies, serialized inventory and rental galleries.
 - [x] P06 published feed, scheduled announcements, featured package previews, private event briefs and catalog search by name, price, city, radius, genre, rental type and category.
-- [ ] P06 verified rating filter. Add once P13 supplies verified review data.
+- [x] P06 minimum-rating filter from published verified booking reviews.
 - [x] P07 private saved items, resumable drafts and pre-booking inquiries. Booking submission links an inquiry to the resulting booking.
 - [x] P08 provider calendars, blackouts, date-specific stock, booking requests, captured terms and renewable holds.
 - [x] P09 provider decisions and calendar/history projections.
@@ -38,7 +38,8 @@ A checked box marks implemented backend code. PostgreSQL integration, client wir
 - [x] P12 provider earnings and admin payment views, audited payout holds, and atomic payout reservations against reviewed destinations.
 - [ ] P12 Gateway refund and payout execution, reconciliation, and recovery of blocked reservations.
 - [x] P13 Sandbox invoice, per-capture receipt and payout reservation statement with private server-rendered PDFs.
-- [ ] P13–P14 Production document issuance, verified reviews, inspections and deposit settlement.
+- [x] P13 Verified customer reviews, moderated event photos and public rating aggregates.
+- [ ] P13–P14 Production document issuance, inspections and deposit settlement.
 - [ ] P15–P17 AI, KYC, support, disputes, reminders and system controls.
 - [ ] P18 analytics, security, accessibility, backup and rollback, and end-to-end release verification.
 

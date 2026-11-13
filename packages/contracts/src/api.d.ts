@@ -1637,6 +1637,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/bookings/{id}/reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ReviewsController_read"];
+        put?: never;
+        post: operations["ReviewsController_submit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/listings/{id}/reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ReviewsController_publicList"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reviews/{id}/photos/{assetId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ReviewsController_publicPhoto"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ReviewsController_queue"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/reviews/{id}/moderation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["ReviewsController_moderate"];
+        trace?: never;
+    };
     "/api/v1/bookings/{id}/payment-orders": {
         parameters: {
             query?: never;
@@ -5518,7 +5598,7 @@ export interface operations {
                             /** Format: uuid */
                             id: string;
                             /** @enum {string} */
-                            purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat";
+                            purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review";
                             /** @enum {string} */
                             status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                             filename: string;
@@ -5661,7 +5741,7 @@ export interface operations {
             content: {
                 "application/json": {
                     /** @enum {string} */
-                    purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat";
+                    purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review";
                     filename: string;
                     /** @enum {string} */
                     mime: "image/jpeg" | "image/png" | "image/webp" | "audio/mpeg" | "audio/wav" | "video/mp4" | "video/webm";
@@ -5680,7 +5760,7 @@ export interface operations {
                         /** Format: uuid */
                         id: string;
                         /** @enum {string} */
-                        purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat";
+                        purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review";
                         /** @enum {string} */
                         status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                         filename: string;
@@ -6520,7 +6600,7 @@ export interface operations {
                                 /** Format: uuid */
                                 id: string;
                                 /** @enum {string} */
-                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat";
+                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review";
                                 /** @enum {string} */
                                 status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                                 filename: string;
@@ -6699,7 +6779,7 @@ export interface operations {
                                 /** Format: uuid */
                                 id: string;
                                 /** @enum {string} */
-                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat";
+                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review";
                                 /** @enum {string} */
                                 status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                                 filename: string;
@@ -6881,7 +6961,7 @@ export interface operations {
                                 /** Format: uuid */
                                 id: string;
                                 /** @enum {string} */
-                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat";
+                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review";
                                 /** @enum {string} */
                                 status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                                 filename: string;
@@ -7055,7 +7135,7 @@ export interface operations {
                                 /** Format: uuid */
                                 id: string;
                                 /** @enum {string} */
-                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat";
+                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review";
                                 /** @enum {string} */
                                 status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                                 filename: string;
@@ -7229,7 +7309,7 @@ export interface operations {
                                 /** Format: uuid */
                                 id: string;
                                 /** @enum {string} */
-                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat";
+                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review";
                                 /** @enum {string} */
                                 status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                                 filename: string;
@@ -7395,7 +7475,7 @@ export interface operations {
                                 /** Format: uuid */
                                 id: string;
                                 /** @enum {string} */
-                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat";
+                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review";
                                 /** @enum {string} */
                                 status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                                 filename: string;
@@ -7702,7 +7782,7 @@ export interface operations {
                                 /** Format: uuid */
                                 id: string;
                                 /** @enum {string} */
-                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat";
+                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review";
                                 /** @enum {string} */
                                 status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                                 filename: string;
@@ -8245,6 +8325,8 @@ export interface operations {
                 city?: string;
                 /** @description Maximum advertised base or daily rate in LKR minor units. */
                 maxPriceMinor?: string;
+                /** @description Minimum average of published verified reviews, from 1 to 5. */
+                minRating?: string;
                 lat?: string;
                 lng?: string;
                 /** @description 1–500 km. Requires lat and lng. */
@@ -8827,6 +8909,8 @@ export interface operations {
                 city?: string;
                 /** @description Maximum advertised base or daily rate in LKR minor units. */
                 maxPriceMinor?: string;
+                /** @description Minimum average of published verified reviews, from 1 to 5. */
+                minRating?: string;
                 lat?: string;
                 lng?: string;
                 /** @description 1–500 km. Requires lat and lng. */
@@ -12301,6 +12385,244 @@ export interface operations {
                 };
                 content: {
                     "application/pdf": string;
+                };
+            };
+        };
+    };
+    ReviewsController_read: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        review: {
+                            /** Format: uuid */
+                            id: string;
+                            rating: number;
+                            body: string;
+                            /** Format: date-time */
+                            createdAt: string;
+                            photoIds: string[];
+                            /** Format: uuid */
+                            bookingId: string;
+                            /** @enum {string} */
+                            targetKind: "gig" | "rental";
+                            /** Format: uuid */
+                            targetId: string;
+                            revision: number;
+                            /** @enum {string} */
+                            status: "pending" | "published" | "hidden";
+                        } | null;
+                    };
+                };
+            };
+        };
+    };
+    ReviewsController_submit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    rating: number;
+                    body: string;
+                    photoIds?: string[];
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        rating: number;
+                        body: string;
+                        /** Format: date-time */
+                        createdAt: string;
+                        photoIds: string[];
+                        /** Format: uuid */
+                        bookingId: string;
+                        /** @enum {string} */
+                        targetKind: "gig" | "rental";
+                        /** Format: uuid */
+                        targetId: string;
+                        revision: number;
+                        /** @enum {string} */
+                        status: "pending" | "published" | "hidden";
+                    };
+                };
+            };
+        };
+    };
+    ReviewsController_publicList: {
+        parameters: {
+            query: {
+                targetKind: "gig" | "rental";
+                cursor?: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** Format: uuid */
+                            id: string;
+                            rating: number;
+                            body: string;
+                            /** Format: date-time */
+                            createdAt: string;
+                            photoIds: string[];
+                        }[];
+                        /** Format: uuid */
+                        nextCursor: string | null;
+                        average: number | null;
+                        count: number;
+                    };
+                };
+            };
+        };
+    };
+    ReviewsController_publicPhoto: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                assetId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/jpeg": string;
+                    "image/png": string;
+                    "image/webp": string;
+                };
+            };
+        };
+    };
+    ReviewsController_queue: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                status?: "pending" | "published" | "hidden";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** Format: uuid */
+                            id: string;
+                            rating: number;
+                            body: string;
+                            /** Format: date-time */
+                            createdAt: string;
+                            photoIds: string[];
+                            /** Format: uuid */
+                            bookingId: string;
+                            /** @enum {string} */
+                            targetKind: "gig" | "rental";
+                            /** Format: uuid */
+                            targetId: string;
+                            revision: number;
+                            /** @enum {string} */
+                            status: "pending" | "published" | "hidden";
+                        }[];
+                        /** Format: uuid */
+                        nextCursor: string | null;
+                    };
+                };
+            };
+        };
+    };
+    ReviewsController_moderate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    revision: number;
+                    /** @enum {string} */
+                    status: "published" | "hidden";
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        rating: number;
+                        body: string;
+                        /** Format: date-time */
+                        createdAt: string;
+                        photoIds: string[];
+                        /** Format: uuid */
+                        bookingId: string;
+                        /** @enum {string} */
+                        targetKind: "gig" | "rental";
+                        /** Format: uuid */
+                        targetId: string;
+                        revision: number;
+                        /** @enum {string} */
+                        status: "pending" | "published" | "hidden";
+                    };
                 };
             };
         };

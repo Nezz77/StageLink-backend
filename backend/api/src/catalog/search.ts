@@ -14,6 +14,7 @@ const base = z.object({
   q: text(120).optional(),
   city: text(100).optional(),
   maxPriceMinor: price.optional(),
+  minRating: z.string().regex(/^[1-5](\.\d{1,2})?$/).transform(Number).pipe(z.number().max(5)).optional(),
   lat: coordinate(90).optional(),
   lng: coordinate(180).optional(),
   radiusKm: z.string().regex(/^\d{1,3}$/).transform(Number).pipe(z.number().min(1).max(500)).optional(),
@@ -28,11 +29,12 @@ const rentalQuery = base.extend({
 }).refine(hasCompleteRadius);
 
 export function ApiCatalogQuery(type: 'gig' | 'rental') {
-  const common = ['cursor', 'q', 'city', 'maxPriceMinor', 'lat', 'lng', 'radiusKm'];
+  const common = ['cursor', 'q', 'city', 'maxPriceMinor', 'minRating', 'lat', 'lng', 'radiusKm'];
   const fields = type === 'gig' ? [...common, 'genre'] : [...common, 'category', 'kind'];
   return applyDecorators(...fields.map(name => ApiQuery({
     name, required: false, type: String,
     ...(name === 'radiusKm' ? { description: '1–500 km. Requires lat and lng.' } : {}),
+    ...(name === 'minRating' ? { description: 'Minimum average of published verified reviews, from 1 to 5.' } : {}),
     ...(name === 'maxPriceMinor' ? { description: 'Maximum advertised base or daily rate in LKR minor units.' } : {}),
   })));
 }
@@ -54,6 +56,12 @@ export async function searchPublished(tx: Prisma.TransactionClient, type: 'gig' 
   ];
   if (filters.cursor !== undefined) clauses.push(Prisma.sql`l.id > ${filters.cursor}::uuid`);
   if (filters.maxPriceMinor !== undefined) clauses.push(Prisma.sql`${rate} <= ${filters.maxPriceMinor}`);
+  if (filters.minRating !== undefined) {
+    clauses.push(Prisma.sql`(
+      SELECT avg(r.rating) FROM booking_reviews r
+      WHERE r.target_kind = ${type}::"SavedItemKind" AND r.target_id = l.id AND r.status = 'published'
+    ) >= ${filters.minRating}::numeric`);
+  }
   if (filters.city !== undefined) clauses.push(Prisma.sql`lower(p.approved_snapshot->>'city') = lower(${filters.city})`);
   if (filters.q !== undefined) {
     clauses.push(Prisma.sql`(strpos(lower(v.title), lower(${filters.q})) > 0 OR

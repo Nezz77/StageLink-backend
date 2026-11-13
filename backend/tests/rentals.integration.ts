@@ -352,6 +352,15 @@ test('renter owns revisions and public browse only shows approved published equi
     const artifact = await call(artifactPath, undefined, winnerCustomer);
     assert.equal(createHash('sha256').update(artifact.data.artifact).digest('hex'), agreement.data.digest);
     assert.equal(JSON.parse(artifact.data.artifact).serviceAdvanceMinor, 175000);
+    const reviewsPath = 'listings/' + id + '/reviews?targetKind=rental';
+    const reviews = await call(reviewsPath);
+    assert.equal(reviews.status, 200);
+    assert.equal(reviews.data.count, 0);
+    assert.equal(reviews.data.average, null);
+    const browseRating = await call('rentals?minRating=4');
+    assert.equal(browseRating.status, 200);
+    assert.equal(browseRating.data.items.some((item: { id: string }) => item.id === id), false);
+
     const documentsPath = 'bookings/' + winner.id + '/documents';
     assert.equal((await call(documentsPath, undefined, other)).status, 404);
     const documents = await call(documentsPath, undefined, winnerCustomer);

@@ -28,7 +28,7 @@ test('completion requires a paid advance, provider check-in and resolved overtim
     const base = await app.getUrl();
     async function call(path: string, body?: unknown, login?: Login) {
       const response = await fetch(base + '/api/v1/' + path, {
-        method: body === undefined ? 'GET' : 'POST',
+        method: path.endsWith('/moderation') ? 'PATCH' : body === undefined ? 'GET' : 'POST',
         headers: {
           'Content-Type': 'application/json', Origin: config.WEB_ORIGIN,
           ...(login ? { Authorization: 'Bearer ' + login.accessToken, 'X-CSRF-Token': login.csrfToken } : {}),
@@ -130,6 +130,23 @@ test('completion requires a paid advance, provider check-in and resolved overtim
     assert.equal(journey.data.completion.verificationReason, undefined);
     assert.equal(journey.data.overtimePending, false);
 
+    const reviewPath = path + '/reviews';
+    const reviewInput = { rating: 5, body: 'The provider delivered the agreed performance.' };
+    assert.equal((await call(reviewPath, reviewInput, provider)).status, 403);
+    assert.equal((await call(reviewPath, reviewInput, outsider)).status, 404);
+    const review = await call(reviewPath, reviewInput, customer);
+    assert.equal(review.status, 200);
+    assert.equal(review.data.status, 'pending');
+    assert.equal((await call(reviewPath, reviewInput, customer)).data.id, review.data.id);
+    assert.equal((await call(reviewPath, { ...reviewInput, rating: 4 }, customer)).status, 409);
+    assert.equal((await call(reviewPath, undefined, provider)).data.review, null);
+    const moderation = 'admin/reviews/' + review.data.id + '/moderation';
+    assert.equal((await call(moderation, { revision: 1, status: 'published', reason: 'Checked the review.' }, customer)).status, 403);
+    assert.equal((await call(moderation, { revision: 1, status: 'published', reason: 'Checked the review.' }, admin)).data.status, 'published');
+    assert.equal((await call(reviewPath, undefined, provider)).data.review.rating, 5);
+    assert.equal((await call(moderation, { revision: 2, status: 'hidden', reason: 'Withheld for further review.' }, admin)).data.status, 'hidden');
+    assert.equal((await call(reviewPath, undefined, provider)).data.review, null);
+
     const holdPath = 'admin/' + path + '/holds';
     const hold = { expectedRevision: 0, held: true, reason: 'Review payment evidence.' };
     assert.equal((await call(holdPath, hold, provider)).status, 403);
@@ -167,6 +184,7 @@ test('completion requires a paid advance, provider check-in and resolved overtim
       if (bookingId) {
         await deps.db.payHereAttempt.deleteMany({ where: { order: { bookingId } } });
         await deps.db.paymentOrder.deleteMany({ where: { bookingId } });
+        await deps.db.bookingReview.deleteMany({ where: { bookingId } });
         await deps.db.bookingPayoutHold.deleteMany({ where: { bookingId } });
         await deps.db.bookingCompletion.deleteMany({ where: { bookingId } });
         await deps.db.overtimeProposal.deleteMany({ where: { bookingId } });

@@ -126,3 +126,9 @@ Providers can read `GET /api/v1/me/earnings`. Administrators can read `GET /api/
 List documents at `GET /api/v1/bookings/:id/documents`, preview a snapshot at `GET /api/v1/documents/:id`, and download the worker-rendered PDF at `GET /api/v1/documents/:id/download`. The worker must be running with access to the private object store. A failed render can be queued again with `POST /api/v1/documents/:id/render-retry`.
 
 Booking participants can see the invoice. The customer can see payment receipts and the provider can see the payout reservation statement. Authorized administrators can access each type. These are sandbox documents. Production issuance needs confirmed issuer details and gateway outcomes.
+
+## Verified reviews
+
+The customer submits one review after completion is verified. Use `POST /api/v1/bookings/:id/reviews` with `{rating, body, photoIds?}`. Use the private media upload pipeline with purpose `review` for photos. Administrators can list reviews at `GET /api/v1/admin/reviews` and record a revisioned moderation decision at `PATCH /api/v1/admin/reviews/:id/moderation`.
+
+`GET /api/v1/listings/:id/reviews?targetKind=gig|rental` returns published reviews and the listing average. The `minRating` filter on catalog browse uses that published average.
