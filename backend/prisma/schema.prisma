@@ -569,6 +569,7 @@ model Booking {
   messageReads BookingMessageRead[]
   quotations BookingQuotation[]
   agreement BookingAgreement?
+  paymentOrders PaymentOrder[]
   providerDecision ProviderDecision? @map("provider_decision")
   decidedAt DateTime? @map("decided_at") @db.Timestamptz(3)
   decisionReason String? @map("decision_reason") @db.VarChar(500)
@@ -731,4 +732,32 @@ model JournalEntry {
   @@id([transactionId, accountId])
   @@index([accountId])
   @@map("journal_entries")
+}
+
+enum PaymentPurpose {
+  advance
+  balance
+  deposit
+}
+
+enum PaymentOrderStatus {
+  open
+  pending
+  failed
+  cancelled
+  paid
+  review
+}
+
+model PaymentOrder {
+  id String @id @default(uuid()) @db.Uuid
+  bookingId String @map("booking_id") @db.Uuid
+  purpose PaymentPurpose
+  amountMinor Int @map("amount_minor")
+  currency String @default("LKR") @db.Char(3)
+  status PaymentOrderStatus @default(open)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  @@unique([bookingId, purpose])
+  @@map("payment_orders")
 }

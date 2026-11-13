@@ -343,6 +343,21 @@ test('renter owns revisions and public browse only shows approved published equi
     assert.equal(createHash('sha256').update(artifact.data.artifact).digest('hex'), agreement.data.digest);
     assert.equal(JSON.parse(artifact.data.artifact).serviceAdvanceMinor, 175000);
     assert.equal((await call('bookings/' + winner.id, undefined, renter)).data.state, 'agreed');
+    const ordersPath = 'bookings/' + winner.id + '/payment-orders';
+    const advanceOrders = await Promise.all([
+      call(ordersPath, { purpose: 'advance' }, winnerCustomer),
+      call(ordersPath, { purpose: 'advance' }, winnerCustomer),
+    ]);
+    assert.deepEqual(advanceOrders.map(result => result.status), [200, 200]);
+    const advanceOrder = advanceOrders[0]!.data;
+    assert.equal(advanceOrder.id, advanceOrders[1]!.data.id);
+    assert.equal(advanceOrder.amountMinor, 175000);
+    assert.equal(advanceOrder.status, 'open');
+    assert.equal((await call(ordersPath, { purpose: 'balance' }, winnerCustomer)).status, 409);
+    assert.equal((await call(ordersPath, { purpose: 'deposit' }, winnerCustomer)).status, 409);
+    assert.equal((await call(ordersPath, { purpose: 'advance', amountMinor: 1 }, winnerCustomer)).status, 400);
+    assert.equal((await call('payment-orders/' + advanceOrder.id, undefined, other)).status, 404);
+    assert.equal((await call('payment-orders/' + advanceOrder.id, undefined, renter)).status, 200);
     const chat = 'conversations/' + winner.id;
     assert.equal((await call(chat + '/messages', undefined, other)).status, 404);
     const message = { requestKey: randomUUID(), body: 'Please confirm the pickup time.' };
@@ -448,6 +463,7 @@ test('renter owns revisions and public browse only shows approved published equi
         await store.remove(derivativeKey(assetId, 'display'));
       }
       await deps.db.asset.deleteMany({ where: owned });
+      await deps.db.paymentOrder.deleteMany({ where: { booking: { customerId: { in: ids } } } });
       await deps.db.bookingAgreement.deleteMany({ where: { booking: { customerId: { in: ids } } } });
       await deps.db.bookingQuotation.deleteMany({ where: { booking: { customerId: { in: ids } } } });
       await deps.db.booking.deleteMany({ where: { customerId: { in: ids } } });

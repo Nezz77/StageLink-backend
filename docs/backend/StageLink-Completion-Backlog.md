@@ -28,7 +28,8 @@ A checked box marks implemented backend code. PostgreSQL integration, client wir
 - [x] P10 private image attachments with validated derivatives, participant-only access, and retention while referenced.
 - [ ] P10 Socket.IO delivery, typing, and socket session revocation.
 - [x] P11 financial journal foundation. Balanced immutable postings, duplicate command protection, and atomic available-to-reserved fund transfers.
-- [ ] P11–P14 payment orders and PayHere and Stripe gateways, reconciliation, completion, settlements, documents, verified reviews, inspections and deposit settlement.
+- [x] P11 server-priced advance and deposit orders with participant-only status reads.
+- [ ] P11–P14 PayHere and Stripe gateways, reconciliation, completion, settlements, documents, verified reviews, inspections and deposit settlement.
 - [ ] P15–P17 AI, KYC, support, disputes, reminders and system controls.
 - [ ] P18 analytics, security, accessibility, backup and rollback, and end-to-end release verification.
 
