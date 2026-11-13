@@ -6,7 +6,7 @@
   "baseline_commit": "9cbbe0ded3112a347c8ba1ffdf7029bd4fde268e",
   "planned_integration_branch": "backend",
   "branch_created": true,
-  "next_phase": "P05",
+  "next_phase": "P09",
   "phase_count": 19,
   "ticket_count": 65,
   "coverage_rows": 55,
@@ -80,7 +80,7 @@
         "P03",
         "P04"
       ],
-      "status": "not_started",
+      "status": "implemented_pending_verification",
       "tickets": [
         "BE-013",
         "BE-024",
@@ -98,7 +98,7 @@
       "depends_on": [
         "P05"
       ],
-      "status": "not_started",
+      "status": "in_progress",
       "tickets": [
         "BE-011",
         "BE-012",
@@ -113,7 +113,7 @@
         "P05",
         "P02"
       ],
-      "status": "not_started",
+      "status": "implemented_pending_verification",
       "tickets": [
         "BE-020",
         "BE-021",
@@ -127,7 +127,7 @@
         "P05",
         "P07"
       ],
-      "status": "not_started",
+      "status": "implemented_pending_verification",
       "tickets": [
         "BE-028",
         "BE-033",
@@ -140,7 +140,7 @@
       "depends_on": [
         "P08"
       ],
-      "status": "not_started",
+      "status": "in_progress",
       "tickets": [
         "BE-038",
         "BE-042",
@@ -465,7 +465,7 @@
         "Applicable schema/API/auth/UI/reload/failure tests and checkpoint evidence complete"
       ],
       "requires_new_report_ui": false,
-      "status": "not_started",
+      "status": "implemented_pending_verification",
       "ui_coverage_ids": [
         "UI-001"
       ]
@@ -497,10 +497,11 @@
         "Applicable schema/API/auth/UI/reload/failure tests and checkpoint evidence complete"
       ],
       "requires_new_report_ui": false,
-      "status": "not_started",
+      "status": "in_progress",
       "ui_coverage_ids": [
         "UI-002"
-      ]
+      ],
+      "remaining": "Verified rating filter and PostgreSQL integration."
     },
     {
       "id": "BE-013",
@@ -533,7 +534,7 @@
         "Applicable schema/API/auth/UI/reload/failure tests and checkpoint evidence complete"
       ],
       "requires_new_report_ui": false,
-      "status": "not_started",
+      "status": "implemented_pending_verification",
       "ui_coverage_ids": [
         "UI-003"
       ]
@@ -770,7 +771,7 @@
         "Applicable schema/API/auth/UI/reload/failure tests and checkpoint evidence complete"
       ],
       "requires_new_report_ui": false,
-      "status": "not_started",
+      "status": "implemented_pending_verification",
       "ui_coverage_ids": [
         "UI-010"
       ]
@@ -802,7 +803,7 @@
         "Applicable schema/API/auth/UI/reload/failure tests and checkpoint evidence complete"
       ],
       "requires_new_report_ui": false,
-      "status": "not_started",
+      "status": "implemented_pending_verification",
       "ui_coverage_ids": [
         "UI-011"
       ]
@@ -831,7 +832,7 @@
         "Applicable schema/API/auth/UI/reload/failure tests and checkpoint evidence complete"
       ],
       "requires_new_report_ui": true,
-      "status": "not_started",
+      "status": "implemented_pending_verification",
       "ui_coverage_ids": [
         "UI-012"
       ]
@@ -896,7 +897,7 @@
         "Applicable schema/API/auth/UI/reload/failure tests and checkpoint evidence complete"
       ],
       "requires_new_report_ui": false,
-      "status": "not_started",
+      "status": "implemented_pending_verification",
       "ui_coverage_ids": [
         "UI-014"
       ]
@@ -928,7 +929,7 @@
         "Applicable schema/API/auth/UI/reload/failure tests and checkpoint evidence complete"
       ],
       "requires_new_report_ui": false,
-      "status": "not_started",
+      "status": "implemented_pending_verification",
       "ui_coverage_ids": [
         "UI-015"
       ]
@@ -1034,7 +1035,7 @@
         "Applicable schema/API/auth/UI/reload/failure tests and checkpoint evidence complete"
       ],
       "requires_new_report_ui": false,
-      "status": "not_started",
+      "status": "implemented_pending_verification",
       "ui_coverage_ids": [
         "UI-018"
       ]
@@ -1066,7 +1067,7 @@
         "Applicable schema/API/auth/UI/reload/failure tests and checkpoint evidence complete"
       ],
       "requires_new_report_ui": false,
-      "status": "not_started",
+      "status": "implemented_pending_verification",
       "ui_coverage_ids": [
         "UI-019"
       ]
@@ -1100,7 +1101,7 @@
         "Applicable schema/API/auth/UI/reload/failure tests and checkpoint evidence complete"
       ],
       "requires_new_report_ui": true,
-      "status": "not_started",
+      "status": "implemented_pending_verification",
       "ui_coverage_ids": [
         "UI-020"
       ]
@@ -1162,7 +1163,7 @@
         "Applicable schema/API/auth/UI/reload/failure tests and checkpoint evidence complete"
       ],
       "requires_new_report_ui": false,
-      "status": "not_started",
+      "status": "implemented_pending_verification",
       "ui_coverage_ids": [
         "UI-022"
       ]
@@ -1194,7 +1195,7 @@
         "Applicable schema/API/auth/UI/reload/failure tests and checkpoint evidence complete"
       ],
       "requires_new_report_ui": false,
-      "status": "not_started",
+      "status": "implemented_pending_verification",
       "ui_coverage_ids": [
         "UI-023"
       ]
@@ -1229,7 +1230,7 @@
         "Applicable schema/API/auth/UI/reload/failure tests and checkpoint evidence complete"
       ],
       "requires_new_report_ui": true,
-      "status": "not_started",
+      "status": "implemented_pending_verification",
       "ui_coverage_ids": [
         "UI-024"
       ]
@@ -1335,7 +1336,7 @@
         "Applicable schema/API/auth/UI/reload/failure tests and checkpoint evidence complete"
       ],
       "requires_new_report_ui": false,
-      "status": "not_started",
+      "status": "implemented_pending_verification",
       "ui_coverage_ids": [
         "UI-027"
       ]
@@ -1366,7 +1367,7 @@
         "Applicable schema/API/auth/UI/reload/failure tests and checkpoint evidence complete"
       ],
       "requires_new_report_ui": false,
-      "status": "not_started",
+      "status": "implemented_pending_verification",
       "ui_coverage_ids": [
         "UI-028"
       ]
@@ -1435,7 +1436,7 @@
         "Applicable schema/API/auth/UI/reload/failure tests and checkpoint evidence complete"
       ],
       "requires_new_report_ui": false,
-      "status": "not_started",
+      "status": "implemented_pending_verification",
       "ui_coverage_ids": [
         "UI-030"
       ]
@@ -2210,7 +2211,7 @@
         "Applicable schema/API/auth/UI/reload/failure tests and checkpoint evidence complete"
       ],
       "requires_new_report_ui": false,
-      "status": "not_started",
+      "status": "implemented_pending_verification",
       "ui_coverage_ids": [
         "UI-053"
       ]
@@ -2277,7 +2278,7 @@
         "Applicable schema/API/auth/UI/reload/failure tests and checkpoint evidence complete"
       ],
       "requires_new_report_ui": true,
-      "status": "not_started",
+      "status": "implemented_pending_verification",
       "ui_coverage_ids": [
         "UI-055"
       ]

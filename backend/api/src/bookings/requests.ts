@@ -15,11 +15,14 @@ const timestamp = z.iso.datetime({ offset: true });
 const request = selection.extend({
   requestKey: uuid, startsAt: timestamp, endsAt: timestamp, inquiryId: uuid.optional(),
 });
+const states = z.enum(['held', 'expired', 'accepted', 'rejected']);
 const booking = z.object({
   id: uuid, customerId: uuid, providerId: uuid, inquiryId: uuid.nullable(),
   targetKind: z.enum(['gig', 'rental']), targetId: uuid, targetVersion: z.number().int(),
   startsAt: timestamp, endsAt: timestamp, holdExpiresAt: timestamp, createdAt: timestamp,
-  state: z.enum(['held', 'expired']), snapshot,
+  state: states, snapshot, revision: z.number().int(),
+  providerDecision: z.enum(['accepted', 'rejected']).nullable(),
+  decidedAt: timestamp.nullable(), decisionReason: z.string().nullable(),
 });
 const page = z.object({ items: z.array(booking), nextCursor: uuid.nullable() });
 const availabilityQuery = selection.omit({ targetId: true }).extend({
@@ -30,10 +33,22 @@ const availabilityQuery = selection.omit({ targetId: true }).extend({
   addonIds: z.string().max(74).optional().transform(value => value ? value.split(',') : []).pipe(selection.shape.addonIds.removeDefault()),
 }).strict();
 const availability = z.object({ available: z.boolean() });
+const decide = z.object({
+  revision: z.number().int().positive().max(2_147_483_647),
+  decision: z.enum(['accepted', 'rejected']),
+  reason: z.string().trim().max(500).default(''),
+}).strict();
+const listQuery = z.object({
+  cursor: uuid.optional(), status: states.optional(), from: timestamp.optional(), to: timestamp.optional(),
+}).strict().refine(value => !value.from || !value.to || Date.parse(value.from) < Date.parse(value.to));
+const calendarQuery = z.object({
+  cursor: uuid.optional(), from: timestamp, to: timestamp,
+}).strict().refine(value => Date.parse(value.to) > Date.parse(value.from) && Date.parse(value.to) - Date.parse(value.from) <= 366 * 86400000);
 const renew = z.object({ expectedHoldExpiresAt: timestamp }).strict();
 const schema = (value: z.ZodType) => z.toJSONSchema(value, { target: 'openapi-3.0', io: 'input' }) as SchemaObject;
 const pageSize = 30;
 const holdMs = 15 * 60000;
+const negotiationHoldMs = 24 * 3600000;
 
 function parse<T>(type: z.ZodType<T>, value: unknown): T {
   const result = type.safeParse(value);
@@ -44,7 +59,10 @@ function parse<T>(type: z.ZodType<T>, value: unknown): T {
 function present(record: Booking, now: Date) {
   const { requestKey: _key, requestDigest: _digest, ...fields } = record;
   return {
-    ...fields, snapshot: snapshot.parse(record.snapshot), state: record.holdExpiresAt > now ? 'held' : 'expired',
+    ...fields, snapshot: snapshot.parse(record.snapshot),
+    state: record.providerDecision === 'rejected' ? 'rejected'
+      : record.holdExpiresAt <= now ? 'expired' : record.providerDecision ?? 'held',
+    decidedAt: record.decidedAt?.toISOString() ?? null,
     startsAt: record.startsAt.toISOString(), endsAt: record.endsAt.toISOString(),
     holdExpiresAt: record.holdExpiresAt.toISOString(), createdAt: record.createdAt.toISOString(),
   };
@@ -69,13 +87,36 @@ async function member(tx: Prisma.TransactionClient, id: string, userId: string) 
   return record;
 }
 
+async function recheckReservation(tx: Prisma.TransactionClient, record: Booking, now: Date) {
+  const window = getWindow(record.startsAt, record.endsAt, now);
+  const original = snapshot.parse(record.snapshot);
+  const selected = {
+    targetKind: record.targetKind === 'gig' ? 'gig' as const : 'rental' as const,
+    targetId: record.targetId, targetVersion: record.targetVersion, quantity: original.quantity,
+    rateUnit: original.rateUnit ?? undefined, guestCount: original.guestCount ?? undefined,
+    packageId: original.package?.id, addonIds: original.package?.addons.map(item => item.id) ?? [],
+  };
+  const quoted = await bookingSelection(tx, selected, window.duration);
+  await checkCalendar(tx, record.providerId, window, selected.targetKind === 'gig');
+  await checkCapacity(tx, quoted.lines, window, now, record.id);
+}
+
+async function bookingPage(db: Prisma.TransactionClient, where: Prisma.BookingWhereInput, cursor: string | undefined, now: Date) {
+  const records = await db.booking.findMany({
+    where: { ...where, ...(cursor ? { id: { gt: cursor } } : {}) },
+    orderBy: { id: 'asc' }, take: pageSize + 1,
+  });
+  const items = records.slice(0, pageSize).map(record => present(record, now));
+  return { items, nextCursor: records.length > pageSize ? items[pageSize - 1]!.id : null };
+}
+
 export function makeBookingRequestsController(auth: AuthService) {
   const db = auth.deps.db;
   const profiles = new ProfileService(auth);
   const identity = (req: Request) => auth.authenticate(req.get('Authorization'));
 
   async function write<T>(req: Request, provider: (actor: Identity) => Promise<string>,
-    work: (tx: Prisma.TransactionClient, current: Identity, providerId: string) => Promise<T>) {
+    work: (tx: Prisma.TransactionClient, current: Identity, providerId: string) => Promise<T>, role: 'customer' | 'provider' = 'customer') {
     if (req.get('Origin') !== auth.config.WEB_ORIGIN || req.get('Sec-Fetch-Site') === 'cross-site' || !req.is('application/json')) {
       throw new PublicError(403, 'ORIGIN_REJECTED', 'Open StageLink in its own browser tab and try again.');
     }
@@ -87,7 +128,7 @@ export function makeBookingRequestsController(auth: AuthService) {
         await tx.$queryRaw`SELECT id FROM auth_users WHERE id=${id}::uuid FOR UPDATE`;
       }
       const current = await profiles.actor(tx, actor);
-      if (!current.user.roles.includes('customer')) throw new PublicError(403, 'ROLE_FORBIDDEN', 'A customer membership is required.');
+      if (role === 'customer' && !current.user.roles.includes('customer')) throw new PublicError(403, 'ROLE_FORBIDDEN', 'A customer membership is required.');
       profiles.verified(current);
       return work(tx, current, providerId);
     });
@@ -179,16 +220,74 @@ export function makeBookingRequestsController(auth: AuthService) {
 
     @Get('me/bookings')
     @ApiQuery({ name: 'cursor', required: false, type: String })
+    @ApiQuery({ name: 'status', required: false, enum: states.options })
+    @ApiQuery({ name: 'from', required: false, type: String })
+    @ApiQuery({ name: 'to', required: false, type: String })
     @ApiOkResponse({ schema: schema(page) })
-    async list(@Req() req: Request, @Query('cursor') cursor?: string) {
+    async list(@Req() req: Request, @Query() raw: unknown) {
       const { user } = await identity(req);
-      const records = await db.booking.findMany({
-        where: { OR: [{ customerId: user.id }, { providerId: user.id }],
-          ...(cursor === undefined ? {} : { id: { gt: parse(uuid, cursor) } }) },
-        orderBy: { id: 'asc' }, take: pageSize + 1,
-      });
-      const now = new Date(), items = records.slice(0, pageSize).map(record => present(record, now));
-      return { items, nextCursor: records.length > pageSize ? items[pageSize - 1]!.id : null };
+      const query = parse(listQuery, raw);
+      const now = new Date();
+      const stateFilters = {
+        held: { providerDecision: null, holdExpiresAt: { gt: now } },
+        accepted: { providerDecision: 'accepted', holdExpiresAt: { gt: now } },
+        rejected: { providerDecision: 'rejected' },
+        expired: { AND: [{ OR: [{ providerDecision: null }, { providerDecision: 'accepted' }] }, { holdExpiresAt: { lte: now } }] },
+      } satisfies Record<z.infer<typeof states>, Prisma.BookingWhereInput>;
+      const state = query.status ? stateFilters[query.status] : {};
+      return bookingPage(db, {
+        OR: [{ customerId: user.id }, { providerId: user.id }], ...state,
+        ...(query.from ? { endsAt: { gt: new Date(query.from) } } : {}),
+        ...(query.to ? { startsAt: { lt: new Date(query.to) } } : {}),
+      }, query.cursor, now);
+    }
+
+    @Get('me/calendar')
+    @ApiQuery({ name: 'cursor', required: false, type: String })
+    @ApiQuery({ name: 'from', type: String })
+    @ApiQuery({ name: 'to', type: String })
+    @ApiOkResponse({ schema: schema(page) })
+    async calendar(@Req() req: Request, @Query() raw: unknown) {
+      const actor = await identity(req);
+      profiles.providerRole(actor);
+      const query = parse(calendarQuery, raw);
+      const now = new Date();
+      return bookingPage(db, {
+        providerId: actor.user.id, providerDecision: 'accepted', holdExpiresAt: { gt: now },
+        endsAt: { gt: new Date(query.from) }, startsAt: { lt: new Date(query.to) },
+      }, query.cursor, now);
+    }
+
+    @Post('bookings/:id/provider-decisions')
+    @HttpCode(200)
+    @ApiParam({ name: 'id', format: 'uuid' })
+    @ApiBody({ schema: schema(decide) })
+    @ApiOkResponse({ schema: schema(booking) })
+    decide(@Req() req: Request, @Param('id') id: string, @Body() raw: unknown) {
+      const bookingId = parse(uuid, id);
+      const input = parse(decide, raw);
+      return write(req, async actor => (await member(db, bookingId, actor.user.id)).providerId, async (tx, actor) => {
+        const record = await member(tx, bookingId, actor.user.id);
+        if (record.providerId !== actor.user.id) throw new PublicError(403, 'ROLE_FORBIDDEN', 'Only the assigned provider can decide this request.');
+        profiles.providerRole(actor, record.targetKind === 'gig' ? 'artist' : 'renter');
+        if (record.revision !== input.revision || record.providerDecision) {
+          throw new PublicError(409, 'BOOKING_CHANGED', 'Reload the booking before deciding this request.');
+        }
+        const now = new Date();
+        if (input.decision === 'accepted') {
+          if (record.holdExpiresAt <= now) throw new PublicError(409, 'HOLD_EXPIRED', 'The customer must renew the hold before acceptance.');
+          await recheckReservation(tx, record, now);
+        }
+        const updated = await tx.booking.update({
+          where: { id: record.id },
+          data: {
+            providerDecision: input.decision, decidedAt: now, decisionReason: input.reason,
+            revision: { increment: 1 },
+            ...(input.decision === 'accepted' ? { holdExpiresAt: new Date(Math.min(record.startsAt.getTime(), now.getTime() + negotiationHoldMs)) } : {}),
+          },
+        });
+        return present(updated, now);
+      }, 'provider');
     }
 
     @Get('bookings/:id')
@@ -214,18 +313,12 @@ export function makeBookingRequestsController(auth: AuthService) {
           throw new PublicError(409, 'HOLD_CHANGED', 'Reload the booking before renewing its hold.');
         }
         const now = new Date();
-        const window = getWindow(record.startsAt, record.endsAt, now);
-        const original = snapshot.parse(record.snapshot);
-        const selected = {
-          targetKind: record.targetKind === 'gig' ? 'gig' as const : 'rental' as const,
-          targetId: record.targetId, targetVersion: record.targetVersion, quantity: original.quantity,
-          rateUnit: original.rateUnit ?? undefined, guestCount: original.guestCount ?? undefined,
-          packageId: original.package?.id, addonIds: original.package?.addons.map(item => item.id) ?? [],
-        };
-        const quoted = await bookingSelection(tx, selected, window.duration);
-        await checkCalendar(tx, providerId, window, selected.targetKind === 'gig');
-        await checkCapacity(tx, quoted.lines, window, now, record.id);
-        return present(await tx.booking.update({ where: { id: record.id }, data: { holdExpiresAt: expiry(record.startsAt, now) } }), now);
+        if (record.providerDecision === 'rejected') throw new PublicError(409, 'BOOKING_REJECTED', 'This booking was rejected.');
+        if (record.providerDecision === 'accepted' && record.holdExpiresAt > now) return present(record, now);
+        await recheckReservation(tx, record, now);
+        return present(await tx.booking.update({
+          where: { id: record.id }, data: { holdExpiresAt: expiry(record.startsAt, now), revision: { increment: 1 } },
+        }), now);
       });
     }
   }

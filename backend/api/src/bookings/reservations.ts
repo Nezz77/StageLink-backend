@@ -62,7 +62,7 @@ export async function checkCapacity(tx: Prisma.TransactionClient, lines: Reserva
     const held = await tx.bookingReservationLine.findMany({
       where: {
         resource: line.resource, resourceId: line.resourceId, ...(exclude ? { bookingId: { not: exclude } } : {}),
-        booking: { holdExpiresAt: { gt: now }, startsAt: { lt: window.endsAt }, endsAt: { gt: window.startsAt } },
+        booking: { OR: [{ providerDecision: null }, { providerDecision: 'accepted' }], holdExpiresAt: { gt: now }, startsAt: { lt: window.endsAt }, endsAt: { gt: window.startsAt } },
       },
       select: { quantity: true, booking: { select: { startsAt: true, endsAt: true } } },
     });

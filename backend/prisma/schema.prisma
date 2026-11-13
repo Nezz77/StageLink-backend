@@ -553,7 +553,16 @@ model AvailabilityBlock {
   @@map("availability_blocks")
 }
 
+enum ProviderDecision {
+  accepted
+  rejected
+}
+
 model Booking {
+  providerDecision ProviderDecision? @map("provider_decision")
+  decidedAt DateTime? @map("decided_at") @db.Timestamptz(3)
+  decisionReason String? @map("decision_reason") @db.VarChar(500)
+  revision Int @default(1)
   id String @id @default(uuid()) @db.Uuid
   customerId String @map("customer_id") @db.Uuid
   providerId String @map("provider_id") @db.Uuid

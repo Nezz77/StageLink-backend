@@ -298,6 +298,20 @@ test('renter owns revisions and public browse only shows approved published equi
     assert.equal((await call('bookings/' + booked.data.id + '/reservation-renewals', {
       expectedHoldExpiresAt: (await call('bookings/' + booked.data.id, undefined, customer)).data.holdExpiresAt,
     }, customer)).status, 409);
+    const winner = competing.find(result => result.status === 200)!.data;
+    const decisions = 'bookings/' + winner.id + '/provider-decisions';
+    const accept = { revision: 1, decision: 'accepted' };
+    assert.equal((await call(decisions, accept, other)).status, 404);
+    const decided = await Promise.all([call(decisions, accept, renter), call(decisions, accept, renter)]);
+    assert.deepEqual(decided.map(result => result.status).sort(), [200, 409]);
+    assert.equal(decided.find(result => result.status === 200)?.data.state, 'accepted');
+    const calendar = await call('me/calendar?' + new URLSearchParams({ from: bookingFields.startsAt, to: bookingFields.endsAt }), undefined, renter);
+    assert.equal(calendar.status, 200);
+    assert.ok(calendar.data.items.some((item: { id: string }) => item.id === winner.id));
+    assert.equal((await call('me/bookings?status=expired', undefined, customer)).data.items[0].id, booked.data.id);
+    const rejected = await call('bookings/' + booked.data.id + '/provider-decisions', { revision: 1, decision: 'rejected' }, renter);
+    assert.equal(rejected.status, 200);
+    assert.equal(rejected.data.state, 'rejected');
     const staleBundle = await call('me/rentals', bundle, renter);
     assert.equal(staleBundle.status, 200);
     assert.equal((await publicItem()).dailyRateMinor, edit.dailyRateMinor);

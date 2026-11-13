@@ -1253,6 +1253,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/calendar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["BookingRequestsController_calendar"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bookings/{id}/provider-decisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["BookingRequestsController_decide"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/bookings/{id}": {
         parameters: {
             query?: never;
@@ -9862,7 +9894,7 @@ export interface operations {
                         /** Format: date-time */
                         createdAt: string;
                         /** @enum {string} */
-                        state: "held" | "expired";
+                        state: "held" | "expired" | "accepted" | "rejected";
                         snapshot: {
                             title: string;
                             /** @enum {string} */
@@ -9921,6 +9953,12 @@ export interface operations {
                                 quantity: number;
                             }[];
                         };
+                        revision: number;
+                        /** @enum {string|null} */
+                        providerDecision: "accepted" | "rejected" | null;
+                        /** Format: date-time */
+                        decidedAt: string | null;
+                        decisionReason: string | null;
                     };
                 };
             };
@@ -9963,6 +10001,9 @@ export interface operations {
     BookingRequestsController_list: {
         parameters: {
             query?: {
+                to?: string;
+                from?: string;
+                status?: "held" | "expired" | "accepted" | "rejected";
                 cursor?: string;
             };
             header?: never;
@@ -10000,7 +10041,7 @@ export interface operations {
                             /** Format: date-time */
                             createdAt: string;
                             /** @enum {string} */
-                            state: "held" | "expired";
+                            state: "held" | "expired" | "accepted" | "rejected";
                             snapshot: {
                                 title: string;
                                 /** @enum {string} */
@@ -10059,6 +10100,12 @@ export interface operations {
                                     quantity: number;
                                 }[];
                             };
+                            revision: number;
+                            /** @enum {string|null} */
+                            providerDecision: "accepted" | "rejected" | null;
+                            /** Format: date-time */
+                            decidedAt: string | null;
+                            decisionReason: string | null;
                         }[];
                         /** Format: uuid */
                         nextCursor: string | null;
@@ -10067,7 +10114,122 @@ export interface operations {
             };
         };
     };
-    BookingRequestsController_get: {
+    BookingRequestsController_calendar: {
+        parameters: {
+            query: {
+                to: string;
+                from: string;
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            customerId: string;
+                            /** Format: uuid */
+                            providerId: string;
+                            /** Format: uuid */
+                            inquiryId: string | null;
+                            /** @enum {string} */
+                            targetKind: "gig" | "rental";
+                            /** Format: uuid */
+                            targetId: string;
+                            targetVersion: number;
+                            /** Format: date-time */
+                            startsAt: string;
+                            /** Format: date-time */
+                            endsAt: string;
+                            /** Format: date-time */
+                            holdExpiresAt: string;
+                            /** Format: date-time */
+                            createdAt: string;
+                            /** @enum {string} */
+                            state: "held" | "expired" | "accepted" | "rejected";
+                            snapshot: {
+                                title: string;
+                                /** @enum {string} */
+                                currency: "LKR";
+                                quantity: number;
+                                rateMinor: number | null;
+                                periods: number;
+                                /** @enum {string|null} */
+                                rateUnit: "hour" | "day" | "week" | null;
+                                guestCount: number | null;
+                                subtotalMinor: number | null;
+                                depositMinor: number | null;
+                                depositPolicy: {
+                                    /** @enum {string} */
+                                    mode: "none";
+                                    /** @enum {string} */
+                                    currency: "LKR";
+                                } | {
+                                    /** @enum {string} */
+                                    mode: "fixed";
+                                    /** @enum {string} */
+                                    currency: "LKR";
+                                    amountMinor: number;
+                                    terms: string;
+                                } | {
+                                    /** @enum {string} */
+                                    mode: "percentage";
+                                    /** @enum {string} */
+                                    currency: "LKR";
+                                    /** @enum {string} */
+                                    basis: "rental_subtotal";
+                                    basisPoints: number;
+                                    terms: string;
+                                };
+                                package: {
+                                    /** @enum {string} */
+                                    id: "standard" | "deluxe" | "vip";
+                                    title: string;
+                                    /** @enum {string} */
+                                    pricing: "fixed" | "custom";
+                                    durationMinutes: number;
+                                    performers: number;
+                                    basePriceMinor: number | null;
+                                    included: string;
+                                    excluded: string;
+                                    addons: {
+                                        id: string;
+                                        title: string;
+                                        priceMinor: number;
+                                    }[];
+                                } | null;
+                                bundleItems: {
+                                    /** Format: uuid */
+                                    listingId: string;
+                                    version: number;
+                                    quantity: number;
+                                }[];
+                            };
+                            revision: number;
+                            /** @enum {string|null} */
+                            providerDecision: "accepted" | "rejected" | null;
+                            /** Format: date-time */
+                            decidedAt: string | null;
+                            decisionReason: string | null;
+                        }[];
+                        /** Format: uuid */
+                        nextCursor: string | null;
+                    };
+                };
+            };
+        };
+    };
+    BookingRequestsController_decide: {
         parameters: {
             query?: never;
             header?: never;
@@ -10076,7 +10238,17 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": {
+                    revision: number;
+                    /** @enum {string} */
+                    decision: "accepted" | "rejected";
+                    /** @default  */
+                    reason?: string;
+                };
+            };
+        };
         responses: {
             200: {
                 headers: {
@@ -10106,7 +10278,7 @@ export interface operations {
                         /** Format: date-time */
                         createdAt: string;
                         /** @enum {string} */
-                        state: "held" | "expired";
+                        state: "held" | "expired" | "accepted" | "rejected";
                         snapshot: {
                             title: string;
                             /** @enum {string} */
@@ -10165,6 +10337,121 @@ export interface operations {
                                 quantity: number;
                             }[];
                         };
+                        revision: number;
+                        /** @enum {string|null} */
+                        providerDecision: "accepted" | "rejected" | null;
+                        /** Format: date-time */
+                        decidedAt: string | null;
+                        decisionReason: string | null;
+                    };
+                };
+            };
+        };
+    };
+    BookingRequestsController_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uuid */
+                        customerId: string;
+                        /** Format: uuid */
+                        providerId: string;
+                        /** Format: uuid */
+                        inquiryId: string | null;
+                        /** @enum {string} */
+                        targetKind: "gig" | "rental";
+                        /** Format: uuid */
+                        targetId: string;
+                        targetVersion: number;
+                        /** Format: date-time */
+                        startsAt: string;
+                        /** Format: date-time */
+                        endsAt: string;
+                        /** Format: date-time */
+                        holdExpiresAt: string;
+                        /** Format: date-time */
+                        createdAt: string;
+                        /** @enum {string} */
+                        state: "held" | "expired" | "accepted" | "rejected";
+                        snapshot: {
+                            title: string;
+                            /** @enum {string} */
+                            currency: "LKR";
+                            quantity: number;
+                            rateMinor: number | null;
+                            periods: number;
+                            /** @enum {string|null} */
+                            rateUnit: "hour" | "day" | "week" | null;
+                            guestCount: number | null;
+                            subtotalMinor: number | null;
+                            depositMinor: number | null;
+                            depositPolicy: {
+                                /** @enum {string} */
+                                mode: "none";
+                                /** @enum {string} */
+                                currency: "LKR";
+                            } | {
+                                /** @enum {string} */
+                                mode: "fixed";
+                                /** @enum {string} */
+                                currency: "LKR";
+                                amountMinor: number;
+                                terms: string;
+                            } | {
+                                /** @enum {string} */
+                                mode: "percentage";
+                                /** @enum {string} */
+                                currency: "LKR";
+                                /** @enum {string} */
+                                basis: "rental_subtotal";
+                                basisPoints: number;
+                                terms: string;
+                            };
+                            package: {
+                                /** @enum {string} */
+                                id: "standard" | "deluxe" | "vip";
+                                title: string;
+                                /** @enum {string} */
+                                pricing: "fixed" | "custom";
+                                durationMinutes: number;
+                                performers: number;
+                                basePriceMinor: number | null;
+                                included: string;
+                                excluded: string;
+                                addons: {
+                                    id: string;
+                                    title: string;
+                                    priceMinor: number;
+                                }[];
+                            } | null;
+                            bundleItems: {
+                                /** Format: uuid */
+                                listingId: string;
+                                version: number;
+                                quantity: number;
+                            }[];
+                        };
+                        revision: number;
+                        /** @enum {string|null} */
+                        providerDecision: "accepted" | "rejected" | null;
+                        /** Format: date-time */
+                        decidedAt: string | null;
+                        decisionReason: string | null;
                     };
                 };
             };
@@ -10216,7 +10503,7 @@ export interface operations {
                         /** Format: date-time */
                         createdAt: string;
                         /** @enum {string} */
-                        state: "held" | "expired";
+                        state: "held" | "expired" | "accepted" | "rejected";
                         snapshot: {
                             title: string;
                             /** @enum {string} */
@@ -10275,6 +10562,12 @@ export interface operations {
                                 quantity: number;
                             }[];
                         };
+                        revision: number;
+                        /** @enum {string|null} */
+                        providerDecision: "accepted" | "rejected" | null;
+                        /** Format: date-time */
+                        decidedAt: string | null;
+                        decisionReason: string | null;
                     };
                 };
             };

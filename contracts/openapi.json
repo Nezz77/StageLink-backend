@@ -24465,7 +24465,9 @@
                       "type": "string",
                       "enum": [
                         "held",
-                        "expired"
+                        "expired",
+                        "accepted",
+                        "rejected"
                       ]
                     },
                     "snapshot": {
@@ -24761,6 +24763,29 @@
                         "package",
                         "bundleItems"
                       ]
+                    },
+                    "revision": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "providerDecision": {
+                      "nullable": true,
+                      "type": "string",
+                      "enum": [
+                        "accepted",
+                        "rejected"
+                      ]
+                    },
+                    "decidedAt": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                    },
+                    "decisionReason": {
+                      "nullable": true,
+                      "type": "string"
                     }
                   },
                   "required": [
@@ -24776,7 +24801,11 @@
                     "holdExpiresAt",
                     "createdAt",
                     "state",
-                    "snapshot"
+                    "snapshot",
+                    "revision",
+                    "providerDecision",
+                    "decidedAt",
+                    "decisionReason"
                   ]
                 }
               }
@@ -24929,6 +24958,36 @@
         "operationId": "BookingRequestsController_list",
         "parameters": [
           {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "held",
+                "expired",
+                "accepted",
+                "rejected"
+              ],
+              "type": "string"
+            }
+          },
+          {
             "name": "cursor",
             "required": false,
             "in": "query",
@@ -25012,7 +25071,9 @@
                             "type": "string",
                             "enum": [
                               "held",
-                              "expired"
+                              "expired",
+                              "accepted",
+                              "rejected"
                             ]
                           },
                           "snapshot": {
@@ -25308,6 +25369,29 @@
                               "package",
                               "bundleItems"
                             ]
+                          },
+                          "revision": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "providerDecision": {
+                            "nullable": true,
+                            "type": "string",
+                            "enum": [
+                              "accepted",
+                              "rejected"
+                            ]
+                          },
+                          "decidedAt": {
+                            "nullable": true,
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                          },
+                          "decisionReason": {
+                            "nullable": true,
+                            "type": "string"
                           }
                         },
                         "required": [
@@ -25323,7 +25407,11 @@
                           "holdExpiresAt",
                           "createdAt",
                           "state",
-                          "snapshot"
+                          "snapshot",
+                          "revision",
+                          "providerDecision",
+                          "decidedAt",
+                          "decisionReason"
                         ]
                       }
                     },
@@ -25353,9 +25441,483 @@
         ]
       }
     },
-    "/api/v1/bookings/{id}": {
+    "/api/v1/me/calendar": {
       "get": {
-        "operationId": "BookingRequestsController_get",
+        "operationId": "BookingRequestsController_calendar",
+        "parameters": [
+          {
+            "name": "to",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "customerId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "providerId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "inquiryId": {
+                            "nullable": true,
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "targetKind": {
+                            "type": "string",
+                            "enum": [
+                              "gig",
+                              "rental"
+                            ]
+                          },
+                          "targetId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "targetVersion": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "startsAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                          },
+                          "endsAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                          },
+                          "holdExpiresAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                          },
+                          "state": {
+                            "type": "string",
+                            "enum": [
+                              "held",
+                              "expired",
+                              "accepted",
+                              "rejected"
+                            ]
+                          },
+                          "snapshot": {
+                            "type": "object",
+                            "properties": {
+                              "title": {
+                                "type": "string"
+                              },
+                              "currency": {
+                                "type": "string",
+                                "enum": [
+                                  "LKR"
+                                ]
+                              },
+                              "quantity": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              "rateMinor": {
+                                "nullable": true,
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              "periods": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              "rateUnit": {
+                                "nullable": true,
+                                "type": "string",
+                                "enum": [
+                                  "hour",
+                                  "day",
+                                  "week"
+                                ]
+                              },
+                              "guestCount": {
+                                "nullable": true,
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              "subtotalMinor": {
+                                "nullable": true,
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              "depositMinor": {
+                                "nullable": true,
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              "depositPolicy": {
+                                "oneOf": [
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "mode": {
+                                        "type": "string",
+                                        "enum": [
+                                          "none"
+                                        ]
+                                      },
+                                      "currency": {
+                                        "type": "string",
+                                        "enum": [
+                                          "LKR"
+                                        ]
+                                      }
+                                    },
+                                    "required": [
+                                      "mode",
+                                      "currency"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "mode": {
+                                        "type": "string",
+                                        "enum": [
+                                          "fixed"
+                                        ]
+                                      },
+                                      "currency": {
+                                        "type": "string",
+                                        "enum": [
+                                          "LKR"
+                                        ]
+                                      },
+                                      "amountMinor": {
+                                        "type": "integer",
+                                        "minimum": 1,
+                                        "maximum": 100000000
+                                      },
+                                      "terms": {
+                                        "type": "string",
+                                        "minLength": 20,
+                                        "maxLength": 1000
+                                      }
+                                    },
+                                    "required": [
+                                      "mode",
+                                      "currency",
+                                      "amountMinor",
+                                      "terms"
+                                    ],
+                                    "additionalProperties": false
+                                  },
+                                  {
+                                    "type": "object",
+                                    "properties": {
+                                      "mode": {
+                                        "type": "string",
+                                        "enum": [
+                                          "percentage"
+                                        ]
+                                      },
+                                      "currency": {
+                                        "type": "string",
+                                        "enum": [
+                                          "LKR"
+                                        ]
+                                      },
+                                      "basis": {
+                                        "type": "string",
+                                        "enum": [
+                                          "rental_subtotal"
+                                        ]
+                                      },
+                                      "basisPoints": {
+                                        "type": "integer",
+                                        "minimum": 1,
+                                        "maximum": 10000
+                                      },
+                                      "terms": {
+                                        "type": "string",
+                                        "minLength": 20,
+                                        "maxLength": 1000
+                                      }
+                                    },
+                                    "required": [
+                                      "mode",
+                                      "currency",
+                                      "basis",
+                                      "basisPoints",
+                                      "terms"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                ]
+                              },
+                              "package": {
+                                "nullable": true,
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string",
+                                    "enum": [
+                                      "standard",
+                                      "deluxe",
+                                      "vip"
+                                    ]
+                                  },
+                                  "title": {
+                                    "type": "string",
+                                    "minLength": 3,
+                                    "maxLength": 60
+                                  },
+                                  "pricing": {
+                                    "type": "string",
+                                    "enum": [
+                                      "fixed",
+                                      "custom"
+                                    ]
+                                  },
+                                  "durationMinutes": {
+                                    "type": "integer",
+                                    "minimum": 30,
+                                    "maximum": 720,
+                                    "multipleOf": 15
+                                  },
+                                  "performers": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 50
+                                  },
+                                  "basePriceMinor": {
+                                    "nullable": true,
+                                    "type": "integer",
+                                    "minimum": 100,
+                                    "maximum": 100000000
+                                  },
+                                  "included": {
+                                    "type": "string",
+                                    "minLength": 3,
+                                    "maxLength": 350
+                                  },
+                                  "excluded": {
+                                    "type": "string",
+                                    "minLength": 3,
+                                    "maxLength": 250
+                                  },
+                                  "addons": {
+                                    "maxItems": 3,
+                                    "type": "array",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "id": {
+                                          "type": "string",
+                                          "pattern": "^[a-z0-9-]{1,24}$"
+                                        },
+                                        "title": {
+                                          "type": "string",
+                                          "minLength": 3,
+                                          "maxLength": 60
+                                        },
+                                        "priceMinor": {
+                                          "type": "integer",
+                                          "minimum": 100,
+                                          "maximum": 100000000
+                                        }
+                                      },
+                                      "required": [
+                                        "id",
+                                        "title",
+                                        "priceMinor"
+                                      ],
+                                      "additionalProperties": false
+                                    }
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "title",
+                                  "pricing",
+                                  "durationMinutes",
+                                  "performers",
+                                  "basePriceMinor",
+                                  "included",
+                                  "excluded",
+                                  "addons"
+                                ],
+                                "additionalProperties": false
+                              },
+                              "bundleItems": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "listingId": {
+                                      "type": "string",
+                                      "format": "uuid",
+                                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                                    },
+                                    "version": {
+                                      "type": "integer",
+                                      "minimum": -9007199254740991,
+                                      "maximum": 9007199254740991
+                                    },
+                                    "quantity": {
+                                      "type": "integer",
+                                      "minimum": -9007199254740991,
+                                      "maximum": 9007199254740991
+                                    }
+                                  },
+                                  "required": [
+                                    "listingId",
+                                    "version",
+                                    "quantity"
+                                  ]
+                                }
+                              }
+                            },
+                            "required": [
+                              "title",
+                              "currency",
+                              "quantity",
+                              "rateMinor",
+                              "periods",
+                              "rateUnit",
+                              "guestCount",
+                              "subtotalMinor",
+                              "depositMinor",
+                              "depositPolicy",
+                              "package",
+                              "bundleItems"
+                            ]
+                          },
+                          "revision": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "providerDecision": {
+                            "nullable": true,
+                            "type": "string",
+                            "enum": [
+                              "accepted",
+                              "rejected"
+                            ]
+                          },
+                          "decidedAt": {
+                            "nullable": true,
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                          },
+                          "decisionReason": {
+                            "nullable": true,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "customerId",
+                          "providerId",
+                          "inquiryId",
+                          "targetKind",
+                          "targetId",
+                          "targetVersion",
+                          "startsAt",
+                          "endsAt",
+                          "holdExpiresAt",
+                          "createdAt",
+                          "state",
+                          "snapshot",
+                          "revision",
+                          "providerDecision",
+                          "decidedAt",
+                          "decisionReason"
+                        ]
+                      }
+                    },
+                    "nextCursor": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Booking requests"
+        ]
+      }
+    },
+    "/api/v1/bookings/{id}/provider-decisions": {
+      "post": {
+        "operationId": "BookingRequestsController_decide",
         "parameters": [
           {
             "name": "id",
@@ -25367,6 +25929,41 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "revision": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "exclusiveMinimum": true,
+                    "maximum": 2147483647
+                  },
+                  "decision": {
+                    "type": "string",
+                    "enum": [
+                      "accepted",
+                      "rejected"
+                    ]
+                  },
+                  "reason": {
+                    "default": "",
+                    "type": "string",
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "revision",
+                  "decision"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "",
@@ -25437,7 +26034,9 @@
                       "type": "string",
                       "enum": [
                         "held",
-                        "expired"
+                        "expired",
+                        "accepted",
+                        "rejected"
                       ]
                     },
                     "snapshot": {
@@ -25733,6 +26332,29 @@
                         "package",
                         "bundleItems"
                       ]
+                    },
+                    "revision": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "providerDecision": {
+                      "nullable": true,
+                      "type": "string",
+                      "enum": [
+                        "accepted",
+                        "rejected"
+                      ]
+                    },
+                    "decidedAt": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                    },
+                    "decisionReason": {
+                      "nullable": true,
+                      "type": "string"
                     }
                   },
                   "required": [
@@ -25748,7 +26370,452 @@
                     "holdExpiresAt",
                     "createdAt",
                     "state",
-                    "snapshot"
+                    "snapshot",
+                    "revision",
+                    "providerDecision",
+                    "decidedAt",
+                    "decisionReason"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Booking requests"
+        ]
+      }
+    },
+    "/api/v1/bookings/{id}": {
+      "get": {
+        "operationId": "BookingRequestsController_get",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "customerId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "providerId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "inquiryId": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "targetKind": {
+                      "type": "string",
+                      "enum": [
+                        "gig",
+                        "rental"
+                      ]
+                    },
+                    "targetId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "targetVersion": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "startsAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                    },
+                    "endsAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                    },
+                    "holdExpiresAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "held",
+                        "expired",
+                        "accepted",
+                        "rejected"
+                      ]
+                    },
+                    "snapshot": {
+                      "type": "object",
+                      "properties": {
+                        "title": {
+                          "type": "string"
+                        },
+                        "currency": {
+                          "type": "string",
+                          "enum": [
+                            "LKR"
+                          ]
+                        },
+                        "quantity": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "rateMinor": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "periods": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "rateUnit": {
+                          "nullable": true,
+                          "type": "string",
+                          "enum": [
+                            "hour",
+                            "day",
+                            "week"
+                          ]
+                        },
+                        "guestCount": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "subtotalMinor": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "depositMinor": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "depositPolicy": {
+                          "oneOf": [
+                            {
+                              "type": "object",
+                              "properties": {
+                                "mode": {
+                                  "type": "string",
+                                  "enum": [
+                                    "none"
+                                  ]
+                                },
+                                "currency": {
+                                  "type": "string",
+                                  "enum": [
+                                    "LKR"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "mode",
+                                "currency"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "mode": {
+                                  "type": "string",
+                                  "enum": [
+                                    "fixed"
+                                  ]
+                                },
+                                "currency": {
+                                  "type": "string",
+                                  "enum": [
+                                    "LKR"
+                                  ]
+                                },
+                                "amountMinor": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 100000000
+                                },
+                                "terms": {
+                                  "type": "string",
+                                  "minLength": 20,
+                                  "maxLength": 1000
+                                }
+                              },
+                              "required": [
+                                "mode",
+                                "currency",
+                                "amountMinor",
+                                "terms"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "mode": {
+                                  "type": "string",
+                                  "enum": [
+                                    "percentage"
+                                  ]
+                                },
+                                "currency": {
+                                  "type": "string",
+                                  "enum": [
+                                    "LKR"
+                                  ]
+                                },
+                                "basis": {
+                                  "type": "string",
+                                  "enum": [
+                                    "rental_subtotal"
+                                  ]
+                                },
+                                "basisPoints": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 10000
+                                },
+                                "terms": {
+                                  "type": "string",
+                                  "minLength": 20,
+                                  "maxLength": 1000
+                                }
+                              },
+                              "required": [
+                                "mode",
+                                "currency",
+                                "basis",
+                                "basisPoints",
+                                "terms"
+                              ],
+                              "additionalProperties": false
+                            }
+                          ]
+                        },
+                        "package": {
+                          "nullable": true,
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "enum": [
+                                "standard",
+                                "deluxe",
+                                "vip"
+                              ]
+                            },
+                            "title": {
+                              "type": "string",
+                              "minLength": 3,
+                              "maxLength": 60
+                            },
+                            "pricing": {
+                              "type": "string",
+                              "enum": [
+                                "fixed",
+                                "custom"
+                              ]
+                            },
+                            "durationMinutes": {
+                              "type": "integer",
+                              "minimum": 30,
+                              "maximum": 720,
+                              "multipleOf": 15
+                            },
+                            "performers": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 50
+                            },
+                            "basePriceMinor": {
+                              "nullable": true,
+                              "type": "integer",
+                              "minimum": 100,
+                              "maximum": 100000000
+                            },
+                            "included": {
+                              "type": "string",
+                              "minLength": 3,
+                              "maxLength": 350
+                            },
+                            "excluded": {
+                              "type": "string",
+                              "minLength": 3,
+                              "maxLength": 250
+                            },
+                            "addons": {
+                              "maxItems": 3,
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string",
+                                    "pattern": "^[a-z0-9-]{1,24}$"
+                                  },
+                                  "title": {
+                                    "type": "string",
+                                    "minLength": 3,
+                                    "maxLength": 60
+                                  },
+                                  "priceMinor": {
+                                    "type": "integer",
+                                    "minimum": 100,
+                                    "maximum": 100000000
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "title",
+                                  "priceMinor"
+                                ],
+                                "additionalProperties": false
+                              }
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "title",
+                            "pricing",
+                            "durationMinutes",
+                            "performers",
+                            "basePriceMinor",
+                            "included",
+                            "excluded",
+                            "addons"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "bundleItems": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "listingId": {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              },
+                              "version": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              },
+                              "quantity": {
+                                "type": "integer",
+                                "minimum": -9007199254740991,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": [
+                              "listingId",
+                              "version",
+                              "quantity"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "title",
+                        "currency",
+                        "quantity",
+                        "rateMinor",
+                        "periods",
+                        "rateUnit",
+                        "guestCount",
+                        "subtotalMinor",
+                        "depositMinor",
+                        "depositPolicy",
+                        "package",
+                        "bundleItems"
+                      ]
+                    },
+                    "revision": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "providerDecision": {
+                      "nullable": true,
+                      "type": "string",
+                      "enum": [
+                        "accepted",
+                        "rejected"
+                      ]
+                    },
+                    "decidedAt": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                    },
+                    "decisionReason": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "customerId",
+                    "providerId",
+                    "inquiryId",
+                    "targetKind",
+                    "targetId",
+                    "targetVersion",
+                    "startsAt",
+                    "endsAt",
+                    "holdExpiresAt",
+                    "createdAt",
+                    "state",
+                    "snapshot",
+                    "revision",
+                    "providerDecision",
+                    "decidedAt",
+                    "decisionReason"
                   ]
                 }
               }
@@ -25870,7 +26937,9 @@
                       "type": "string",
                       "enum": [
                         "held",
-                        "expired"
+                        "expired",
+                        "accepted",
+                        "rejected"
                       ]
                     },
                     "snapshot": {
@@ -26166,6 +27235,29 @@
                         "package",
                         "bundleItems"
                       ]
+                    },
+                    "revision": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "providerDecision": {
+                      "nullable": true,
+                      "type": "string",
+                      "enum": [
+                        "accepted",
+                        "rejected"
+                      ]
+                    },
+                    "decidedAt": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                    },
+                    "decisionReason": {
+                      "nullable": true,
+                      "type": "string"
                     }
                   },
                   "required": [
@@ -26181,7 +27273,11 @@
                     "holdExpiresAt",
                     "createdAt",
                     "state",
-                    "snapshot"
+                    "snapshot",
+                    "revision",
+                    "providerDecision",
+                    "decidedAt",
+                    "decisionReason"
                   ]
                 }
               }

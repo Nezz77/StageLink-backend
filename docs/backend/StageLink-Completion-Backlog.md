@@ -12,15 +12,27 @@ Audit date 13 November 2026. Requirements come from the final proposal, sections
 | 4. Booking, chat and payments | Demo screens for booking, messages, quotations, checkout, milestones, documents and the saved archive. | Persist requests and lifecycle transitions, reservation holds, quotes and counteroffers. Add authenticated agreement acceptance and a verifiable SHA-256 digest of accepted terms. Implement authorized Socket.IO rooms, attachments, typing, reads and reconnect. Connect hosted sandbox checkout, webhook handling, refunds, payouts and server-issued documents. |
 | 5. Administration and AI | Persistent provider-profile, payout-destination and portfolio reviews. Demo operations and AI panels. | Complete KYC evidence and decisions, case and support chat, dispute settlement and audit evidence, live analytics, promotion and maintenance. Implement FastAPI matchmaking and content generation, and real 24-hour and 2-hour SMS/email scheduling. |
 
-## Work order
+## Backend build order
 
-- [ ] Reconcile the team frontend at local `ddc2f25` with the validated backend baseline. Fix missing package/arbitration modules and incompatible booking and calendar types before merging team changes. Under the available toolchain, the team frontend typecheck failed and 28 of 115 tests failed.
-- [ ] Record the architecture decision for the frontend. The proposal and report describe Next.js/SSR. Both inspected checkouts use React/Vite.
-- [ ] P05 catalog. Verify the new artist-gig migration with PostgreSQL. Verify the package migration and publication flow. Public gig browse and package selection are implemented. Verify the equipment listing migration and publication flow. Venue and bundle publication and hourly/daily/weekly rate plans are implemented. Verify the rental options migration, verify deposit policy publication against PostgreSQL, then finish serialized inventory and listing media.
-- [ ] P06–P07 discovery and customer actions. Deliver live browse and search, event briefs, saved items, drafts and inquiries.
-- [ ] P08–P10 booking and negotiation. Deliver availability and atomic reservations, request decisions, immutable quotes and agreement evidence, then durable Socket.IO messaging.
-- [ ] P11–P14 payment and completion. Implement financial journal and PayHere/Stripe sandbox callbacks, refunds and reconciliation, settlements, documents, verified reviews, inspection evidence and rental deposits.
-- [ ] P15–P17 AI and administration. Integrate matchmaking and generated content, KYC, support and disputes, delivery/reminders, and system controls.
-- [ ] P18 release. Replace sample analytics, verify empty states and per-account data isolation, exercise booking/stock races and payment retries, and run accessibility, browser, security, backup and rollback checks.
+A checked box marks implemented backend code. PostgreSQL integration, client wiring, and external provider checks are tracked below.
 
-See [backend-backlog.json](backend-backlog.json) for ticket-level acceptance criteria and [UI-Backend-Coverage.csv](UI-Backend-Coverage.csv) for source mappings. P05 is in progress in this checkout. The gig lifecycle uses immutable content revisions and a published-version pointer. Saving edits to a published gig leaves its public version visible until the owner republishes. The status API handles publish, pause and archive in one command endpoint. A verified, approved artist profile is required to publish. API-mode artist browsing uses published records, and the demo retains sample data. Booking submission and stored package selection are scheduled with the booking flow.
+- [x] P00–P04 foundation, accounts, profiles and reviewed media.
+- [x] P05 catalog. Versioned gigs and packages, equipment, venues, bundles, rate plans, refundable deposit policies, serialized inventory and rental galleries.
+- [x] P06 published feed, scheduled announcements, featured package previews, private event briefs and catalog search by name, price, city, radius, genre, rental type and category.
+- [ ] P06 verified rating filter. Add once P13 supplies verified review data.
+- [x] P07 private saved items, resumable drafts and pre-booking inquiries. Booking submission links an inquiry to the resulting booking.
+- [x] P08 provider calendars, blackouts, date-specific stock, booking requests, captured terms and renewable holds.
+- [x] P09 provider decisions and calendar/history projections.
+- [ ] P09 quotation revisions, counteroffers, authenticated acceptance and agreement evidence.
+- [ ] P10 authorized, durable Socket.IO chat.
+- [ ] P11–P14 financial journal, PayHere and Stripe, reconciliation, completion, settlements, documents, verified reviews, inspections and deposit settlement.
+- [ ] P15–P17 AI, KYC, support, disputes, reminders and system controls.
+- [ ] P18 analytics, security, accessibility, backup and rollback, and end-to-end release verification.
+
+## Verification and client integration
+
+- [ ] Run the new migrations and integration tests with PostgreSQL, Redis, Mailpit and S3Mock. Include concurrent reservations and decisions, expiry, permissions and published-version visibility.
+- [ ] Reconcile the team frontend and connect the backend contracts on the frontend branch. Update the corresponding StageLink Figma screens and flows in each UI task.
+- [ ] Verify payment sandbox callbacks, reconciliation and two-account booking flows once those endpoints exist.
+
+See [backend-backlog.json](backend-backlog.json) for ticket acceptance criteria and [PROGRESS.md](PROGRESS.md) for implementation details.
