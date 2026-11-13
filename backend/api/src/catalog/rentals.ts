@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Patch, Post, Put, Query, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiParam, ApiQuery, ApiTags, type SchemaObject } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { z } from 'zod';
@@ -7,6 +7,7 @@ import type { AuthService } from '../auth/service.js';
 import { PublicError } from '../auth/errors.js';
 import { ProfileService } from '../profiles/service.js';
 import { providerPublic } from '../profiles/schemas.js';
+import { depositPolicy } from './deposit-policy.js';
 
 const uuid = z.string().uuid();
 const revision = z.number().int().positive().max(2_147_483_647);
@@ -46,10 +47,11 @@ const create = fields.extend({ kind: kind.optional(), ...options });
 const edit = fields.extend({ revision, ...options });
 const status = z.enum(['draft', 'published', 'paused', 'archived']);
 const transition = z.object({ revision, action: z.enum(['publish', 'pause', 'archive']) }).strict();
+const updateDeposit = z.object({ revision, depositPolicy }).strict();
 const listing = fields.extend({
   id: uuid, version: revision, currency: z.literal('LKR'), kind,
   hourlyRateMinor: optionalRate, weeklyRateMinor: optionalRate, venueCapacity: capacity,
-  bundleItems: storedBundle,
+  bundleItems: storedBundle, depositPolicy,
 });
 const ownerListing = listing.extend({ revision, status, publishedVersion: revision.nullable() });
 const publicListing = listing.omit({ stockQuantity: true }).extend({
@@ -86,6 +88,7 @@ function ownerView(record: RentalListing, version: RentalListingVersion | undefi
     id: record.id, kind: record.kind, version: version.version, revision: record.revision, status: record.status,
     hourlyRateMinor: version.hourlyRateMinor, weeklyRateMinor: version.weeklyRateMinor,
     venueCapacity: version.venueCapacity, bundleItems: storedBundle.parse(version.bundleItems),
+    depositPolicy: depositPolicy.parse(version.depositPolicy),
     publishedVersion: record.publishedVersion, title: version.title, description: version.description,
     category: version.category, currency: 'LKR' as const, dailyRateMinor: version.dailyRateMinor,
     stockQuantity: version.stockQuantity, specs: specs.parse(version.specs),
@@ -144,7 +147,7 @@ export function makeRentalControllers(auth: AuthService) {
     return identity;
   }
 
-  async function change(req: Request, id: string, input: z.infer<typeof edit> | z.infer<typeof transition>) {
+  async function change(req: Request, id: string, input: z.infer<typeof edit> | z.infer<typeof transition> | z.infer<typeof updateDeposit>) {
     const identity = await mutation(req);
     return db.$transaction(async tx => {
       const current = await profiles.actor(tx, identity);
@@ -187,10 +190,24 @@ export function makeRentalControllers(auth: AuthService) {
             data.status = 'archived';
             break;
         }
+      } else if ('depositPolicy' in input) {
+        version = await tx.rentalListingVersion.create({
+          data: {
+            ...version, version: nextRevision,
+            specs: specs.parse(version.specs),
+            bundleItems: storedBundle.parse(version.bundleItems),
+            depositPolicy: input.depositPolicy,
+          },
+        });
       } else {
         const { revision: _revision, ...details } = input;
         const values = await versionDetails(tx, current.user.id, record.kind, details, version);
-        version = await tx.rentalListingVersion.create({ data: { ...values, listingId: id, version: nextRevision } });
+        version = await tx.rentalListingVersion.create({
+          data: {
+            ...values, listingId: id, version: nextRevision,
+            depositPolicy: depositPolicy.parse(version.depositPolicy),
+          },
+        });
       }
       const updated = await tx.rentalListing.update({
         where: { id }, data: { ...data, revision: nextRevision, updatedAt: new Date() },
@@ -249,6 +266,18 @@ export function makeRentalControllers(auth: AuthService) {
     @ApiOkResponse({ schema: schema(ownerListing) })
     update(@Req() req: Request, @Param('id') id: string, @Body() body: unknown) {
       return change(req, parse(uuid, id), parse(edit, body));
+    }
+
+    @Put(':id/deposit-policy')
+    @ApiParam({ name: 'id', format: 'uuid' })
+    @ApiBody({ schema: schema(updateDeposit) })
+    @ApiOkResponse({ schema: schema(ownerListing) })
+    updateDepositPolicy(@Req() req: Request, @Param('id') id: string, @Body() body: unknown) {
+      const policy = updateDeposit.safeParse(body);
+      if (!policy.success) {
+        throw new PublicError(400, 'INVALID_DEPOSIT_POLICY', 'Use an LKR deposit policy with a valid listing revision, amount or percentage, and refund terms.');
+      }
+      return change(req, parse(uuid, id), policy.data);
     }
 
     @Post(':id/status')

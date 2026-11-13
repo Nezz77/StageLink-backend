@@ -17619,6 +17619,107 @@
                           "additionalProperties": false
                         }
                       },
+                      "depositPolicy": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "mode": {
+                                "type": "string",
+                                "enum": [
+                                  "none"
+                                ]
+                              },
+                              "currency": {
+                                "type": "string",
+                                "enum": [
+                                  "LKR"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "mode",
+                              "currency"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "mode": {
+                                "type": "string",
+                                "enum": [
+                                  "fixed"
+                                ]
+                              },
+                              "currency": {
+                                "type": "string",
+                                "enum": [
+                                  "LKR"
+                                ]
+                              },
+                              "amountMinor": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 100000000
+                              },
+                              "terms": {
+                                "type": "string",
+                                "minLength": 20,
+                                "maxLength": 1000
+                              }
+                            },
+                            "required": [
+                              "mode",
+                              "currency",
+                              "amountMinor",
+                              "terms"
+                            ],
+                            "additionalProperties": false
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "mode": {
+                                "type": "string",
+                                "enum": [
+                                  "percentage"
+                                ]
+                              },
+                              "currency": {
+                                "type": "string",
+                                "enum": [
+                                  "LKR"
+                                ]
+                              },
+                              "basis": {
+                                "type": "string",
+                                "enum": [
+                                  "rental_subtotal"
+                                ]
+                              },
+                              "basisPoints": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 10000
+                              },
+                              "terms": {
+                                "type": "string",
+                                "minLength": 20,
+                                "maxLength": 1000
+                              }
+                            },
+                            "required": [
+                              "mode",
+                              "currency",
+                              "basis",
+                              "basisPoints",
+                              "terms"
+                            ],
+                            "additionalProperties": false
+                          }
+                        ]
+                      },
                       "revision": {
                         "type": "integer",
                         "minimum": 0,
@@ -17657,6 +17758,7 @@
                       "weeklyRateMinor",
                       "venueCapacity",
                       "bundleItems",
+                      "depositPolicy",
                       "revision",
                       "status",
                       "publishedVersion"
@@ -17951,6 +18053,107 @@
                         "additionalProperties": false
                       }
                     },
+                    "depositPolicy": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "mode": {
+                              "type": "string",
+                              "enum": [
+                                "none"
+                              ]
+                            },
+                            "currency": {
+                              "type": "string",
+                              "enum": [
+                                "LKR"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "mode",
+                            "currency"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "mode": {
+                              "type": "string",
+                              "enum": [
+                                "fixed"
+                              ]
+                            },
+                            "currency": {
+                              "type": "string",
+                              "enum": [
+                                "LKR"
+                              ]
+                            },
+                            "amountMinor": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 100000000
+                            },
+                            "terms": {
+                              "type": "string",
+                              "minLength": 20,
+                              "maxLength": 1000
+                            }
+                          },
+                          "required": [
+                            "mode",
+                            "currency",
+                            "amountMinor",
+                            "terms"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "mode": {
+                              "type": "string",
+                              "enum": [
+                                "percentage"
+                              ]
+                            },
+                            "currency": {
+                              "type": "string",
+                              "enum": [
+                                "LKR"
+                              ]
+                            },
+                            "basis": {
+                              "type": "string",
+                              "enum": [
+                                "rental_subtotal"
+                              ]
+                            },
+                            "basisPoints": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 10000
+                            },
+                            "terms": {
+                              "type": "string",
+                              "minLength": 20,
+                              "maxLength": 1000
+                            }
+                          },
+                          "required": [
+                            "mode",
+                            "currency",
+                            "basis",
+                            "basisPoints",
+                            "terms"
+                          ],
+                          "additionalProperties": false
+                        }
+                      ]
+                    },
                     "revision": {
                       "type": "integer",
                       "minimum": 0,
@@ -17989,6 +18192,7 @@
                     "weeklyRateMinor",
                     "venueCapacity",
                     "bundleItems",
+                    "depositPolicy",
                     "revision",
                     "status",
                     "publishedVersion"
@@ -18293,6 +18497,107 @@
                         "additionalProperties": false
                       }
                     },
+                    "depositPolicy": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "mode": {
+                              "type": "string",
+                              "enum": [
+                                "none"
+                              ]
+                            },
+                            "currency": {
+                              "type": "string",
+                              "enum": [
+                                "LKR"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "mode",
+                            "currency"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "mode": {
+                              "type": "string",
+                              "enum": [
+                                "fixed"
+                              ]
+                            },
+                            "currency": {
+                              "type": "string",
+                              "enum": [
+                                "LKR"
+                              ]
+                            },
+                            "amountMinor": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 100000000
+                            },
+                            "terms": {
+                              "type": "string",
+                              "minLength": 20,
+                              "maxLength": 1000
+                            }
+                          },
+                          "required": [
+                            "mode",
+                            "currency",
+                            "amountMinor",
+                            "terms"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "mode": {
+                              "type": "string",
+                              "enum": [
+                                "percentage"
+                              ]
+                            },
+                            "currency": {
+                              "type": "string",
+                              "enum": [
+                                "LKR"
+                              ]
+                            },
+                            "basis": {
+                              "type": "string",
+                              "enum": [
+                                "rental_subtotal"
+                              ]
+                            },
+                            "basisPoints": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 10000
+                            },
+                            "terms": {
+                              "type": "string",
+                              "minLength": 20,
+                              "maxLength": 1000
+                            }
+                          },
+                          "required": [
+                            "mode",
+                            "currency",
+                            "basis",
+                            "basisPoints",
+                            "terms"
+                          ],
+                          "additionalProperties": false
+                        }
+                      ]
+                    },
                     "revision": {
                       "type": "integer",
                       "minimum": 0,
@@ -18331,6 +18636,448 @@
                     "weeklyRateMinor",
                     "venueCapacity",
                     "bundleItems",
+                    "depositPolicy",
+                    "revision",
+                    "status",
+                    "publishedVersion"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Equipment listings"
+        ]
+      }
+    },
+    "/api/v1/me/rentals/{id}/deposit-policy": {
+      "put": {
+        "operationId": "RentalsController_updateDepositPolicy",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "revision": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "exclusiveMinimum": true,
+                    "maximum": 2147483647
+                  },
+                  "depositPolicy": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "mode": {
+                            "type": "string",
+                            "enum": [
+                              "none"
+                            ]
+                          },
+                          "currency": {
+                            "type": "string",
+                            "enum": [
+                              "LKR"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "mode",
+                          "currency"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "mode": {
+                            "type": "string",
+                            "enum": [
+                              "fixed"
+                            ]
+                          },
+                          "currency": {
+                            "type": "string",
+                            "enum": [
+                              "LKR"
+                            ]
+                          },
+                          "amountMinor": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 100000000
+                          },
+                          "terms": {
+                            "type": "string",
+                            "minLength": 20,
+                            "maxLength": 1000
+                          }
+                        },
+                        "required": [
+                          "mode",
+                          "currency",
+                          "amountMinor",
+                          "terms"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "mode": {
+                            "type": "string",
+                            "enum": [
+                              "percentage"
+                            ]
+                          },
+                          "currency": {
+                            "type": "string",
+                            "enum": [
+                              "LKR"
+                            ]
+                          },
+                          "basis": {
+                            "type": "string",
+                            "enum": [
+                              "rental_subtotal"
+                            ]
+                          },
+                          "basisPoints": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 10000
+                          },
+                          "terms": {
+                            "type": "string",
+                            "minLength": 20,
+                            "maxLength": 1000
+                          }
+                        },
+                        "required": [
+                          "mode",
+                          "currency",
+                          "basis",
+                          "basisPoints",
+                          "terms"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "revision",
+                  "depositPolicy"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 120
+                    },
+                    "description": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 2000
+                    },
+                    "category": {
+                      "type": "string",
+                      "enum": [
+                        "Sound",
+                        "Lighting",
+                        "Instruments",
+                        "Power",
+                        "Stage",
+                        "Other"
+                      ]
+                    },
+                    "dailyRateMinor": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "exclusiveMinimum": true,
+                      "maximum": 100000000
+                    },
+                    "stockQuantity": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 100000
+                    },
+                    "specs": {
+                      "type": "object",
+                      "properties": {
+                        "specWattage": {
+                          "type": "string"
+                        },
+                        "specSpl": {
+                          "type": "string"
+                        },
+                        "specFrequency": {
+                          "type": "string",
+                          "maxLength": 120
+                        },
+                        "specWeight": {
+                          "type": "string"
+                        },
+                        "packageInclusions": {
+                          "type": "string",
+                          "maxLength": 1000
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "version": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "exclusiveMinimum": true,
+                      "maximum": 2147483647
+                    },
+                    "currency": {
+                      "type": "string",
+                      "enum": [
+                        "LKR"
+                      ]
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "equipment",
+                        "venue",
+                        "bundle"
+                      ]
+                    },
+                    "hourlyRateMinor": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": 0,
+                      "exclusiveMinimum": true,
+                      "maximum": 100000000
+                    },
+                    "weeklyRateMinor": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": 0,
+                      "exclusiveMinimum": true,
+                      "maximum": 100000000
+                    },
+                    "venueCapacity": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 100000
+                    },
+                    "bundleItems": {
+                      "maxItems": 12,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "listingId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "quantity": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 100000
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "version": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "exclusiveMinimum": true,
+                            "maximum": 2147483647
+                          }
+                        },
+                        "required": [
+                          "listingId",
+                          "quantity",
+                          "title",
+                          "version"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "depositPolicy": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "mode": {
+                              "type": "string",
+                              "enum": [
+                                "none"
+                              ]
+                            },
+                            "currency": {
+                              "type": "string",
+                              "enum": [
+                                "LKR"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "mode",
+                            "currency"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "mode": {
+                              "type": "string",
+                              "enum": [
+                                "fixed"
+                              ]
+                            },
+                            "currency": {
+                              "type": "string",
+                              "enum": [
+                                "LKR"
+                              ]
+                            },
+                            "amountMinor": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 100000000
+                            },
+                            "terms": {
+                              "type": "string",
+                              "minLength": 20,
+                              "maxLength": 1000
+                            }
+                          },
+                          "required": [
+                            "mode",
+                            "currency",
+                            "amountMinor",
+                            "terms"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "mode": {
+                              "type": "string",
+                              "enum": [
+                                "percentage"
+                              ]
+                            },
+                            "currency": {
+                              "type": "string",
+                              "enum": [
+                                "LKR"
+                              ]
+                            },
+                            "basis": {
+                              "type": "string",
+                              "enum": [
+                                "rental_subtotal"
+                              ]
+                            },
+                            "basisPoints": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 10000
+                            },
+                            "terms": {
+                              "type": "string",
+                              "minLength": 20,
+                              "maxLength": 1000
+                            }
+                          },
+                          "required": [
+                            "mode",
+                            "currency",
+                            "basis",
+                            "basisPoints",
+                            "terms"
+                          ],
+                          "additionalProperties": false
+                        }
+                      ]
+                    },
+                    "revision": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "exclusiveMinimum": true,
+                      "maximum": 2147483647
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "draft",
+                        "published",
+                        "paused",
+                        "archived"
+                      ]
+                    },
+                    "publishedVersion": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": 0,
+                      "exclusiveMinimum": true,
+                      "maximum": 2147483647
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "description",
+                    "category",
+                    "dailyRateMinor",
+                    "stockQuantity",
+                    "specs",
+                    "id",
+                    "version",
+                    "currency",
+                    "kind",
+                    "hourlyRateMinor",
+                    "weeklyRateMinor",
+                    "venueCapacity",
+                    "bundleItems",
+                    "depositPolicy",
                     "revision",
                     "status",
                     "publishedVersion"
@@ -18539,6 +19286,107 @@
                         "additionalProperties": false
                       }
                     },
+                    "depositPolicy": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "mode": {
+                              "type": "string",
+                              "enum": [
+                                "none"
+                              ]
+                            },
+                            "currency": {
+                              "type": "string",
+                              "enum": [
+                                "LKR"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "mode",
+                            "currency"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "mode": {
+                              "type": "string",
+                              "enum": [
+                                "fixed"
+                              ]
+                            },
+                            "currency": {
+                              "type": "string",
+                              "enum": [
+                                "LKR"
+                              ]
+                            },
+                            "amountMinor": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 100000000
+                            },
+                            "terms": {
+                              "type": "string",
+                              "minLength": 20,
+                              "maxLength": 1000
+                            }
+                          },
+                          "required": [
+                            "mode",
+                            "currency",
+                            "amountMinor",
+                            "terms"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "mode": {
+                              "type": "string",
+                              "enum": [
+                                "percentage"
+                              ]
+                            },
+                            "currency": {
+                              "type": "string",
+                              "enum": [
+                                "LKR"
+                              ]
+                            },
+                            "basis": {
+                              "type": "string",
+                              "enum": [
+                                "rental_subtotal"
+                              ]
+                            },
+                            "basisPoints": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 10000
+                            },
+                            "terms": {
+                              "type": "string",
+                              "minLength": 20,
+                              "maxLength": 1000
+                            }
+                          },
+                          "required": [
+                            "mode",
+                            "currency",
+                            "basis",
+                            "basisPoints",
+                            "terms"
+                          ],
+                          "additionalProperties": false
+                        }
+                      ]
+                    },
                     "revision": {
                       "type": "integer",
                       "minimum": 0,
@@ -18577,6 +19425,7 @@
                     "weeklyRateMinor",
                     "venueCapacity",
                     "bundleItems",
+                    "depositPolicy",
                     "revision",
                     "status",
                     "publishedVersion"
@@ -18753,6 +19602,107 @@
                               "additionalProperties": false
                             }
                           },
+                          "depositPolicy": {
+                            "oneOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "mode": {
+                                    "type": "string",
+                                    "enum": [
+                                      "none"
+                                    ]
+                                  },
+                                  "currency": {
+                                    "type": "string",
+                                    "enum": [
+                                      "LKR"
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "mode",
+                                  "currency"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "mode": {
+                                    "type": "string",
+                                    "enum": [
+                                      "fixed"
+                                    ]
+                                  },
+                                  "currency": {
+                                    "type": "string",
+                                    "enum": [
+                                      "LKR"
+                                    ]
+                                  },
+                                  "amountMinor": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 100000000
+                                  },
+                                  "terms": {
+                                    "type": "string",
+                                    "minLength": 20,
+                                    "maxLength": 1000
+                                  }
+                                },
+                                "required": [
+                                  "mode",
+                                  "currency",
+                                  "amountMinor",
+                                  "terms"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "mode": {
+                                    "type": "string",
+                                    "enum": [
+                                      "percentage"
+                                    ]
+                                  },
+                                  "currency": {
+                                    "type": "string",
+                                    "enum": [
+                                      "LKR"
+                                    ]
+                                  },
+                                  "basis": {
+                                    "type": "string",
+                                    "enum": [
+                                      "rental_subtotal"
+                                    ]
+                                  },
+                                  "basisPoints": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 10000
+                                  },
+                                  "terms": {
+                                    "type": "string",
+                                    "minLength": 20,
+                                    "maxLength": 1000
+                                  }
+                                },
+                                "required": [
+                                  "mode",
+                                  "currency",
+                                  "basis",
+                                  "basisPoints",
+                                  "terms"
+                                ],
+                                "additionalProperties": false
+                              }
+                            ]
+                          },
                           "storefront": {
                             "type": "object",
                             "properties": {
@@ -18784,6 +19734,7 @@
                           "weeklyRateMinor",
                           "venueCapacity",
                           "bundleItems",
+                          "depositPolicy",
                           "storefront"
                         ],
                         "additionalProperties": false

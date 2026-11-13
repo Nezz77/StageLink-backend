@@ -789,6 +789,22 @@ export interface paths {
         patch: operations["RentalsController_update"];
         trace?: never;
     };
+    "/api/v1/me/rentals/{id}/deposit-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["RentalsController_updateDepositPolicy"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/rentals/{id}/status": {
         parameters: {
             query?: never;
@@ -7386,6 +7402,28 @@ export interface operations {
                             title: string;
                             version: number;
                         }[];
+                        depositPolicy: {
+                            /** @enum {string} */
+                            mode: "none";
+                            /** @enum {string} */
+                            currency: "LKR";
+                        } | {
+                            /** @enum {string} */
+                            mode: "fixed";
+                            /** @enum {string} */
+                            currency: "LKR";
+                            amountMinor: number;
+                            terms: string;
+                        } | {
+                            /** @enum {string} */
+                            mode: "percentage";
+                            /** @enum {string} */
+                            currency: "LKR";
+                            /** @enum {string} */
+                            basis: "rental_subtotal";
+                            basisPoints: number;
+                            terms: string;
+                        };
                         revision: number;
                         /** @enum {string} */
                         status: "draft" | "published" | "paused" | "archived";
@@ -7468,6 +7506,28 @@ export interface operations {
                             title: string;
                             version: number;
                         }[];
+                        depositPolicy: {
+                            /** @enum {string} */
+                            mode: "none";
+                            /** @enum {string} */
+                            currency: "LKR";
+                        } | {
+                            /** @enum {string} */
+                            mode: "fixed";
+                            /** @enum {string} */
+                            currency: "LKR";
+                            amountMinor: number;
+                            terms: string;
+                        } | {
+                            /** @enum {string} */
+                            mode: "percentage";
+                            /** @enum {string} */
+                            currency: "LKR";
+                            /** @enum {string} */
+                            basis: "rental_subtotal";
+                            basisPoints: number;
+                            terms: string;
+                        };
                         revision: number;
                         /** @enum {string} */
                         status: "draft" | "published" | "paused" | "archived";
@@ -7551,6 +7611,134 @@ export interface operations {
                             title: string;
                             version: number;
                         }[];
+                        depositPolicy: {
+                            /** @enum {string} */
+                            mode: "none";
+                            /** @enum {string} */
+                            currency: "LKR";
+                        } | {
+                            /** @enum {string} */
+                            mode: "fixed";
+                            /** @enum {string} */
+                            currency: "LKR";
+                            amountMinor: number;
+                            terms: string;
+                        } | {
+                            /** @enum {string} */
+                            mode: "percentage";
+                            /** @enum {string} */
+                            currency: "LKR";
+                            /** @enum {string} */
+                            basis: "rental_subtotal";
+                            basisPoints: number;
+                            terms: string;
+                        };
+                        revision: number;
+                        /** @enum {string} */
+                        status: "draft" | "published" | "paused" | "archived";
+                        publishedVersion: number | null;
+                    };
+                };
+            };
+        };
+    };
+    RentalsController_updateDepositPolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    revision: number;
+                    depositPolicy: {
+                        /** @enum {string} */
+                        mode: "none";
+                        /** @enum {string} */
+                        currency: "LKR";
+                    } | {
+                        /** @enum {string} */
+                        mode: "fixed";
+                        /** @enum {string} */
+                        currency: "LKR";
+                        amountMinor: number;
+                        terms: string;
+                    } | {
+                        /** @enum {string} */
+                        mode: "percentage";
+                        /** @enum {string} */
+                        currency: "LKR";
+                        /** @enum {string} */
+                        basis: "rental_subtotal";
+                        basisPoints: number;
+                        terms: string;
+                    };
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        title: string;
+                        description: string;
+                        /** @enum {string} */
+                        category: "Sound" | "Lighting" | "Instruments" | "Power" | "Stage" | "Other";
+                        dailyRateMinor: number;
+                        stockQuantity: number;
+                        specs: {
+                            specWattage?: string;
+                            specSpl?: string;
+                            specFrequency?: string;
+                            specWeight?: string;
+                            packageInclusions?: string;
+                        };
+                        /** Format: uuid */
+                        id: string;
+                        version: number;
+                        /** @enum {string} */
+                        currency: "LKR";
+                        /** @enum {string} */
+                        kind: "equipment" | "venue" | "bundle";
+                        hourlyRateMinor: number | null;
+                        weeklyRateMinor: number | null;
+                        venueCapacity: number | null;
+                        bundleItems: {
+                            /** Format: uuid */
+                            listingId: string;
+                            quantity: number;
+                            title: string;
+                            version: number;
+                        }[];
+                        depositPolicy: {
+                            /** @enum {string} */
+                            mode: "none";
+                            /** @enum {string} */
+                            currency: "LKR";
+                        } | {
+                            /** @enum {string} */
+                            mode: "fixed";
+                            /** @enum {string} */
+                            currency: "LKR";
+                            amountMinor: number;
+                            terms: string;
+                        } | {
+                            /** @enum {string} */
+                            mode: "percentage";
+                            /** @enum {string} */
+                            currency: "LKR";
+                            /** @enum {string} */
+                            basis: "rental_subtotal";
+                            basisPoints: number;
+                            terms: string;
+                        };
                         revision: number;
                         /** @enum {string} */
                         status: "draft" | "published" | "paused" | "archived";
@@ -7615,6 +7803,28 @@ export interface operations {
                             title: string;
                             version: number;
                         }[];
+                        depositPolicy: {
+                            /** @enum {string} */
+                            mode: "none";
+                            /** @enum {string} */
+                            currency: "LKR";
+                        } | {
+                            /** @enum {string} */
+                            mode: "fixed";
+                            /** @enum {string} */
+                            currency: "LKR";
+                            amountMinor: number;
+                            terms: string;
+                        } | {
+                            /** @enum {string} */
+                            mode: "percentage";
+                            /** @enum {string} */
+                            currency: "LKR";
+                            /** @enum {string} */
+                            basis: "rental_subtotal";
+                            basisPoints: number;
+                            terms: string;
+                        };
                         revision: number;
                         /** @enum {string} */
                         status: "draft" | "published" | "paused" | "archived";
@@ -7671,6 +7881,28 @@ export interface operations {
                                 title: string;
                                 version: number;
                             }[];
+                            depositPolicy: {
+                                /** @enum {string} */
+                                mode: "none";
+                                /** @enum {string} */
+                                currency: "LKR";
+                            } | {
+                                /** @enum {string} */
+                                mode: "fixed";
+                                /** @enum {string} */
+                                currency: "LKR";
+                                amountMinor: number;
+                                terms: string;
+                            } | {
+                                /** @enum {string} */
+                                mode: "percentage";
+                                /** @enum {string} */
+                                currency: "LKR";
+                                /** @enum {string} */
+                                basis: "rental_subtotal";
+                                basisPoints: number;
+                                terms: string;
+                            };
                             storefront: {
                                 displayName: string;
                                 city: string;

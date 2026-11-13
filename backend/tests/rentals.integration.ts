@@ -55,6 +55,8 @@ test('renter owns revisions and public browse only shows approved published equi
     assert.equal((await call('me/rentals', { ...fields, specs: { specSpl: '251' } }, renter)).status, 400);
     const created = await call('me/rentals', fields, renter);
     assert.equal(created.status, 200);
+    const noDeposit = { mode: 'none', currency: 'LKR' };
+    assert.deepEqual(created.data.depositPolicy, noDeposit);
     const id = created.data.id;
     const path = 'me/rentals/' + id;
     async function publicItem() {
@@ -105,6 +107,46 @@ test('renter owns revisions and public browse only shows approved published equi
     assert.equal(listedVenue.venueCapacity, 120);
     assert.equal(listedVenue.hourlyRateMinor, 80000);
     assert.equal(listedVenue.weeklyRateMinor, 2300000);
+
+    const venuePath = `me/rentals/${venueDraft.data.id}`;
+    const depositPath = venuePath + '/deposit-policy';
+    const terms = 'Refundable after the agreed venue inspection.';
+    const fixed = { mode: 'fixed', currency: 'LKR', amountMinor: 300000, terms };
+    const percentage = { mode: 'percentage', currency: 'LKR', basis: 'rental_subtotal', basisPoints: 1250, terms };
+    async function publicVenuePolicy() {
+      const page = await call('rentals');
+      return page.data.items.find((item: { id: string }) => item.id === venueDraft.data.id).depositPolicy;
+    }
+    assert.equal((await call(depositPath, { revision: 2, depositPolicy: fixed }, other, 'PUT')).status, 404);
+    assert.equal((await call(depositPath, { revision: 2, depositPolicy: { ...fixed, currency: 'USD' } }, renter, 'PUT')).status, 400);
+    const writesToPolicy = await Promise.all([
+      call(depositPath, { revision: 2, depositPolicy: fixed }, renter, 'PUT'),
+      call(depositPath, { revision: 2, depositPolicy: fixed }, renter, 'PUT'),
+    ]);
+    assert.deepEqual(writesToPolicy.map(result => result.status).sort(), [200, 409]);
+    assert.deepEqual(await publicVenuePolicy(), noDeposit);
+
+    const { kind: _venueKind, ...venueFields } = venue;
+    const listingEdit = await call(venuePath, { ...venueFields, title: 'Updated event hall', revision: 3 }, renter, 'PATCH');
+    assert.equal(listingEdit.status, 200);
+    assert.deepEqual(listingEdit.data.depositPolicy, fixed);
+    assert.equal((await call(venuePath + '/status', { revision: 4, action: 'publish' }, renter)).status, 200);
+    assert.deepEqual(await publicVenuePolicy(), fixed);
+
+    assert.equal((await call(depositPath, { revision: 5, depositPolicy: percentage }, renter, 'PUT')).status, 200);
+    const draftVenue = (await call('me/rentals', undefined, renter)).data.find((item: { id: string }) => item.id === venueDraft.data.id);
+    assert.deepEqual(draftVenue.depositPolicy, percentage);
+    assert.deepEqual(await publicVenuePolicy(), fixed);
+    assert.equal((await call(venuePath + '/status', { revision: 6, action: 'publish' }, renter)).status, 200);
+    assert.deepEqual(await publicVenuePolicy(), percentage);
+
+    assert.equal((await call(depositPath, { revision: 7, depositPolicy: noDeposit }, renter, 'PUT')).status, 200);
+    assert.equal((await call(venuePath + '/status', { revision: 8, action: 'publish' }, renter)).status, 200);
+    assert.deepEqual(await publicVenuePolicy(), noDeposit);
+    const retainedVersion = await deps.db.rentalListingVersion.findUniqueOrThrow({
+      where: { listingId_version: { listingId: venueDraft.data.id, version: 4 } },
+    });
+    assert.deepEqual(retainedVersion.depositPolicy, fixed);
 
     const bundle = { ...fields, title: 'Speaker pair', kind: 'bundle', specs: {}, bundleItems: [{ listingId: id, quantity: 2 }] };
     assert.equal((await call('me/rentals', bundle, other)).status, 409);
