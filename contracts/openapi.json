@@ -17469,11 +17469,916 @@
           "Public catalog"
         ]
       }
+    },
+    "/api/v1/me/rentals": {
+      "get": {
+        "operationId": "RentalsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "title": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120
+                      },
+                      "description": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 2000
+                      },
+                      "category": {
+                        "type": "string",
+                        "enum": [
+                          "Sound",
+                          "Lighting",
+                          "Instruments",
+                          "Power",
+                          "Stage",
+                          "Other"
+                        ]
+                      },
+                      "dailyRateMinor": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "exclusiveMinimum": true,
+                        "maximum": 100000000
+                      },
+                      "stockQuantity": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 100000
+                      },
+                      "specs": {
+                        "type": "object",
+                        "properties": {
+                          "specWattage": {
+                            "type": "string"
+                          },
+                          "specSpl": {
+                            "type": "string"
+                          },
+                          "specFrequency": {
+                            "type": "string",
+                            "maxLength": 120
+                          },
+                          "specWeight": {
+                            "type": "string"
+                          },
+                          "packageInclusions": {
+                            "type": "string",
+                            "maxLength": 1000
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      "version": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "exclusiveMinimum": true,
+                        "maximum": 2147483647
+                      },
+                      "currency": {
+                        "type": "string",
+                        "enum": [
+                          "LKR"
+                        ]
+                      },
+                      "revision": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "exclusiveMinimum": true,
+                        "maximum": 2147483647
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "draft",
+                          "published",
+                          "paused",
+                          "archived"
+                        ]
+                      },
+                      "publishedVersion": {
+                        "nullable": true,
+                        "type": "integer",
+                        "minimum": 0,
+                        "exclusiveMinimum": true,
+                        "maximum": 2147483647
+                      }
+                    },
+                    "required": [
+                      "title",
+                      "description",
+                      "category",
+                      "dailyRateMinor",
+                      "stockQuantity",
+                      "specs",
+                      "id",
+                      "version",
+                      "currency",
+                      "revision",
+                      "status",
+                      "publishedVersion"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Equipment listings"
+        ]
+      },
+      "post": {
+        "operationId": "RentalsController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "description": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  },
+                  "category": {
+                    "type": "string",
+                    "enum": [
+                      "Sound",
+                      "Lighting",
+                      "Instruments",
+                      "Power",
+                      "Stage",
+                      "Other"
+                    ]
+                  },
+                  "dailyRateMinor": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "exclusiveMinimum": true,
+                    "maximum": 100000000
+                  },
+                  "stockQuantity": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 100000
+                  },
+                  "specs": {
+                    "type": "object",
+                    "properties": {
+                      "specWattage": {
+                        "type": "string"
+                      },
+                      "specSpl": {
+                        "type": "string"
+                      },
+                      "specFrequency": {
+                        "type": "string",
+                        "maxLength": 120
+                      },
+                      "specWeight": {
+                        "type": "string"
+                      },
+                      "packageInclusions": {
+                        "type": "string",
+                        "maxLength": 1000
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "title",
+                  "description",
+                  "category",
+                  "dailyRateMinor",
+                  "stockQuantity",
+                  "specs"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 120
+                    },
+                    "description": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 2000
+                    },
+                    "category": {
+                      "type": "string",
+                      "enum": [
+                        "Sound",
+                        "Lighting",
+                        "Instruments",
+                        "Power",
+                        "Stage",
+                        "Other"
+                      ]
+                    },
+                    "dailyRateMinor": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "exclusiveMinimum": true,
+                      "maximum": 100000000
+                    },
+                    "stockQuantity": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 100000
+                    },
+                    "specs": {
+                      "type": "object",
+                      "properties": {
+                        "specWattage": {
+                          "type": "string"
+                        },
+                        "specSpl": {
+                          "type": "string"
+                        },
+                        "specFrequency": {
+                          "type": "string",
+                          "maxLength": 120
+                        },
+                        "specWeight": {
+                          "type": "string"
+                        },
+                        "packageInclusions": {
+                          "type": "string",
+                          "maxLength": 1000
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "version": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "exclusiveMinimum": true,
+                      "maximum": 2147483647
+                    },
+                    "currency": {
+                      "type": "string",
+                      "enum": [
+                        "LKR"
+                      ]
+                    },
+                    "revision": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "exclusiveMinimum": true,
+                      "maximum": 2147483647
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "draft",
+                        "published",
+                        "paused",
+                        "archived"
+                      ]
+                    },
+                    "publishedVersion": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": 0,
+                      "exclusiveMinimum": true,
+                      "maximum": 2147483647
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "description",
+                    "category",
+                    "dailyRateMinor",
+                    "stockQuantity",
+                    "specs",
+                    "id",
+                    "version",
+                    "currency",
+                    "revision",
+                    "status",
+                    "publishedVersion"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Equipment listings"
+        ]
+      }
+    },
+    "/api/v1/me/rentals/{id}": {
+      "patch": {
+        "operationId": "RentalsController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "description": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  },
+                  "category": {
+                    "type": "string",
+                    "enum": [
+                      "Sound",
+                      "Lighting",
+                      "Instruments",
+                      "Power",
+                      "Stage",
+                      "Other"
+                    ]
+                  },
+                  "dailyRateMinor": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "exclusiveMinimum": true,
+                    "maximum": 100000000
+                  },
+                  "stockQuantity": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 100000
+                  },
+                  "specs": {
+                    "type": "object",
+                    "properties": {
+                      "specWattage": {
+                        "type": "string"
+                      },
+                      "specSpl": {
+                        "type": "string"
+                      },
+                      "specFrequency": {
+                        "type": "string",
+                        "maxLength": 120
+                      },
+                      "specWeight": {
+                        "type": "string"
+                      },
+                      "packageInclusions": {
+                        "type": "string",
+                        "maxLength": 1000
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "revision": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "exclusiveMinimum": true,
+                    "maximum": 2147483647
+                  }
+                },
+                "required": [
+                  "title",
+                  "description",
+                  "category",
+                  "dailyRateMinor",
+                  "stockQuantity",
+                  "specs",
+                  "revision"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 120
+                    },
+                    "description": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 2000
+                    },
+                    "category": {
+                      "type": "string",
+                      "enum": [
+                        "Sound",
+                        "Lighting",
+                        "Instruments",
+                        "Power",
+                        "Stage",
+                        "Other"
+                      ]
+                    },
+                    "dailyRateMinor": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "exclusiveMinimum": true,
+                      "maximum": 100000000
+                    },
+                    "stockQuantity": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 100000
+                    },
+                    "specs": {
+                      "type": "object",
+                      "properties": {
+                        "specWattage": {
+                          "type": "string"
+                        },
+                        "specSpl": {
+                          "type": "string"
+                        },
+                        "specFrequency": {
+                          "type": "string",
+                          "maxLength": 120
+                        },
+                        "specWeight": {
+                          "type": "string"
+                        },
+                        "packageInclusions": {
+                          "type": "string",
+                          "maxLength": 1000
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "version": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "exclusiveMinimum": true,
+                      "maximum": 2147483647
+                    },
+                    "currency": {
+                      "type": "string",
+                      "enum": [
+                        "LKR"
+                      ]
+                    },
+                    "revision": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "exclusiveMinimum": true,
+                      "maximum": 2147483647
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "draft",
+                        "published",
+                        "paused",
+                        "archived"
+                      ]
+                    },
+                    "publishedVersion": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": 0,
+                      "exclusiveMinimum": true,
+                      "maximum": 2147483647
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "description",
+                    "category",
+                    "dailyRateMinor",
+                    "stockQuantity",
+                    "specs",
+                    "id",
+                    "version",
+                    "currency",
+                    "revision",
+                    "status",
+                    "publishedVersion"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Equipment listings"
+        ]
+      }
+    },
+    "/api/v1/me/rentals/{id}/status": {
+      "post": {
+        "operationId": "RentalsController_setStatus",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "revision": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "exclusiveMinimum": true,
+                    "maximum": 2147483647
+                  },
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "publish",
+                      "pause",
+                      "archive"
+                    ]
+                  }
+                },
+                "required": [
+                  "revision",
+                  "action"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 120
+                    },
+                    "description": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 2000
+                    },
+                    "category": {
+                      "type": "string",
+                      "enum": [
+                        "Sound",
+                        "Lighting",
+                        "Instruments",
+                        "Power",
+                        "Stage",
+                        "Other"
+                      ]
+                    },
+                    "dailyRateMinor": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "exclusiveMinimum": true,
+                      "maximum": 100000000
+                    },
+                    "stockQuantity": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 100000
+                    },
+                    "specs": {
+                      "type": "object",
+                      "properties": {
+                        "specWattage": {
+                          "type": "string"
+                        },
+                        "specSpl": {
+                          "type": "string"
+                        },
+                        "specFrequency": {
+                          "type": "string",
+                          "maxLength": 120
+                        },
+                        "specWeight": {
+                          "type": "string"
+                        },
+                        "packageInclusions": {
+                          "type": "string",
+                          "maxLength": 1000
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "version": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "exclusiveMinimum": true,
+                      "maximum": 2147483647
+                    },
+                    "currency": {
+                      "type": "string",
+                      "enum": [
+                        "LKR"
+                      ]
+                    },
+                    "revision": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "exclusiveMinimum": true,
+                      "maximum": 2147483647
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "draft",
+                        "published",
+                        "paused",
+                        "archived"
+                      ]
+                    },
+                    "publishedVersion": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": 0,
+                      "exclusiveMinimum": true,
+                      "maximum": 2147483647
+                    }
+                  },
+                  "required": [
+                    "title",
+                    "description",
+                    "category",
+                    "dailyRateMinor",
+                    "stockQuantity",
+                    "specs",
+                    "id",
+                    "version",
+                    "currency",
+                    "revision",
+                    "status",
+                    "publishedVersion"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Equipment listings"
+        ]
+      }
+    },
+    "/api/v1/rentals": {
+      "get": {
+        "operationId": "PublicRentalsController_list",
+        "parameters": [
+          {
+            "name": "cursor",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "title": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 120
+                          },
+                          "description": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 2000
+                          },
+                          "category": {
+                            "type": "string",
+                            "enum": [
+                              "Sound",
+                              "Lighting",
+                              "Instruments",
+                              "Power",
+                              "Stage",
+                              "Other"
+                            ]
+                          },
+                          "dailyRateMinor": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "exclusiveMinimum": true,
+                            "maximum": 100000000
+                          },
+                          "specs": {
+                            "type": "object",
+                            "properties": {
+                              "specWattage": {
+                                "type": "string"
+                              },
+                              "specSpl": {
+                                "type": "string"
+                              },
+                              "specFrequency": {
+                                "type": "string",
+                                "maxLength": 120
+                              },
+                              "specWeight": {
+                                "type": "string"
+                              },
+                              "packageInclusions": {
+                                "type": "string",
+                                "maxLength": 1000
+                              }
+                            },
+                            "additionalProperties": false
+                          },
+                          "id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "version": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "exclusiveMinimum": true,
+                            "maximum": 2147483647
+                          },
+                          "currency": {
+                            "type": "string",
+                            "enum": [
+                              "LKR"
+                            ]
+                          },
+                          "storefront": {
+                            "type": "object",
+                            "properties": {
+                              "displayName": {
+                                "type": "string"
+                              },
+                              "city": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "displayName",
+                              "city"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "title",
+                          "description",
+                          "category",
+                          "dailyRateMinor",
+                          "specs",
+                          "id",
+                          "version",
+                          "currency",
+                          "storefront"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "nextCursor": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "nextCursor"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Public catalog"
+        ]
+      }
     }
   },
   "info": {
     "title": "StageLink API",
-    "description": "Accounts, profiles, media, onboarding, artist gigs and infrastructure. Other business endpoints follow per phase.",
+    "description": "Accounts, profiles, media, onboarding, artist gigs, equipment listings and infrastructure. Other business endpoints follow per phase.",
     "version": "0.1.0",
     "contact": {}
   },

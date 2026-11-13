@@ -4,6 +4,7 @@ import { motion, AnimatePresence, useScroll, useTransform, useMotionValueEvent }
 import ArtistCollectionCard from './ArtistCollectionCard';
 import BrowseArtistsPage from './BrowseArtistsPage';
 import PublicArtistCatalog from './PublicArtistCatalog';
+import PublicEquipmentCatalog from './PublicEquipmentCatalog';
 import RentEquipmentPage from './RentEquipmentPage';
 import CollectionDetailPage, { type CollectionListing } from './CollectionDetailPage';
 import { Icon, Stars } from './Icons';
@@ -380,10 +381,7 @@ export default function LandingPage({ onAuth, isDark, onThemeChange, isSplashLog
         )}
 
         {activeTab === 'rent' && (
-          liveCatalog ? <main key="rent" className="sl-account-home min-h-screen mx-auto max-w-6xl px-5 py-8">
-            <h1 className="text-3xl font-bold mb-6">Rent equipment</h1>
-            <p>Equipment listings are coming soon.</p>
-          </main> : <RentEquipmentPage key="rent" onOpenCollection={openCollection} />
+          liveCatalog ? <PublicEquipmentCatalog key="rent"/> : <RentEquipmentPage key="rent" onOpenCollection={openCollection} />
         )}
 
         {activeTab === 'detail' && selectedListing && (

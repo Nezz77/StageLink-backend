@@ -1,0 +1,117 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
+import { createApp } from '../api/src/app.js';
+import { hashPassword } from '../api/src/auth/security.js';
+import { readConfig } from '../shared/config.js';
+import { resources } from '../shared/resources.js';
+
+const config = readConfig({ ...process.env, AUTH_RATE_PREFIX: 'rentals-test-' + randomUUID() });
+if (config.NODE_ENV !== 'test' || !new URL(config.DATABASE_URL).pathname.endsWith('_test')) {
+  throw new Error('Equipment listing integration requires an isolated *_test database.');
+}
+
+test('renter owns revisions and public browse only shows approved published equipment', async () => {
+  const deps = resources(config);
+  const { app } = await createApp(config, deps);
+  const ids: string[] = [];
+  const password = 'A private fixture password 12!';
+  type Login = { accessToken: string; csrfToken: string; user: { id: string } };
+
+  try {
+    await app.listen(0, '127.0.0.1');
+    const base = await app.getUrl();
+    async function call(path: string, body?: unknown, login?: Login, method = body === undefined ? 'GET' : 'POST') {
+      const response = await fetch(base + '/api/v1/' + path, {
+        method, headers: {
+          'Content-Type': 'application/json', Origin: config.WEB_ORIGIN,
+          ...(login ? { Authorization: 'Bearer ' + login.accessToken, 'X-CSRF-Token': login.csrfToken } : {}),
+        },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
+      return { status: response.status, data: await response.json() };
+    }
+
+    async function fixture(role: 'renter' | 'admin'): Promise<Login> {
+      const user = await deps.db.authUser.create({ data: {
+        email: randomUUID() + '@stagelink.test', displayName: 'Equipment fixture', roles: [role],
+        passwordHash: await hashPassword(password), emailVerifiedAt: new Date(),
+      } });
+      ids.push(user.id);
+      const result = await call('auth/login', { email: user.email, password });
+      assert.equal(result.status, 200);
+      return result.data;
+    }
+
+    const renter = await fixture('renter');
+    const other = await fixture('renter');
+    const admin = await fixture('admin');
+    const fields = {
+      title: 'Powered speaker', description: 'Speaker for indoor events', category: 'Sound',
+      dailyRateMinor: 200000, stockQuantity: 4, specs: { specWattage: '1100', specWeight: '22.50' },
+    };
+    assert.equal((await call('me/rentals', fields, admin)).status, 403);
+    assert.equal((await call('me/rentals', { ...fields, stockQuantity: -1 }, renter)).status, 400);
+    assert.equal((await call('me/rentals', { ...fields, specs: { specSpl: '251' } }, renter)).status, 400);
+    const created = await call('me/rentals', fields, renter);
+    assert.equal(created.status, 200);
+    const id = created.data.id;
+    const path = 'me/rentals/' + id;
+    async function publicItem() {
+      const page = await call('rentals');
+      assert.equal(page.status, 200);
+      return page.data.items.find((item: { id: string }) => item.id === id);
+    }
+    assert.equal(await publicItem(), undefined);
+    assert.equal((await call(path, { ...fields, revision: 1 }, other, 'PATCH')).status, 404);
+    assert.equal((await call(path + '/status', { revision: 1, action: 'publish' }, renter)).status, 409);
+
+    const storefront = {
+      revision: 0, displayName: 'Audio rentals', bio: 'Sound equipment for indoor events.', city: 'Colombo',
+      serviceRadiusKm: 40, address: 'Private pickup address', latitude: null, longitude: null,
+      details: {
+        equipmentCategories: ['Sound'],
+        operatingHours: Array.from({ length: 7 }, (_, day) => ({ day, opens: '09:00', closes: '17:00' })),
+        rentalTerms: 'Equipment must be returned by the agreed time.', deliveryOffered: true,
+      },
+    };
+    assert.equal((await call('me/providers/renter', storefront, renter, 'PUT')).status, 200);
+    assert.equal((await call('me/providers/renter/submit', { revision: 1 }, renter)).status, 200);
+    const decision = { revision: 2, approved: true, reason: 'Approved storefront for the catalog fixture' };
+    assert.equal((await call(`admin/providers/${renter.user.id}/renter/decision`, decision, admin)).status, 200);
+    assert.equal((await call(path + '/status', { revision: 1, action: 'publish' }, renter)).status, 200);
+
+    const edit = { ...fields, revision: 2, dailyRateMinor: 250000, stockQuantity: 2, specs: { specWattage: '1200' } };
+    const writes = await Promise.all([call(path, edit, renter, 'PATCH'), call(path, edit, renter, 'PATCH')]);
+    assert.deepEqual(writes.map(result => result.status).sort(), [200, 409]);
+    const original = await publicItem();
+    assert.equal(original.dailyRateMinor, fields.dailyRateMinor);
+    assert.deepEqual(original.specs, fields.specs);
+    assert.equal('stockQuantity' in original, false);
+    assert.deepEqual(original.storefront, { displayName: storefront.displayName, city: storefront.city });
+    assert.equal((await call(path + '/status', { revision: 3, action: 'publish' }, renter)).status, 200);
+    assert.deepEqual((await publicItem()).specs, edit.specs);
+    assert.equal((await publicItem()).dailyRateMinor, edit.dailyRateMinor);
+    assert.equal((await call(path + '/status', { revision: 4, action: 'pause' }, renter)).status, 200);
+    assert.equal(await publicItem(), undefined);
+    assert.equal((await call(path + '/status', { revision: 5, action: 'archive' }, renter)).status, 200);
+    assert.equal(await deps.db.rentalListingVersion.count({ where: { listingId: id } }), 2);
+  } finally {
+    try {
+      const owned = { ownerId: { in: ids } };
+      await deps.db.rentalListing.updateMany({ where: owned, data: { status: 'archived', publishedVersion: null } });
+      await deps.db.rentalListingVersion.deleteMany({ where: { listing: owned } });
+      await deps.db.rentalListing.deleteMany({ where: owned });
+      await deps.db.profileAudit.deleteMany({ where: { targetUserId: { in: ids } } });
+      await deps.db.authUser.deleteMany({ where: { id: { in: ids } } });
+      let cursor = '0';
+      do {
+        const [next, keys] = await deps.redis.scan(cursor, 'MATCH', config.AUTH_RATE_PREFIX + ':*', 'COUNT', 100);
+        cursor = next;
+        if (keys.length) await deps.redis.del(...keys);
+      } while (cursor !== '0');
+    } finally {
+      await app.close();
+    }
+  }
+});

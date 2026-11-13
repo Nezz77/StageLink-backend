@@ -7,6 +7,7 @@ import AccountHome, { ConfirmAccountEmail, type AccountWorkspace } from './compo
 import PersistentAccountRecovery from './components/PersistentAccountRecovery';
 import PersistentProfiles, { ConfirmEmailChange } from './components/PersistentProfiles';
 import PersistentGigs from './components/PersistentGigs';
+import PersistentRentals from './components/PersistentRentals';
 import LandingPage from './components/LandingPage';
 import SplashScreen from './components/SplashScreen';
 import { AppearanceProvider } from './lib/AppearanceContext';
@@ -32,7 +33,7 @@ function PersistentApp() {
   return <AppearanceProvider isDark={dark} onThemeChange={next => { setDark(next); document.documentElement.dataset.theme = next ? 'dark' : 'light'; }}>
     {!loaded && <SplashScreen onComplete={() => setLoaded(true)}/>}
     {loaded && <div className="theme-root min-h-screen" style={{ background: 'var(--color-bg)' }}>
-      {account.status === 'checking' ? <main className="min-h-screen flex justify-center items-center text-violet-200" role="status">Restoring your account…</main> : account.user && !browse ? workspace === 'gigs' ? <PersistentGigs key={account.user.id} onBack={() => setWorkspace(null)}/> : workspace?<PersistentProfiles key={account.user.id+account.user.activeRole} user={account.user} initialTab={workspace} onBack={()=>setWorkspace(null)}/>:<AccountHome key={account.user.id} user={account.user} onManage={setWorkspace} onBrowse={() => setBrowse(true)} onVerify={() => setLink({ purpose: 'verify', token: '' })} onRecover={() => setLink({ purpose: 'reset', token: '', email: account.user!.email })}/> : <>
+      {account.status === 'checking' ? <main className="min-h-screen flex justify-center items-center text-violet-200" role="status">Restoring your account…</main> : account.user && !browse ? workspace === 'rentals' ? <PersistentRentals key={account.user.id} onBack={() => setWorkspace(null)}/> : workspace === 'gigs' ? <PersistentGigs key={account.user.id} onBack={() => setWorkspace(null)}/> : workspace?<PersistentProfiles key={account.user.id+account.user.activeRole} user={account.user} initialTab={workspace} onBack={()=>setWorkspace(null)}/>:<AccountHome key={account.user.id} user={account.user} onManage={setWorkspace} onBrowse={() => setBrowse(true)} onVerify={() => setLink({ purpose: 'verify', token: '' })} onRecover={() => setLink({ purpose: 'reset', token: '', email: account.user!.email })}/> : <>
         <LandingPage liveCatalog onAuth={mode => { if (account.user) setBrowse(false); else setAuthMode(mode); }} isDark={dark} onThemeChange={next => { setDark(next); document.documentElement.dataset.theme = next ? 'dark' : 'light'; }} isSplashLogoTransition={false} onReturnToDashboard={account.user ? () => setBrowse(false) : undefined}/>
         {account.status === 'unavailable' && <div className="fixed bottom-5 left-5 right-5 z-50 card p-5 flex flex-wrap items-center justify-between gap-3" role="alert"><p>{account.error}</p><button className="btn-primary" onClick={() => void accountClient.restore()}>Retry connection</button></div>}
         {account.error && account.status === 'anonymous' && <p role="status" className="text-center text-amber-200 p-3">{account.error}</p>}

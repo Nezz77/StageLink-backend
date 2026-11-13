@@ -70,6 +70,7 @@ model AuthUser {
   portfolio PortfolioItem[]
   avatar AvatarBinding?
   artistGigs ArtistGig[]
+  rentals RentalListing[]
   @@map("auth_users")
 }
 model AuthSession {
@@ -317,4 +318,40 @@ model ArtistGigVersion {
   publications ArtistGig[] @relation("GigPublication")
   @@id([gigId, version])
   @@map("artist_gig_versions")
+}
+
+enum RentalStatus {
+  draft
+  published
+  paused
+  archived
+}
+
+model RentalListing {
+  id String @id @default(uuid()) @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  revision Int @default(1)
+  publishedVersion Int? @map("published_version")
+  status RentalStatus @default(draft)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
+  owner AuthUser @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  versions RentalListingVersion[] @relation("RentalVersions")
+  publication RentalListingVersion? @relation("RentalPublication", fields: [id, publishedVersion], references: [listingId, version], onDelete: Restrict)
+  @@index([ownerId, status])
+  @@map("rental_listings")
+}
+
+model RentalListingVersion {
+  listingId String @map("listing_id") @db.Uuid
+  version Int
+  title String @db.VarChar(120)
+  description String @db.VarChar(2000)
+  category String @db.VarChar(40)
+  dailyRateMinor Int @map("daily_rate_minor")
+  stockQuantity Int @map("stock_quantity")
+  specs Json @default("{}")
+  listing RentalListing @relation("RentalVersions", fields: [listingId], references: [id], onDelete: Restrict)
+  publications RentalListing[] @relation("RentalPublication")
+  @@id([listingId, version])
+  @@map("rental_listing_versions")
 }
