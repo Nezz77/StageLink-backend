@@ -389,6 +389,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/event-posts/{id}/recommendations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["RecommendationController_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/recommendations/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["RecommendationController_read"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/profile": {
         parameters: {
             query?: never;
@@ -4175,6 +4207,105 @@ export interface operations {
                         };
                         /** Format: date-time */
                         updatedAt: string;
+                    };
+                };
+            };
+        };
+    };
+    RecommendationController_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    requestKey: string;
+                    expectedRevision: number;
+                    genres?: string[];
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uuid */
+                        briefId: string;
+                        briefRevision: number;
+                        weightsRevision: number;
+                        /** @enum {string} */
+                        method: "weighted_catalog_v1";
+                        /** @enum {string} */
+                        currency: "LKR";
+                        /** Format: date-time */
+                        createdAt: string;
+                        items: {
+                            /** Format: uuid */
+                            gigId: string;
+                            version: number;
+                            score: number;
+                            priceMinor: number;
+                            city: string;
+                            rating: number | null;
+                            reviewCount: number;
+                            currentVersion: boolean;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    RecommendationController_read: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uuid */
+                        briefId: string;
+                        briefRevision: number;
+                        weightsRevision: number;
+                        /** @enum {string} */
+                        method: "weighted_catalog_v1";
+                        /** @enum {string} */
+                        currency: "LKR";
+                        /** Format: date-time */
+                        createdAt: string;
+                        items: {
+                            /** Format: uuid */
+                            gigId: string;
+                            version: number;
+                            score: number;
+                            priceMinor: number;
+                            city: string;
+                            rating: number | null;
+                            reviewCount: number;
+                            currentVersion: boolean;
+                        }[];
                     };
                 };
             };

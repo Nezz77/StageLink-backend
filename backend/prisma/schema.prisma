@@ -487,6 +487,7 @@ model EventBrief {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
   owner AuthUser @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  recommendationRuns RecommendationRun[]
   @@index([ownerId, id])
   @@map("event_briefs")
 }
@@ -1156,6 +1157,7 @@ model MatchingVersion {
   actorId String? @map("actor_id") @db.Uuid
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   actor AuthUser? @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  runs RecommendationRun[]
   @@map("matching_versions")
 }
 
@@ -1197,4 +1199,20 @@ model AiPromptVersion {
   rollbacks AiPromptVersion[] @relation("PromptRollback")
   @@id([key, version])
   @@map("ai_prompt_versions")
+}
+
+model RecommendationRun {
+  id String @id @default(uuid()) @db.Uuid
+  briefId String @map("brief_id") @db.Uuid
+  requestKey String @map("request_key") @db.Uuid
+  briefRevision Int @map("brief_revision")
+  weightsRevision Int @map("weights_revision")
+  genres Json
+  method String @db.VarChar(24)
+  results Json
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  brief EventBrief @relation(fields: [briefId], references: [id], onDelete: Cascade)
+  weights MatchingVersion @relation(fields: [weightsRevision], references: [revision], onDelete: Restrict)
+  @@unique([briefId, requestKey])
+  @@map("recommendation_runs")
 }

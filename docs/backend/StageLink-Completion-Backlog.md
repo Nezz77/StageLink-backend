@@ -44,7 +44,8 @@ A checked box marks implemented backend code. PostgreSQL integration, client wir
 - [ ] P13–P14 Production document issuance and gateway execution of deposit refunds and deductions.
 - [x] P15 AI service status, revisioned matching weights and persisted usage queries.
 - [x] P15 Prompt drafts, placeholder validation, preview, published history and rollback.
-- [ ] P15–P17 AI provider calls and output previews, recommendations, KYC, support, disputes, reminders and system controls.
+- [x] P15 Top-three event-brief artist recommendations using published listings and versioned catalog weights.
+- [ ] P15–P17 AI provider calls and output previews, semantic ranking, KYC, support, disputes, reminders and system controls.
 - [ ] P18 analytics, security, accessibility, backup and rollback, and end-to-end release verification.
 
 ## Verification and client integration
