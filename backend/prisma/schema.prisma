@@ -87,6 +87,7 @@ model AuthUser {
   reviewModerations BookingReviewModeration[]
   submittedInspections EquipmentInspectionReport[] @relation("InspectionSubmitter")
   decidedInspections EquipmentInspectionReport[] @relation("InspectionDecider")
+  matchingVersions MatchingVersion[]
   resolvedDamageClaims DamageClaim[]
   decidedRefunds RefundRequest[]
   checkIns BookingCheckIn[]
@@ -1143,4 +1144,31 @@ model DamageClaim {
   resolver AuthUser? @relation(fields: [resolvedBy], references: [id], onDelete: Restrict)
   reservation JournalTransaction? @relation(fields: [reservationId], references: [id], onDelete: Restrict)
   @@map("damage_claims")
+}
+
+model MatchingVersion {
+  revision Int @id
+  genre Int
+  budget Int
+  location Int
+  rating Int
+  actorId String? @map("actor_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  actor AuthUser? @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  @@map("matching_versions")
+}
+
+model AiModelCall {
+  id String @id @default(uuid()) @db.Uuid
+  capability String @db.VarChar(32)
+  provider String @db.VarChar(32)
+  model String @db.VarChar(100)
+  outcome String @db.VarChar(12)
+  latencyMs Int @map("latency_ms")
+  inputTokens Int? @map("input_tokens")
+  outputTokens Int? @map("output_tokens")
+  cachedInputTokens Int? @map("cached_input_tokens")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  @@index([createdAt])
+  @@map("ai_model_calls")
 }

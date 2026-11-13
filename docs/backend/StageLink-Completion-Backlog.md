@@ -42,7 +42,8 @@ A checked box marks implemented backend code. PostgreSQL integration, client wir
 - [x] P14 Serialized equipment allocation, private dispatch and return reports, correction history, comparison and stock clearance.
 - [x] P14 Damage claims, customer responses and admin-reviewed reservation of collected deposits.
 - [ ] P13–P14 Production document issuance and gateway execution of deposit refunds and deductions.
-- [ ] P15–P17 AI, KYC, support, disputes, reminders and system controls.
+- [x] P15 AI service status, revisioned matching weights and persisted usage queries.
+- [ ] P15–P17 AI provider calls, prompt management, recommendations, KYC, support, disputes, reminders and system controls.
 - [ ] P18 analytics, security, accessibility, backup and rollback, and end-to-end release verification.
 
 ## Verification and client integration

@@ -245,6 +245,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/ai/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AiOperationsController_status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/ai/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AiOperationsController_config"];
+        put: operations["AiOperationsController_update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/ai/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AiOperationsController_metrics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/profile": {
         parameters: {
             query?: never;
@@ -3661,6 +3709,141 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                    };
+                };
+            };
+        };
+    };
+    AiOperationsController_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        status: "ready" | "unavailable";
+                        configured: boolean;
+                        capabilities: string[];
+                        version: string | null;
+                    };
+                };
+            };
+        };
+    };
+    AiOperationsController_config: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        revision: number;
+                        weights: {
+                            genre: number;
+                            budget: number;
+                            location: number;
+                            rating: number;
+                        };
+                        /** Format: date-time */
+                        updatedAt: string;
+                    };
+                };
+            };
+        };
+    };
+    AiOperationsController_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    expectedRevision: number;
+                    weights: {
+                        genre: number;
+                        budget: number;
+                        location: number;
+                        rating: number;
+                    };
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        revision: number;
+                        weights: {
+                            genre: number;
+                            budget: number;
+                            location: number;
+                            rating: number;
+                        };
+                        /** Format: date-time */
+                        updatedAt: string;
+                    };
+                };
+            };
+        };
+    };
+    AiOperationsController_metrics: {
+        parameters: {
+            query?: {
+                period?: "24h" | "7d";
+                capability?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        period: "24h" | "7d";
+                        /** Format: date-time */
+                        since: string;
+                        requests: number;
+                        succeeded: number;
+                        failed: number;
+                        refused: number;
+                        averageLatencyMs: number | null;
+                        inputTokens: number | null;
+                        outputTokens: number | null;
+                        cachedInputTokens: number | null;
+                        models: {
+                            provider: string;
+                            model: string;
+                            requests: number;
+                        }[];
                     };
                 };
             };

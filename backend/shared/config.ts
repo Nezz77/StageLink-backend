@@ -23,6 +23,12 @@ const schema = z.object({
   DATABASE_URL: networkUrl(['postgresql:', 'postgres:']),
   REDIS_URL: networkUrl(['redis:', 'rediss:']),
   PORT: z.coerce.number().int().min(1).max(65535).default(4000),
+  AI_SERVICE_ORIGIN: optionalSetting(z.url().refine(value => {
+    try {
+      const url = new URL(value);
+      return ['http:', 'https:'].includes(url.protocol) && url.origin === value;
+    } catch { return false; }
+  })),
   WORKER_HEALTH_PORT: z.coerce.number().int().min(1).max(65535).default(4001),
   STRIPE_TEST_SECRET_KEY: optionalSetting(z.string().regex(/^sk_test_[A-Za-z0-9_]{1,250}$/)),
   STRIPE_TEST_WEBHOOK_SECRET: optionalSetting(z.string().regex(/^whsec_[A-Za-z0-9_]{1,250}$/)),
