@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { createApp } from '../api/src/app.js';
 import { hashPassword } from '../api/src/auth/security.js';
 import { readConfig } from '../shared/config.js';
@@ -309,6 +309,39 @@ test('renter owns revisions and public browse only shows approved published equi
     assert.equal(calendar.status, 200);
     assert.ok(calendar.data.items.some((item: { id: string }) => item.id === winner.id));
     assert.equal((await call('me/bookings?status=expired', undefined, customer)).data.items[0].id, booked.data.id);
+    const winnerCustomer = winner.customerId === customer.user.id ? customer : secondCustomer;
+    const quotations = 'bookings/' + winner.id + '/quotations';
+    const quoteTerms = 'Two units for the agreed dates.';
+    const offer = { revision: 2, terms: quoteTerms, lines: [{ description: 'Equipment hire', quantity: 2, unitPriceMinor: 200000 }] };
+    assert.equal((await call(quotations, offer, winnerCustomer)).status, 403);
+    const proposed = await call(quotations, offer, renter);
+    assert.equal(proposed.status, 200);
+    assert.equal(proposed.data.quotation.totalMinor, 400000);
+    const firstDecision = 'quotations/' + proposed.data.quotation.id + '/decisions';
+    assert.equal((await call(firstDecision, { revision: 3, decision: 'accepted' }, renter)).status, 403);
+    const countered = await call(quotations, { ...offer, revision: 3, lines: [{ ...offer.lines[0], unitPriceMinor: 175000 }] }, winnerCustomer);
+    assert.equal(countered.status, 200);
+    assert.equal((await call(firstDecision, { revision: 4, decision: 'accepted' }, winnerCustomer)).status, 409);
+    const counterDecision = 'quotations/' + countered.data.quotation.id + '/decisions';
+    assert.equal((await call(counterDecision, { revision: 4, decision: 'accepted' }, other)).status, 404);
+    const acceptances = await Promise.all([
+      call(counterDecision, { revision: 4, decision: 'accepted' }, renter),
+      call(counterDecision, { revision: 4, decision: 'accepted' }, renter),
+    ]);
+    assert.deepEqual(acceptances.map(item => item.status).sort(), [200, 409]);
+    const agreed = acceptances.find(item => item.status === 200)!.data;
+    const agreement = await call('bookings/' + winner.id + '/agreement', undefined, winnerCustomer);
+    assert.equal(agreement.data.id, agreed.agreement.id);
+    const artifactPath = 'agreements/' + agreement.data.id + '/artifact';
+    assert.equal((await call(artifactPath, undefined, other)).status, 404);
+    const artifact = await call(artifactPath, undefined, winnerCustomer);
+    assert.equal(createHash('sha256').update(artifact.data.artifact).digest('hex'), agreement.data.digest);
+    assert.equal(JSON.parse(artifact.data.artifact).serviceAdvanceMinor, 175000);
+    assert.equal((await call('bookings/' + winner.id, undefined, renter)).data.state, 'agreed');
+    const versions = await call(quotations, undefined, renter);
+    assert.deepEqual(versions.data.items.map((item: { status: string }) => item.status), ['accepted', 'superseded']);
+    await deps.db.booking.update({ where: { id: winner.id }, data: { holdExpiresAt: new Date(Date.now() - 1000) } });
+    assert.deepEqual((await call(availabilityPath)).data, { available: false });
     const rejected = await call('bookings/' + booked.data.id + '/provider-decisions', { revision: 1, decision: 'rejected' }, renter);
     assert.equal(rejected.status, 200);
     assert.equal(rejected.data.state, 'rejected');
@@ -344,6 +377,8 @@ test('renter owns revisions and public browse only shows approved published equi
       await deps.db.profileAudit.deleteMany({ where: { targetUserId: { in: ids } } });
       await deps.db.portfolioItem.deleteMany({ where: owned });
       await deps.db.asset.deleteMany({ where: owned });
+      await deps.db.bookingAgreement.deleteMany({ where: { booking: { customerId: { in: ids } } } });
+      await deps.db.bookingQuotation.deleteMany({ where: { booking: { customerId: { in: ids } } } });
       await deps.db.booking.deleteMany({ where: { customerId: { in: ids } } });
       await deps.db.inquiry.deleteMany({ where: { customerId: { in: ids } } });
       await deps.db.authUser.deleteMany({ where: { id: { in: ids } } });

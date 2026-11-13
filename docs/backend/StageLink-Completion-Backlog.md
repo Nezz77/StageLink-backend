@@ -23,7 +23,7 @@ A checked box marks implemented backend code. PostgreSQL integration, client wir
 - [x] P07 private saved items, resumable drafts and pre-booking inquiries. Booking submission links an inquiry to the resulting booking.
 - [x] P08 provider calendars, blackouts, date-specific stock, booking requests, captured terms and renewable holds.
 - [x] P09 provider decisions and calendar/history projections.
-- [ ] P09 quotation revisions, counteroffers, authenticated acceptance and agreement evidence.
+- [x] P09 quotation revisions, counteroffers, authenticated acceptance and SHA-256 agreement evidence.
 - [ ] P10 authorized, durable Socket.IO chat.
 - [ ] P11–P14 financial journal, PayHere and Stripe, reconciliation, completion, settlements, documents, verified reviews, inspections and deposit settlement.
 - [ ] P15–P17 AI, KYC, support, disputes, reminders and system controls.

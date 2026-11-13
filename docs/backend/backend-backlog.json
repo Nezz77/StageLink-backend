@@ -6,7 +6,7 @@
   "baseline_commit": "9cbbe0ded3112a347c8ba1ffdf7029bd4fde268e",
   "planned_integration_branch": "backend",
   "branch_created": true,
-  "next_phase": "P09",
+  "next_phase": "P10",
   "phase_count": 19,
   "ticket_count": 65,
   "coverage_rows": 55,
@@ -140,7 +140,7 @@
       "depends_on": [
         "P08"
       ],
-      "status": "in_progress",
+      "status": "implemented_pending_verification",
       "tickets": [
         "BE-038",
         "BE-042",
@@ -1505,7 +1505,7 @@
         "Applicable schema/API/auth/UI/reload/failure tests and checkpoint evidence complete"
       ],
       "requires_new_report_ui": false,
-      "status": "not_started",
+      "status": "implemented_pending_verification",
       "ui_coverage_ids": [
         "UI-032"
       ]
@@ -1536,7 +1536,7 @@
         "Applicable schema/API/auth/UI/reload/failure tests and checkpoint evidence complete"
       ],
       "requires_new_report_ui": true,
-      "status": "not_started",
+      "status": "implemented_pending_verification",
       "ui_coverage_ids": [
         "UI-033"
       ]

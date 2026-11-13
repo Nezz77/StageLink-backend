@@ -1317,6 +1317,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/bookings/{id}/quotations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["QuotationsController_history"];
+        put?: never;
+        post: operations["QuotationsController_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/quotations/{id}/decisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["QuotationsController_decide"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bookings/{id}/agreement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["QuotationsController_agreement"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agreements/{id}/artifact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["QuotationsController_artifact"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -9894,7 +9958,7 @@ export interface operations {
                         /** Format: date-time */
                         createdAt: string;
                         /** @enum {string} */
-                        state: "held" | "expired" | "accepted" | "rejected";
+                        state: "held" | "expired" | "accepted" | "rejected" | "agreed";
                         snapshot: {
                             title: string;
                             /** @enum {string} */
@@ -9958,6 +10022,8 @@ export interface operations {
                         providerDecision: "accepted" | "rejected" | null;
                         /** Format: date-time */
                         decidedAt: string | null;
+                        /** Format: date-time */
+                        agreedAt: string | null;
                         decisionReason: string | null;
                     };
                 };
@@ -10003,7 +10069,7 @@ export interface operations {
             query?: {
                 to?: string;
                 from?: string;
-                status?: "held" | "expired" | "accepted" | "rejected";
+                status?: "held" | "expired" | "accepted" | "rejected" | "agreed";
                 cursor?: string;
             };
             header?: never;
@@ -10041,7 +10107,7 @@ export interface operations {
                             /** Format: date-time */
                             createdAt: string;
                             /** @enum {string} */
-                            state: "held" | "expired" | "accepted" | "rejected";
+                            state: "held" | "expired" | "accepted" | "rejected" | "agreed";
                             snapshot: {
                                 title: string;
                                 /** @enum {string} */
@@ -10105,6 +10171,8 @@ export interface operations {
                             providerDecision: "accepted" | "rejected" | null;
                             /** Format: date-time */
                             decidedAt: string | null;
+                            /** Format: date-time */
+                            agreedAt: string | null;
                             decisionReason: string | null;
                         }[];
                         /** Format: uuid */
@@ -10156,7 +10224,7 @@ export interface operations {
                             /** Format: date-time */
                             createdAt: string;
                             /** @enum {string} */
-                            state: "held" | "expired" | "accepted" | "rejected";
+                            state: "held" | "expired" | "accepted" | "rejected" | "agreed";
                             snapshot: {
                                 title: string;
                                 /** @enum {string} */
@@ -10220,6 +10288,8 @@ export interface operations {
                             providerDecision: "accepted" | "rejected" | null;
                             /** Format: date-time */
                             decidedAt: string | null;
+                            /** Format: date-time */
+                            agreedAt: string | null;
                             decisionReason: string | null;
                         }[];
                         /** Format: uuid */
@@ -10278,7 +10348,7 @@ export interface operations {
                         /** Format: date-time */
                         createdAt: string;
                         /** @enum {string} */
-                        state: "held" | "expired" | "accepted" | "rejected";
+                        state: "held" | "expired" | "accepted" | "rejected" | "agreed";
                         snapshot: {
                             title: string;
                             /** @enum {string} */
@@ -10342,6 +10412,8 @@ export interface operations {
                         providerDecision: "accepted" | "rejected" | null;
                         /** Format: date-time */
                         decidedAt: string | null;
+                        /** Format: date-time */
+                        agreedAt: string | null;
                         decisionReason: string | null;
                     };
                 };
@@ -10387,7 +10459,7 @@ export interface operations {
                         /** Format: date-time */
                         createdAt: string;
                         /** @enum {string} */
-                        state: "held" | "expired" | "accepted" | "rejected";
+                        state: "held" | "expired" | "accepted" | "rejected" | "agreed";
                         snapshot: {
                             title: string;
                             /** @enum {string} */
@@ -10451,6 +10523,8 @@ export interface operations {
                         providerDecision: "accepted" | "rejected" | null;
                         /** Format: date-time */
                         decidedAt: string | null;
+                        /** Format: date-time */
+                        agreedAt: string | null;
                         decisionReason: string | null;
                     };
                 };
@@ -10503,7 +10577,7 @@ export interface operations {
                         /** Format: date-time */
                         createdAt: string;
                         /** @enum {string} */
-                        state: "held" | "expired" | "accepted" | "rejected";
+                        state: "held" | "expired" | "accepted" | "rejected" | "agreed";
                         snapshot: {
                             title: string;
                             /** @enum {string} */
@@ -10567,7 +10641,278 @@ export interface operations {
                         providerDecision: "accepted" | "rejected" | null;
                         /** Format: date-time */
                         decidedAt: string | null;
+                        /** Format: date-time */
+                        agreedAt: string | null;
                         decisionReason: string | null;
+                    };
+                };
+            };
+        };
+    };
+    QuotationsController_history: {
+        parameters: {
+            query?: {
+                beforeVersion?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            lines: {
+                                description: string;
+                                quantity: number;
+                                unitPriceMinor: number;
+                            }[];
+                            terms: string;
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            bookingId: string;
+                            version: number;
+                            /** Format: uuid */
+                            authorId: string;
+                            totalMinor: number;
+                            /** @enum {string} */
+                            currency: "LKR";
+                            /** Format: date-time */
+                            createdAt: string;
+                            /** Format: date-time */
+                            decidedAt: string | null;
+                            /** Format: uuid */
+                            decidedBy: string | null;
+                            /** @enum {string|null} */
+                            decision: "accepted" | "declined" | null;
+                            /** @enum {string} */
+                            status: "pending" | "superseded" | "accepted" | "declined" | "expired";
+                        }[];
+                        bookingRevision: number;
+                        nextVersion: number | null;
+                    };
+                };
+            };
+        };
+    };
+    QuotationsController_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    revision: number;
+                    lines: {
+                        description: string;
+                        quantity: number;
+                        unitPriceMinor: number;
+                    }[];
+                    terms: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        quotation: {
+                            lines: {
+                                description: string;
+                                quantity: number;
+                                unitPriceMinor: number;
+                            }[];
+                            terms: string;
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            bookingId: string;
+                            version: number;
+                            /** Format: uuid */
+                            authorId: string;
+                            totalMinor: number;
+                            /** @enum {string} */
+                            currency: "LKR";
+                            /** Format: date-time */
+                            createdAt: string;
+                            /** Format: date-time */
+                            decidedAt: string | null;
+                            /** Format: uuid */
+                            decidedBy: string | null;
+                            /** @enum {string|null} */
+                            decision: "accepted" | "declined" | null;
+                            /** @enum {string} */
+                            status: "pending" | "superseded" | "accepted" | "declined" | "expired";
+                        };
+                        bookingRevision: number;
+                        agreement: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            bookingId: string;
+                            /** Format: uuid */
+                            quotationId: string;
+                            digest: string;
+                            /** @enum {string} */
+                            algorithm: "SHA-256";
+                            /** Format: date-time */
+                            createdAt: string;
+                        } | null;
+                    };
+                };
+            };
+        };
+    };
+    QuotationsController_decide: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    revision: number;
+                    /** @enum {string} */
+                    decision: "accepted" | "declined";
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        quotation: {
+                            lines: {
+                                description: string;
+                                quantity: number;
+                                unitPriceMinor: number;
+                            }[];
+                            terms: string;
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            bookingId: string;
+                            version: number;
+                            /** Format: uuid */
+                            authorId: string;
+                            totalMinor: number;
+                            /** @enum {string} */
+                            currency: "LKR";
+                            /** Format: date-time */
+                            createdAt: string;
+                            /** Format: date-time */
+                            decidedAt: string | null;
+                            /** Format: uuid */
+                            decidedBy: string | null;
+                            /** @enum {string|null} */
+                            decision: "accepted" | "declined" | null;
+                            /** @enum {string} */
+                            status: "pending" | "superseded" | "accepted" | "declined" | "expired";
+                        };
+                        bookingRevision: number;
+                        agreement: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            bookingId: string;
+                            /** Format: uuid */
+                            quotationId: string;
+                            digest: string;
+                            /** @enum {string} */
+                            algorithm: "SHA-256";
+                            /** Format: date-time */
+                            createdAt: string;
+                        } | null;
+                    };
+                };
+            };
+        };
+    };
+    QuotationsController_agreement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uuid */
+                        bookingId: string;
+                        /** Format: uuid */
+                        quotationId: string;
+                        digest: string;
+                        /** @enum {string} */
+                        algorithm: "SHA-256";
+                        /** Format: date-time */
+                        createdAt: string;
+                    };
+                };
+            };
+        };
+    };
+    QuotationsController_artifact: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uuid */
+                        bookingId: string;
+                        /** Format: uuid */
+                        quotationId: string;
+                        digest: string;
+                        /** @enum {string} */
+                        algorithm: "SHA-256";
+                        /** Format: date-time */
+                        createdAt: string;
+                        artifact: string;
                     };
                 };
             };

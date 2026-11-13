@@ -78,6 +78,8 @@ model AuthUser {
   providerInquiries Inquiry[] @relation("InquiryProvider")
   inquiryMessages InquiryMessage[]
   availability AvailabilityCalendar?
+  authoredQuotations BookingQuotation[] @relation("QuotationAuthor")
+  decidedQuotations BookingQuotation[] @relation("QuotationDecider")
   customerBookings Booking[] @relation("BookingCustomer")
   providerBookings Booking[] @relation("BookingProvider")
   @@map("auth_users")
@@ -559,6 +561,9 @@ enum ProviderDecision {
 }
 
 model Booking {
+  agreedAt DateTime? @map("agreed_at") @db.Timestamptz(3)
+  quotations BookingQuotation[]
+  agreement BookingAgreement?
   providerDecision ProviderDecision? @map("provider_decision")
   decidedAt DateTime? @map("decided_at") @db.Timestamptz(3)
   decisionReason String? @map("decision_reason") @db.VarChar(500)
@@ -602,4 +607,36 @@ model BookingReservationLine {
   @@id([bookingId, resource, resourceId])
   @@index([resource, resourceId])
   @@map("booking_reservation_lines")
+}
+
+model BookingQuotation {
+  id String @id @default(uuid()) @db.Uuid
+  bookingId String @map("booking_id") @db.Uuid
+  version Int
+  authorId String @map("author_id") @db.Uuid
+  lines Json
+  terms String @db.VarChar(4000)
+  totalMinor Int @map("total_minor")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  decidedAt DateTime? @map("decided_at") @db.Timestamptz(3)
+  decision String? @db.VarChar(8)
+  decidedBy String? @map("decided_by") @db.Uuid
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  author AuthUser @relation("QuotationAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  decider AuthUser? @relation("QuotationDecider", fields: [decidedBy], references: [id], onDelete: Restrict)
+  agreement BookingAgreement?
+  @@unique([bookingId, version])
+  @@map("booking_quotations")
+}
+
+model BookingAgreement {
+  id String @id @default(uuid()) @db.Uuid
+  bookingId String @unique @map("booking_id") @db.Uuid
+  quotationId String @unique @map("quotation_id") @db.Uuid
+  artifact String
+  digest String @db.Char(64)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  quotation BookingQuotation @relation(fields: [quotationId], references: [id], onDelete: Restrict)
+  @@map("booking_agreements")
 }

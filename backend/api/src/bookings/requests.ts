@@ -15,14 +15,14 @@ const timestamp = z.iso.datetime({ offset: true });
 const request = selection.extend({
   requestKey: uuid, startsAt: timestamp, endsAt: timestamp, inquiryId: uuid.optional(),
 });
-const states = z.enum(['held', 'expired', 'accepted', 'rejected']);
+const states = z.enum(['held', 'expired', 'accepted', 'rejected', 'agreed']);
 const booking = z.object({
   id: uuid, customerId: uuid, providerId: uuid, inquiryId: uuid.nullable(),
   targetKind: z.enum(['gig', 'rental']), targetId: uuid, targetVersion: z.number().int(),
   startsAt: timestamp, endsAt: timestamp, holdExpiresAt: timestamp, createdAt: timestamp,
   state: states, snapshot, revision: z.number().int(),
   providerDecision: z.enum(['accepted', 'rejected']).nullable(),
-  decidedAt: timestamp.nullable(), decisionReason: z.string().nullable(),
+  decidedAt: timestamp.nullable(), agreedAt: timestamp.nullable(), decisionReason: z.string().nullable(),
 });
 const page = z.object({ items: z.array(booking), nextCursor: uuid.nullable() });
 const availabilityQuery = selection.omit({ targetId: true }).extend({
@@ -60,9 +60,9 @@ function present(record: Booking, now: Date) {
   const { requestKey: _key, requestDigest: _digest, ...fields } = record;
   return {
     ...fields, snapshot: snapshot.parse(record.snapshot),
-    state: record.providerDecision === 'rejected' ? 'rejected'
+    state: record.agreedAt ? 'agreed' : record.providerDecision === 'rejected' ? 'rejected'
       : record.holdExpiresAt <= now ? 'expired' : record.providerDecision ?? 'held',
-    decidedAt: record.decidedAt?.toISOString() ?? null,
+    decidedAt: record.decidedAt?.toISOString() ?? null, agreedAt: record.agreedAt?.toISOString() ?? null,
     startsAt: record.startsAt.toISOString(), endsAt: record.endsAt.toISOString(),
     holdExpiresAt: record.holdExpiresAt.toISOString(), createdAt: record.createdAt.toISOString(),
   };
@@ -81,13 +81,13 @@ function expiry(startsAt: Date, now: Date) {
   return new Date(Math.min(startsAt.getTime(), now.getTime() + holdMs));
 }
 
-async function member(tx: Prisma.TransactionClient, id: string, userId: string) {
+export async function member(tx: Prisma.TransactionClient, id: string, userId: string) {
   const record = await tx.booking.findFirst({ where: { id, OR: [{ customerId: userId }, { providerId: userId }] } });
   if (!record) throw new PublicError(404, 'BOOKING_NOT_FOUND', 'This booking is unavailable.');
   return record;
 }
 
-async function recheckReservation(tx: Prisma.TransactionClient, record: Booking, now: Date) {
+export async function recheckReservation(tx: Prisma.TransactionClient, record: Booking, now: Date) {
   const window = getWindow(record.startsAt, record.endsAt, now);
   const original = snapshot.parse(record.snapshot);
   const selected = {
@@ -230,9 +230,10 @@ export function makeBookingRequestsController(auth: AuthService) {
       const now = new Date();
       const stateFilters = {
         held: { providerDecision: null, holdExpiresAt: { gt: now } },
-        accepted: { providerDecision: 'accepted', holdExpiresAt: { gt: now } },
+        agreed: { agreedAt: { not: null } },
+        accepted: { agreedAt: null, providerDecision: 'accepted', holdExpiresAt: { gt: now } },
         rejected: { providerDecision: 'rejected' },
-        expired: { AND: [{ OR: [{ providerDecision: null }, { providerDecision: 'accepted' }] }, { holdExpiresAt: { lte: now } }] },
+        expired: { agreedAt: null, AND: [{ OR: [{ providerDecision: null }, { providerDecision: 'accepted' }] }, { holdExpiresAt: { lte: now } }] },
       } satisfies Record<z.infer<typeof states>, Prisma.BookingWhereInput>;
       const state = query.status ? stateFilters[query.status] : {};
       return bookingPage(db, {
@@ -253,7 +254,8 @@ export function makeBookingRequestsController(auth: AuthService) {
       const query = parse(calendarQuery, raw);
       const now = new Date();
       return bookingPage(db, {
-        providerId: actor.user.id, providerDecision: 'accepted', holdExpiresAt: { gt: now },
+        providerId: actor.user.id, providerDecision: 'accepted',
+        OR: [{ agreedAt: { not: null } }, { holdExpiresAt: { gt: now } }],
         endsAt: { gt: new Date(query.from) }, startsAt: { lt: new Date(query.to) },
       }, query.cursor, now);
     }
@@ -313,6 +315,7 @@ export function makeBookingRequestsController(auth: AuthService) {
           throw new PublicError(409, 'HOLD_CHANGED', 'Reload the booking before renewing its hold.');
         }
         const now = new Date();
+        if (record.agreedAt) return present(record, now);
         if (record.providerDecision === 'rejected') throw new PublicError(409, 'BOOKING_REJECTED', 'This booking was rejected.');
         if (record.providerDecision === 'accepted' && record.holdExpiresAt > now) return present(record, now);
         await recheckReservation(tx, record, now);
