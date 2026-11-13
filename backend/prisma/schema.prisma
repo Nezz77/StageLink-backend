@@ -73,6 +73,7 @@ model AuthUser {
   rentals RentalListing[]
   eventBriefs EventBrief[]
   savedItems SavedItem[]
+  privateDrafts PrivateDraft[]
   @@map("auth_users")
 }
 model AuthSession {
@@ -477,4 +478,16 @@ model SavedItem {
   @@unique([ownerId, kind, targetId])
   @@index([ownerId, id])
   @@map("saved_items")
+}
+
+model PrivateDraft {
+  id String @id @default(uuid()) @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  key String @db.VarChar(80)
+  revision Int @default(1)
+  payload Json
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
+  owner AuthUser @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  @@unique([ownerId, key])
+  @@map("private_drafts")
 }

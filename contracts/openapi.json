@@ -22160,6 +22160,31 @@
                       ],
                       "additionalProperties": false
                     }
+                  },
+                  "draft": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      "revision": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 2147483647
+                      },
+                      "key": {
+                        "type": "string",
+                        "pattern": "^[a-z0-9][a-z0-9_-]{0,79}$"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "revision",
+                      "key"
+                    ],
+                    "additionalProperties": false
                   }
                 },
                 "required": [
@@ -22552,6 +22577,547 @@
         ],
         "tags": [
           "Saved items"
+        ]
+      }
+    },
+    "/api/v1/me/drafts": {
+      "get": {
+        "operationId": "DraftsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "key": {
+                            "type": "string",
+                            "pattern": "^[a-z0-9][a-z0-9_-]{0,79}$"
+                          },
+                          "revision": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 2147483647
+                          },
+                          "payload": {
+                            "oneOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "kind": {
+                                    "type": "string",
+                                    "enum": [
+                                      "event_brief"
+                                    ]
+                                  },
+                                  "fields": {
+                                    "type": "object",
+                                    "properties": {
+                                      "title": {
+                                        "type": "string",
+                                        "maxLength": 120
+                                      },
+                                      "description": {
+                                        "type": "string",
+                                        "maxLength": 2000
+                                      },
+                                      "city": {
+                                        "type": "string",
+                                        "maxLength": 100
+                                      },
+                                      "eventDate": {
+                                        "type": "string",
+                                        "format": "date",
+                                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                                      },
+                                      "budgetMinor": {
+                                        "type": "integer",
+                                        "minimum": 1,
+                                        "maximum": 2147483647
+                                      },
+                                      "requirements": {
+                                        "maxItems": 25,
+                                        "type": "array",
+                                        "items": {
+                                          "type": "object",
+                                          "properties": {
+                                            "category": {
+                                              "type": "string",
+                                              "enum": [
+                                                "artist",
+                                                "equipment",
+                                                "venue"
+                                              ]
+                                            },
+                                            "description": {
+                                              "type": "string",
+                                              "maxLength": 300
+                                            },
+                                            "quantity": {
+                                              "type": "integer",
+                                              "minimum": 1,
+                                              "maximum": 1000
+                                            }
+                                          },
+                                          "required": [
+                                            "category",
+                                            "description",
+                                            "quantity"
+                                          ],
+                                          "additionalProperties": false
+                                        }
+                                      }
+                                    },
+                                    "additionalProperties": false
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "fields"
+                                ],
+                                "additionalProperties": false
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "kind": {
+                                    "type": "string",
+                                    "enum": [
+                                      "message"
+                                    ]
+                                  },
+                                  "text": {
+                                    "type": "string",
+                                    "maxLength": 4000
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "text"
+                                ],
+                                "additionalProperties": false
+                              }
+                            ]
+                          },
+                          "updatedAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "key",
+                          "revision",
+                          "payload",
+                          "updatedAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Private drafts"
+        ]
+      }
+    },
+    "/api/v1/me/drafts/{key}": {
+      "put": {
+        "operationId": "DraftsController_save",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "expected": {
+                    "nullable": true,
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      "revision": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 2147483647
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "revision"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "payload": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "event_brief"
+                            ]
+                          },
+                          "fields": {
+                            "type": "object",
+                            "properties": {
+                              "title": {
+                                "type": "string",
+                                "maxLength": 120
+                              },
+                              "description": {
+                                "type": "string",
+                                "maxLength": 2000
+                              },
+                              "city": {
+                                "type": "string",
+                                "maxLength": 100
+                              },
+                              "eventDate": {
+                                "type": "string",
+                                "format": "date",
+                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                              },
+                              "budgetMinor": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 2147483647
+                              },
+                              "requirements": {
+                                "maxItems": 25,
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "category": {
+                                      "type": "string",
+                                      "enum": [
+                                        "artist",
+                                        "equipment",
+                                        "venue"
+                                      ]
+                                    },
+                                    "description": {
+                                      "type": "string",
+                                      "maxLength": 300
+                                    },
+                                    "quantity": {
+                                      "type": "integer",
+                                      "minimum": 1,
+                                      "maximum": 1000
+                                    }
+                                  },
+                                  "required": [
+                                    "category",
+                                    "description",
+                                    "quantity"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              }
+                            },
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "fields"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "message"
+                            ]
+                          },
+                          "text": {
+                            "type": "string",
+                            "maxLength": 4000
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "text"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "expected",
+                  "payload"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "key": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9][a-z0-9_-]{0,79}$"
+                    },
+                    "revision": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 2147483647
+                    },
+                    "payload": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "event_brief"
+                              ]
+                            },
+                            "fields": {
+                              "type": "object",
+                              "properties": {
+                                "title": {
+                                  "type": "string",
+                                  "maxLength": 120
+                                },
+                                "description": {
+                                  "type": "string",
+                                  "maxLength": 2000
+                                },
+                                "city": {
+                                  "type": "string",
+                                  "maxLength": 100
+                                },
+                                "eventDate": {
+                                  "type": "string",
+                                  "format": "date",
+                                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                                },
+                                "budgetMinor": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 2147483647
+                                },
+                                "requirements": {
+                                  "maxItems": 25,
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "category": {
+                                        "type": "string",
+                                        "enum": [
+                                          "artist",
+                                          "equipment",
+                                          "venue"
+                                        ]
+                                      },
+                                      "description": {
+                                        "type": "string",
+                                        "maxLength": 300
+                                      },
+                                      "quantity": {
+                                        "type": "integer",
+                                        "minimum": 1,
+                                        "maximum": 1000
+                                      }
+                                    },
+                                    "required": [
+                                      "category",
+                                      "description",
+                                      "quantity"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                }
+                              },
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "fields"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": [
+                                "message"
+                              ]
+                            },
+                            "text": {
+                              "type": "string",
+                              "maxLength": 4000
+                            }
+                          },
+                          "required": [
+                            "kind",
+                            "text"
+                          ],
+                          "additionalProperties": false
+                        }
+                      ]
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "key",
+                    "revision",
+                    "payload",
+                    "updatedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Private drafts"
+        ]
+      },
+      "delete": {
+        "operationId": "DraftsController_remove",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "revision": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 2147483647
+                  }
+                },
+                "required": [
+                  "id",
+                  "revision"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "deleted": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    }
+                  },
+                  "required": [
+                    "deleted"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Private drafts"
         ]
       }
     }

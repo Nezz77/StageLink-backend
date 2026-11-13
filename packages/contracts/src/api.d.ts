@@ -1061,6 +1061,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/drafts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["DraftsController_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/drafts/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["DraftsController_save"];
+        post?: never;
+        delete: operations["DraftsController_remove"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -8882,6 +8914,12 @@ export interface operations {
                         description: string;
                         quantity: number;
                     }[];
+                    draft?: {
+                        /** Format: uuid */
+                        id: string;
+                        revision: number;
+                        key: string;
+                    };
                 };
             };
         };
@@ -8999,6 +9037,170 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        deleted: true;
+                    };
+                };
+            };
+        };
+    };
+    DraftsController_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** Format: uuid */
+                            id: string;
+                            key: string;
+                            revision: number;
+                            payload: {
+                                /** @enum {string} */
+                                kind: "event_brief";
+                                fields: {
+                                    title?: string;
+                                    description?: string;
+                                    city?: string;
+                                    /** Format: date */
+                                    eventDate?: string;
+                                    budgetMinor?: number;
+                                    requirements?: {
+                                        /** @enum {string} */
+                                        category: "artist" | "equipment" | "venue";
+                                        description: string;
+                                        quantity: number;
+                                    }[];
+                                };
+                            } | {
+                                /** @enum {string} */
+                                kind: "message";
+                                text: string;
+                            };
+                            /** Format: date-time */
+                            updatedAt: string;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    DraftsController_save: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    expected: {
+                        /** Format: uuid */
+                        id: string;
+                        revision: number;
+                    } | null;
+                    payload: {
+                        /** @enum {string} */
+                        kind: "event_brief";
+                        fields: {
+                            title?: string;
+                            description?: string;
+                            city?: string;
+                            /** Format: date */
+                            eventDate?: string;
+                            budgetMinor?: number;
+                            requirements?: {
+                                /** @enum {string} */
+                                category: "artist" | "equipment" | "venue";
+                                description: string;
+                                quantity: number;
+                            }[];
+                        };
+                    } | {
+                        /** @enum {string} */
+                        kind: "message";
+                        text: string;
+                    };
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        key: string;
+                        revision: number;
+                        payload: {
+                            /** @enum {string} */
+                            kind: "event_brief";
+                            fields: {
+                                title?: string;
+                                description?: string;
+                                city?: string;
+                                /** Format: date */
+                                eventDate?: string;
+                                budgetMinor?: number;
+                                requirements?: {
+                                    /** @enum {string} */
+                                    category: "artist" | "equipment" | "venue";
+                                    description: string;
+                                    quantity: number;
+                                }[];
+                            };
+                        } | {
+                            /** @enum {string} */
+                            kind: "message";
+                            text: string;
+                        };
+                        /** Format: date-time */
+                        updatedAt: string;
+                    };
+                };
+            };
+        };
+    };
+    DraftsController_remove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    id: string;
+                    revision: number;
+                };
+            };
+        };
         responses: {
             200: {
                 headers: {

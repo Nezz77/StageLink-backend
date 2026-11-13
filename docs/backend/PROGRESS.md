@@ -61,3 +61,5 @@ BE-012 adds cursor-paginated discovery by listing or provider name, city, advert
 BE-063 adds featured package previews derived from published gig versions with configured package tiers. It returns the same LKR pricing and artist summary as the published gig and has an empty result when no listings qualify.
 
 BE-020 adds an owner-scoped archive for saved artists, gigs and rentals, with category filters and cursor pagination. Repeated saves deduplicate. An unpublished or archived target remains removable without exposing its private title or details.
+
+BE-021 adds private, revision-checked drafts for event briefs and message text. The API accepts typed fields and caps draft count per account. Event brief submission can consume the exact draft in the same database transaction. Message-draft consumption follows with inquiry and chat submission.

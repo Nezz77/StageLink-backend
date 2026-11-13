@@ -6,6 +6,7 @@ import type { EventBrief, Prisma } from '../../../generated/prisma/client.js';
 import type { AuthService, Identity } from '../auth/service.js';
 import { PublicError } from '../auth/errors.js';
 import { ProfileService } from '../profiles/service.js';
+import { consumeDraft, draftReference } from './drafts.js';
 
 const uuid = z.string().uuid();
 const revision = z.number().int().min(1).max(2_147_483_647);
@@ -21,6 +22,7 @@ const fields = z.object({
   budgetMinor: z.number().int().min(1).max(2_147_483_647), currency: z.literal('LKR'),
   requirements,
 }).strict();
+const create = fields.extend({ draft: draftReference.optional() });
 const edit = fields.partial().extend({ revision }).refine(input => Object.keys(input).length > 1);
 const remove = z.object({ revision }).strict();
 const brief = fields.extend({ id: uuid, revision, createdAt: z.iso.datetime(), updatedAt: z.iso.datetime() });
@@ -109,13 +111,14 @@ export function makeEventBriefController(auth: AuthService) {
 
     @Post('event-posts')
     @HttpCode(200)
-    @ApiBody({ schema: schema(fields) })
+    @ApiBody({ schema: schema(create) })
     @ApiOkResponse({ schema: schema(brief) })
     create(@Req() req: Request, @Body() body: unknown) {
-      const { currency: _currency, eventDate, ...details } = parse(fields, body);
-      return write(req, async (tx, ownerId) => present(await tx.eventBrief.create({
-        data: { ...details, ownerId, eventDate: new Date(eventDate) },
-      })));
+      const { currency: _currency, eventDate, draft, ...details } = parse(create, body);
+      return write(req, async (tx, ownerId) => {
+        if (draft) await consumeDraft(tx, ownerId, draft, 'event_brief');
+        return present(await tx.eventBrief.create({ data: { ...details, ownerId, eventDate: new Date(eventDate) } }));
+      });
     }
 
     @Patch('event-posts/:id')
