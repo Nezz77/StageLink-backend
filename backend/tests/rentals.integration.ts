@@ -96,6 +96,35 @@ test('renter owns revisions and public browse only shows approved published equi
     assert.equal((await publicItem()).kind, 'equipment');
     assert.equal((await publicItem()).weeklyRateMinor, null);
 
+    const asset = await deps.db.asset.create({ data: {
+      ownerId: renter.user.id, purpose: 'equipment', filename: 'speaker.png', mime: 'image/png',
+      bytes: 128, sha256: 'a'.repeat(64), status: 'ready', expiresAt: new Date(Date.now() + 3600000),
+    } });
+    const portfolio = await deps.db.portfolioItem.create({ data: {
+      ownerId: renter.user.id, kind: 'renter', assetId: asset.id, caption: 'Speaker photo', transcript: '', status: 'pending',
+    } });
+    const gallery = path + '/media';
+    const publicGallery = 'rentals/' + id + '/media';
+    const picture = { portfolioItemId: portfolio.id, position: 0, caption: 'Speaker front' };
+    assert.equal((await call(gallery, picture, renter)).status, 404);
+    await deps.db.portfolioItem.update({ where: { id: portfolio.id }, data: { status: 'approved' } });
+    assert.equal((await call(gallery, picture, other)).status, 404);
+    const attached = await call(gallery, picture, renter);
+    assert.equal(attached.status, 200);
+    const link = attached.data.items[0];
+    assert.equal((await call(gallery, picture, renter)).status, 409);
+    const publishedGallery = await call(publicGallery);
+    assert.deepEqual(publishedGallery.data.items, [{ ...picture, mime: 'image/png' }]);
+    const linkPath = gallery + '/' + link.id;
+    const editedLink = await call(linkPath, { revision: 1, position: 2, caption: 'Front grille' }, renter, 'PATCH');
+    assert.equal(editedLink.status, 200);
+    assert.equal((await call(linkPath, { revision: 1 }, renter, 'DELETE')).status, 409);
+    await deps.db.portfolioItem.update({ where: { id: portfolio.id }, data: { status: 'draft' } });
+    assert.deepEqual((await call(publicGallery)).data.items, []);
+    assert.equal((await call(gallery, undefined, renter)).data.items[0].publiclyEligible, false);
+    assert.equal((await call(linkPath, { revision: 2 }, renter, 'DELETE')).status, 200);
+    assert.ok(await deps.db.asset.findUnique({ where: { id: asset.id } }));
+
     const units = 'me/inventory-units';
     const unit = await call(units, { listingId: id, serial: ' sn-01 ' }, renter);
     assert.equal(unit.status, 200);
@@ -186,6 +215,7 @@ test('renter owns revisions and public browse only shows approved published equi
     assert.equal((await publicItem()).dailyRateMinor, edit.dailyRateMinor);
     assert.equal((await call(path + '/status', { revision: 4, action: 'pause' }, renter)).status, 200);
     assert.equal(await publicItem(), undefined);
+    assert.equal((await call(publicGallery)).status, 404);
     const remaining = await call('rentals');
     assert.ok(!remaining.data.items.some((item: { id: string }) => item.id === bundleDraft.data.id));
     const owned = await call('me/rentals', undefined, renter);
@@ -202,6 +232,8 @@ test('renter owns revisions and public browse only shows approved published equi
       await deps.db.rentalListingVersion.deleteMany({ where: { listing: owned } });
       await deps.db.rentalListing.deleteMany({ where: owned });
       await deps.db.profileAudit.deleteMany({ where: { targetUserId: { in: ids } } });
+      await deps.db.portfolioItem.deleteMany({ where: owned });
+      await deps.db.asset.deleteMany({ where: owned });
       await deps.db.authUser.deleteMany({ where: { id: { in: ids } } });
       let cursor = '0';
       do {

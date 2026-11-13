@@ -62,7 +62,7 @@ const schema = (value: z.ZodType) => z.toJSONSchema(value, { target: 'openapi-3.
 const pageSize = 24;
 
 const publishedProfile = { kind: 'renter', approvedRevision: { not: null }, approvedSnapshot: { not: Prisma.DbNull } } as const;
-const visible = {
+export const publicRentalFilter = {
   status: 'published',
   publishedVersion: { not: null },
   owner: {
@@ -298,7 +298,7 @@ export function makeRentalControllers(auth: AuthService) {
     @ApiOkResponse({ schema: schema(publicPage) })
     async list(@Query('cursor') cursor?: string) {
       const records = await db.$transaction(tx => tx.rentalListing.findMany({
-        where: { ...visible, ...(cursor === undefined ? {} : { id: { gt: parse(uuid, cursor) } }) },
+        where: { ...publicRentalFilter, ...(cursor === undefined ? {} : { id: { gt: parse(uuid, cursor) } }) },
         include: publicInclude, orderBy: { id: 'asc' }, take: pageSize + 1,
       }), { isolationLevel: 'RepeatableRead' });
       const items = records.slice(0, pageSize).map(record => {

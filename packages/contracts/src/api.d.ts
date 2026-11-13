@@ -885,6 +885,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/rentals/{id}/media": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["RentalGalleryController_list"];
+        put?: never;
+        post: operations["RentalGalleryController_add"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/rentals/{id}/media/{linkId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["RentalGalleryController_remove"];
+        options?: never;
+        head?: never;
+        patch: operations["RentalGalleryController_update"];
+        trace?: never;
+    };
+    "/api/v1/rentals/{id}/media": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["PublicRentalGalleryController_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -8134,6 +8182,192 @@ export interface operations {
                             createdAt: string;
                         }[];
                         nextCursor: string | null;
+                    };
+                };
+            };
+        };
+    };
+    RentalGalleryController_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            caption: string;
+                            position: number;
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            portfolioItemId: string;
+                            revision: number;
+                            mime: string | null;
+                            publiclyEligible: boolean;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    RentalGalleryController_add: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    caption: string;
+                    position: number;
+                    /** Format: uuid */
+                    portfolioItemId: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            caption: string;
+                            position: number;
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            portfolioItemId: string;
+                            revision: number;
+                            mime: string | null;
+                            publiclyEligible: boolean;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    RentalGalleryController_remove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                linkId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    revision: number;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            caption: string;
+                            position: number;
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            portfolioItemId: string;
+                            revision: number;
+                            mime: string | null;
+                            publiclyEligible: boolean;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    RentalGalleryController_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                linkId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    caption: string;
+                    position: number;
+                    revision: number;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            caption: string;
+                            position: number;
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            portfolioItemId: string;
+                            revision: number;
+                            mime: string | null;
+                            publiclyEligible: boolean;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    PublicRentalGalleryController_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            caption: string;
+                            position: number;
+                            /** Format: uuid */
+                            portfolioItemId: string;
+                            mime: string;
+                        }[];
                     };
                 };
             };

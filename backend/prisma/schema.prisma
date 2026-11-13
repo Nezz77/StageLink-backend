@@ -263,6 +263,7 @@ model PortfolioItem {
   updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
   owner AuthUser @relation(fields:[ownerId],references:[id],onDelete:Cascade)
   asset Asset? @relation(fields:[assetId],references:[id],onDelete:Restrict)
+  rentalGallery RentalGalleryItem[]
   @@index([ownerId,kind])
   @@index([status,updatedAt])
   @@map("portfolio_items")
@@ -345,6 +346,7 @@ model RentalListing {
   versions RentalListingVersion[] @relation("RentalVersions")
   publication RentalListingVersion? @relation("RentalPublication", fields: [id, publishedVersion], references: [listingId, version], onDelete: Restrict)
   inventory InventoryUnit[]
+  gallery RentalGalleryItem[]
   @@unique([id, ownerId])
   @@index([ownerId, status])
   @@map("rental_listings")
@@ -410,4 +412,19 @@ model InventoryMovement {
   unit InventoryUnit @relation(fields: [unitId], references: [id], onDelete: Restrict)
   @@unique([unitId, revision])
   @@map("inventory_movements")
+}
+
+model RentalGalleryItem {
+  id String @id @default(uuid()) @db.Uuid
+  listingId String @map("listing_id") @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  portfolioItemId String @map("portfolio_item_id") @db.Uuid
+  revision Int @default(1)
+  caption String @db.VarChar(240)
+  position Int
+  listing RentalListing @relation(fields: [listingId, ownerId], references: [id, ownerId], onDelete: Cascade)
+  portfolioItem PortfolioItem @relation(fields: [portfolioItemId], references: [id], onDelete: Cascade)
+  @@unique([listingId, portfolioItemId])
+  @@index([portfolioItemId])
+  @@map("rental_gallery_items")
 }

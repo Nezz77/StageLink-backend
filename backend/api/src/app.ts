@@ -15,6 +15,7 @@ import { makeMediaControllers } from './media/controller.js';
 import { makeGigControllers } from './catalog/gigs.js';
 import { makeRentalControllers } from './catalog/rentals.js';
 import { makeInventoryController } from './catalog/inventory.js';
+import { makeRentalGalleryControllers } from './catalog/rental-gallery.js';
 import { MediaStore } from '../../shared/media-store.js';
 import { PublicError } from './auth/errors.js';
 
@@ -70,7 +71,7 @@ export async function createApp(config: Config, dependencies: Resources = resour
   }
   const auth = new AuthService(config, dependencies);
   const mediaStore = new MediaStore(config);
-  @Module({ controllers: [HealthController, makeAuthController(auth), ...makeProfileControllers(auth), ...makeMediaControllers(auth, mediaStore), ...makeGigControllers(auth), ...makeRentalControllers(auth), makeInventoryController(auth)] })
+  @Module({ controllers: [HealthController, makeAuthController(auth), ...makeProfileControllers(auth), ...makeMediaControllers(auth, mediaStore), ...makeGigControllers(auth), ...makeRentalControllers(auth), makeInventoryController(auth), ...makeRentalGalleryControllers(auth)] })
   class AppModule {
     async onApplicationShutdown() { mediaStore.close(); await closeResources(dependencies); }
   }
