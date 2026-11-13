@@ -965,6 +965,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/event-posts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["EventBriefController_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/event-posts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["EventBriefController_get"];
+        put?: never;
+        post?: never;
+        delete: operations["EventBriefController_delete"];
+        options?: never;
+        head?: never;
+        patch: operations["EventBriefController_update"];
+        trace?: never;
+    };
+    "/api/v1/event-posts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["EventBriefController_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -8501,6 +8549,249 @@ export interface operations {
                             /** Format: date-time */
                             endsAt: string | null;
                         }[];
+                    };
+                };
+            };
+        };
+    };
+    EventBriefController_list: {
+        parameters: {
+            query?: {
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            title: string;
+                            description: string;
+                            /** Format: date */
+                            eventDate: string;
+                            city: string;
+                            budgetMinor: number;
+                            /** @enum {string} */
+                            currency: "LKR";
+                            requirements: {
+                                /** @enum {string} */
+                                category: "artist" | "equipment" | "venue";
+                                description: string;
+                                quantity: number;
+                            }[];
+                            /** Format: uuid */
+                            id: string;
+                            revision: number;
+                            /** Format: date-time */
+                            createdAt: string;
+                            /** Format: date-time */
+                            updatedAt: string;
+                        }[];
+                        /** Format: uuid */
+                        nextCursor: string | null;
+                    };
+                };
+            };
+        };
+    };
+    EventBriefController_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        title: string;
+                        description: string;
+                        /** Format: date */
+                        eventDate: string;
+                        city: string;
+                        budgetMinor: number;
+                        /** @enum {string} */
+                        currency: "LKR";
+                        requirements: {
+                            /** @enum {string} */
+                            category: "artist" | "equipment" | "venue";
+                            description: string;
+                            quantity: number;
+                        }[];
+                        /** Format: uuid */
+                        id: string;
+                        revision: number;
+                        /** Format: date-time */
+                        createdAt: string;
+                        /** Format: date-time */
+                        updatedAt: string;
+                    };
+                };
+            };
+        };
+    };
+    EventBriefController_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    revision: number;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        deleted: true;
+                    };
+                };
+            };
+        };
+    };
+    EventBriefController_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    title?: string;
+                    description?: string;
+                    /** Format: date */
+                    eventDate?: string;
+                    city?: string;
+                    budgetMinor?: number;
+                    /** @enum {string} */
+                    currency?: "LKR";
+                    requirements?: {
+                        /** @enum {string} */
+                        category: "artist" | "equipment" | "venue";
+                        description: string;
+                        quantity: number;
+                    }[];
+                    revision: number;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        title: string;
+                        description: string;
+                        /** Format: date */
+                        eventDate: string;
+                        city: string;
+                        budgetMinor: number;
+                        /** @enum {string} */
+                        currency: "LKR";
+                        requirements: {
+                            /** @enum {string} */
+                            category: "artist" | "equipment" | "venue";
+                            description: string;
+                            quantity: number;
+                        }[];
+                        /** Format: uuid */
+                        id: string;
+                        revision: number;
+                        /** Format: date-time */
+                        createdAt: string;
+                        /** Format: date-time */
+                        updatedAt: string;
+                    };
+                };
+            };
+        };
+    };
+    EventBriefController_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    title: string;
+                    description: string;
+                    /** Format: date */
+                    eventDate: string;
+                    city: string;
+                    budgetMinor: number;
+                    /** @enum {string} */
+                    currency: "LKR";
+                    requirements: {
+                        /** @enum {string} */
+                        category: "artist" | "equipment" | "venue";
+                        description: string;
+                        quantity: number;
+                    }[];
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        title: string;
+                        description: string;
+                        /** Format: date */
+                        eventDate: string;
+                        city: string;
+                        budgetMinor: number;
+                        /** @enum {string} */
+                        currency: "LKR";
+                        requirements: {
+                            /** @enum {string} */
+                            category: "artist" | "equipment" | "venue";
+                            description: string;
+                            quantity: number;
+                        }[];
+                        /** Format: uuid */
+                        id: string;
+                        revision: number;
+                        /** Format: date-time */
+                        createdAt: string;
+                        /** Format: date-time */
+                        updatedAt: string;
                     };
                 };
             };

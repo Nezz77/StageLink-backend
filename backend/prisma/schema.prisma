@@ -71,6 +71,7 @@ model AuthUser {
   avatar AvatarBinding?
   artistGigs ArtistGig[]
   rentals RentalListing[]
+  eventBriefs EventBrief[]
   @@map("auth_users")
 }
 model AuthSession {
@@ -438,4 +439,21 @@ model PublicAnnouncement {
   endsAt DateTime? @map("ends_at") @db.Timestamptz(3)
   @@index([startsAt, id])
   @@map("public_announcements")
+}
+
+model EventBrief {
+  id String @id @default(uuid()) @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  title String @db.VarChar(120)
+  description String @db.VarChar(2000)
+  eventDate DateTime @map("event_date") @db.Date
+  city String @db.VarChar(100)
+  budgetMinor Int @map("budget_minor")
+  requirements Json @default("[]")
+  revision Int @default(1)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
+  owner AuthUser @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  @@index([ownerId, id])
+  @@map("event_briefs")
 }

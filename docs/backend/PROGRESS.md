@@ -53,3 +53,5 @@ BE-034 adds a renter-owned serial registry, overdue custody tracking, return ins
 BE-065 adds rental gallery endpoints. Renters can link, caption, reorder and detach their reviewed equipment photos and videos. Public galleries require a published listing and current media approval. The response includes the portfolio item ID used by the existing public media access endpoint. Detaching a gallery item leaves its source asset and retention records intact.
 
 BE-011 adds a public feed of approved, published gigs and rentals, live listing counts, and scheduled announcements. The API excludes unpublished, future and expired announcements. Announcement authoring and campaign delivery remain in P17.
+
+BE-022 adds private customer event briefs with a date, city, LKR budget and typed artist, equipment or venue requirements. Customers can create, list, read, update and delete their own briefs. Revision checks protect edits and deletion. Briefs can be used as input for later recommendations and inquiries.
