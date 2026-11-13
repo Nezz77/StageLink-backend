@@ -59,3 +59,5 @@ BE-022 adds private customer event briefs with a date, city, LKR budget and type
 BE-012 adds cursor-paginated discovery by listing or provider name, city, advertised LKR price, artist genre, rental category or type, and distance from an input coordinate. Distance uses approximate coordinates saved with the last approved provider revision. API responses omit coordinates. Rating filters depend on verified review data in P13.
 
 BE-063 adds featured package previews derived from published gig versions with configured package tiers. It returns the same LKR pricing and artist summary as the published gig and has an empty result when no listings qualify.
+
+BE-020 adds an owner-scoped archive for saved artists, gigs and rentals, with category filters and cursor pagination. Repeated saves deduplicate. An unpublished or archived target remains removable without exposing its private title or details.

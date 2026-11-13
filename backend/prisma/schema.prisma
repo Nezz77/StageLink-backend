@@ -72,6 +72,7 @@ model AuthUser {
   artistGigs ArtistGig[]
   rentals RentalListing[]
   eventBriefs EventBrief[]
+  savedItems SavedItem[]
   @@map("auth_users")
 }
 model AuthSession {
@@ -458,4 +459,22 @@ model EventBrief {
   owner AuthUser @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   @@index([ownerId, id])
   @@map("event_briefs")
+}
+
+enum SavedItemKind {
+  artist
+  gig
+  rental
+}
+
+model SavedItem {
+  id String @id @default(uuid()) @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  kind SavedItemKind
+  targetId String @map("target_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  owner AuthUser @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  @@unique([ownerId, kind, targetId])
+  @@index([ownerId, id])
+  @@map("saved_items")
 }

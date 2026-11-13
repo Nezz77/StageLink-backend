@@ -1029,6 +1029,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/saved-items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["SavedItemsController_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/saved-items/{kind}/{targetId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["SavedItemsController_save"];
+        post?: never;
+        delete: operations["SavedItemsController_remove"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -8881,6 +8913,101 @@ export interface operations {
                         createdAt: string;
                         /** Format: date-time */
                         updatedAt: string;
+                    };
+                };
+            };
+        };
+    };
+    SavedItemsController_list: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                kind?: "artist" | "gig" | "rental";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** Format: uuid */
+                            id: string;
+                            /** @enum {string} */
+                            kind: "artist" | "gig" | "rental";
+                            /** Format: uuid */
+                            targetId: string;
+                            /** Format: date-time */
+                            createdAt: string;
+                            title: string | null;
+                            available: boolean;
+                        }[];
+                        /** Format: uuid */
+                        nextCursor: string | null;
+                    };
+                };
+            };
+        };
+    };
+    SavedItemsController_save: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kind: "artist" | "gig" | "rental";
+                targetId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** @enum {string} */
+                        kind: "artist" | "gig" | "rental";
+                        /** Format: uuid */
+                        targetId: string;
+                        /** Format: date-time */
+                        createdAt: string;
+                        title: string | null;
+                        available: boolean;
+                    };
+                };
+            };
+        };
+    };
+    SavedItemsController_remove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kind: "artist" | "gig" | "rental";
+                targetId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        deleted: true;
                     };
                 };
             };

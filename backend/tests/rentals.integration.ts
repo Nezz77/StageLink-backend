@@ -59,6 +59,8 @@ test('renter owns revisions and public browse only shows approved published equi
     const noDeposit = { mode: 'none', currency: 'LKR' };
     assert.deepEqual(created.data.depositPolicy, noDeposit);
     const id = created.data.id;
+    const savedPath = 'me/saved-items/rental/' + id;
+    assert.equal((await call(savedPath, {}, other, 'PUT')).status, 404);
     const path = 'me/rentals/' + id;
     async function publicItem() {
       const page = await call('rentals');
@@ -114,6 +116,11 @@ test('renter owns revisions and public browse only shows approved published equi
     assert.deepEqual((await publicItem()).specs, edit.specs);
     assert.equal((await publicItem()).kind, 'equipment');
     assert.equal((await publicItem()).weeklyRateMinor, null);
+    const saved = await Promise.all([call(savedPath, {}, other, 'PUT'), call(savedPath, {}, other, 'PUT')]);
+    assert.deepEqual(saved.map(result => result.status), [200, 200]);
+    assert.equal(saved[0]?.data.id, saved[1]?.data.id);
+    assert.deepEqual((await call('me/saved-items', undefined, renter)).data.items, []);
+    assert.equal((await call('me/saved-items?kind=rental', undefined, other)).data.items[0].targetId, id);
     const feed = await call('public/feed');
     assert.equal(feed.status, 200);
     assert.equal(feed.data.totals.rentals, beforePublish.data.totals.rentals + 1);
@@ -255,6 +262,12 @@ test('renter owns revisions and public browse only shows approved published equi
     assert.equal(owned.data.find((item: { id: string }) => item.id === bundleDraft.data.id).status, 'paused');
     assert.equal((await call(`me/rentals/${staleBundle.data.id}/status`, { revision: 1, action: 'publish' }, renter)).status, 409);
     assert.equal((await call(path + '/status', { revision: 5, action: 'archive' }, renter)).status, 200);
+    const savedAfterArchive = (await call('me/saved-items', undefined, other)).data.items[0];
+    assert.equal(savedAfterArchive.available, false);
+    assert.equal(savedAfterArchive.title, null);
+    assert.equal((await call(savedPath, {}, other, 'DELETE')).status, 200);
+    assert.equal((await call(savedPath, {}, other, 'DELETE')).status, 200);
+    assert.deepEqual((await call('me/saved-items', undefined, other)).data.items, []);
     assert.equal(await deps.db.rentalListingVersion.count({ where: { listingId: id } }), 2);
   } finally {
     try {
