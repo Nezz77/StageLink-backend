@@ -488,6 +488,40 @@ test('renter owns revisions and public browse only shows approved published equi
     const draft = await call(inspect + '/draft', { revision: 1, evidence: incomplete }, renter, 'PUT');
     assert.equal(draft.data.revision, 2);
     assert.equal((await call(inspectionPath, undefined, winnerCustomer)).data.inspection.draft, null);
+    const damageInput = { bookingId: winner.id, amountMinor: 0, reason: 'The equipment return needs a deposit decision.' };
+    assert.equal((await call('damage-claims', damageInput, renter)).data.code, 'DEPOSIT_NOT_ELIGIBLE');
+    const evidenceAsset = await deps.db.asset.create({
+      data: {
+        ownerId: renter.user.id, purpose: 'inspection', status: 'ready', filename: 'fixture.webp',
+        mime: 'image/webp', bytes: 32, sha256: '0'.repeat(64), expiresAt: new Date(inspectionNow + 3600_000),
+        variants: { display: { mime: 'image/webp', bytes: 32 } },
+      },
+    });
+    const condition = {
+      units: inspection.data.units.map(({ id }: { id: string }) => ({ unitId: id, condition: 'good', notes: '' })),
+      accessories: [true], photoIds: [evidenceAsset.id], notes: 'All equipment was returned.',
+    };
+    const submitted = await call(inspect + '/submit', { revision: 2, confirmed: true, evidence: condition }, renter);
+    assert.equal(submitted.status, 200);
+    const handover = await call(inspect + '/acknowledge', { revision: submitted.data.revision, confirmed: true }, winnerCustomer);
+    assert.equal(handover.data.stage, 'out');
+    const returning = await call(inspect + '/return', { revision: handover.data.revision }, renter);
+    const returned = await call(inspect + '/submit', { revision: returning.data.revision, confirmed: true, evidence: condition }, renter);
+    const cleared = await call(inspect + '/acknowledge', { revision: returned.data.revision, confirmed: true }, winnerCustomer);
+    assert.equal(cleared.data.stage, 'cleared');
+    assert.equal((await call(inspect + '/comparison', undefined, winnerCustomer)).data.units.length, 2);
+    assert.equal((await call('damage-claims', { ...damageInput, amountMinor: 100 }, renter)).data.code, 'DEDUCTION_NOT_ELIGIBLE');
+    const damage = await call('damage-claims', damageInput, renter);
+    assert.equal(damage.data.status, 'awaiting_customer');
+    const responsePath = 'damage-claims/' + damage.data.id + '/respond';
+    assert.equal((await call(responsePath, { response: 'accepted' }, other)).status, 404);
+    assert.equal((await call(responsePath, { response: 'accepted' }, winnerCustomer)).data.status, 'awaiting_admin');
+    const resolved = await call('admin/damage-claims/' + damage.data.id + '/resolve', {
+      approveDeduction: false, reason: 'The agreement has no collected deposit.',
+    }, admin);
+    assert.equal(resolved.data.status, 'resolved_zero_deposit');
+    assert.equal(resolved.data.refundMinor, 0);
+    assert.equal((await deps.db.damageClaim.findUniqueOrThrow({ where: { id: damage.data.id } })).reservationId, null);
     const chat = 'conversations/' + winner.id;
     assert.equal((await call(chat + '/messages', undefined, other)).status, 404);
     const message = { requestKey: randomUUID(), body: 'Please confirm the pickup time.' };
@@ -581,6 +615,9 @@ test('renter owns revisions and public browse only shows approved published equi
       const owned = { ownerId: { in: ids } };
       await deps.db.rentalListing.updateMany({ where: owned, data: { status: 'archived', publishedVersion: null } });
       const inspections = { booking: { providerId: { in: ids } } };
+      await deps.db.damageClaim.deleteMany({ where: { booking: { providerId: { in: ids } } } });
+      await deps.db.equipmentInspectionPhoto.deleteMany({ where: { report: { inspection: inspections } } });
+      await deps.db.equipmentInspectionReport.deleteMany({ where: { inspection: inspections } });
       await deps.db.equipmentInspectionUnit.deleteMany({ where: { inspection: inspections } });
       await deps.db.equipmentInspection.deleteMany({ where: inspections });
       await deps.db.inventoryMovement.deleteMany({ where: { unit: owned } });

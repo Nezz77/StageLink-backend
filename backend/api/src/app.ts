@@ -22,6 +22,7 @@ import { makeSavedItemsController } from './catalog/saved-items.js';
 import { makeDraftsController } from './events/drafts.js';
 import { makeInquiriesController } from './events/inquiries.js';
 import { makeAvailabilityControllers } from './availability/calendars.js';
+import { makeDamageClaimsController } from './bookings/damage-claims.js';
 import { makeInspectionsController } from './bookings/inspections.js';
 import { makeReviewsController } from './bookings/reviews.js';
 import { makeRefundsController } from './bookings/refunds.js';
@@ -89,7 +90,7 @@ export async function createApp(config: Config, dependencies: Resources = resour
   }
   const auth = new AuthService(config, dependencies);
   const mediaStore = new MediaStore(config);
-  @Module({ controllers: [HealthController, makeAuthController(auth), ...makeProfileControllers(auth), ...makeMediaControllers(auth, mediaStore), ...makeGigControllers(auth), ...makeRentalControllers(auth), makeInventoryController(auth), ...makeRentalGalleryControllers(auth), makePublicFeedController(dependencies.db), makeEventBriefController(auth), makeSavedItemsController(auth), makeDraftsController(auth), makeInquiriesController(auth), ...makeAvailabilityControllers(auth), makeBookingRequestsController(auth), makeQuotationsController(auth), makeBookingMessagesController(auth), makeCompletionController(auth), makeRefundsController(auth), makeDocumentsController(auth, mediaStore), makeReviewsController(auth, mediaStore), makeInspectionsController(auth), makePaymentOrdersController(auth), makePayoutsController(auth), makePayHereController(auth), makeStripeController(auth)] })
+  @Module({ controllers: [HealthController, makeAuthController(auth), ...makeProfileControllers(auth), ...makeMediaControllers(auth, mediaStore), ...makeGigControllers(auth), ...makeRentalControllers(auth), makeInventoryController(auth), ...makeRentalGalleryControllers(auth), makePublicFeedController(dependencies.db), makeEventBriefController(auth), makeSavedItemsController(auth), makeDraftsController(auth), makeInquiriesController(auth), ...makeAvailabilityControllers(auth), makeBookingRequestsController(auth), makeQuotationsController(auth), makeBookingMessagesController(auth), makeCompletionController(auth), makeRefundsController(auth), makeDocumentsController(auth, mediaStore), makeReviewsController(auth, mediaStore), makeInspectionsController(auth), makeDamageClaimsController(auth), makePaymentOrdersController(auth), makePayoutsController(auth), makePayHereController(auth), makeStripeController(auth)] })
   class AppModule {
     async onApplicationShutdown() { mediaStore.close(); await closeResources(dependencies); }
   }

@@ -138,3 +138,7 @@ The customer submits one review after completion is verified. Use `POST /api/v1/
 The renter opens an inspection at `POST /api/v1/bookings/:id/inspections` during the booking window with the accessory manifest. The server allocates registered serials from the booking's equipment lines. Use upload purpose `inspection` for private photos. The provider submits condition and photo evidence, and the customer acknowledges the submitted revision or requests a correction.
 
 The renter opens return inspection at `POST /api/v1/inspections/:id/return`. Booking participants can compare submitted conditions and photo sets at `GET /api/v1/inspections/:id/comparison`. Discrepancies keep units quarantined until the provider submits clearance evidence.
+
+## Deposit claims
+
+The renter submits a proposal at `POST /api/v1/damage-claims` after the customer acknowledges the return. The customer responds at `POST /api/v1/damage-claims/:id/respond`. Administrators review the response and record a decision at `POST /api/v1/admin/damage-claims/:id/resolve`. Positive deductions require evidence and are capped at the collected deposit. The `reserved` state represents an internal sandbox allocation pending gateway execution.

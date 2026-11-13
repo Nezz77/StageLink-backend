@@ -1877,6 +1877,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/damage-claims": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["DamageClaimsController_propose"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bookings/{id}/damage-claim": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["DamageClaimsController_read"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/damage-claims/{id}/respond": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["DamageClaimsController_respond"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/damage-claims": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["DamageClaimsController_queue"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/damage-claims/{id}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["DamageClaimsController_resolve"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/bookings/{id}/payment-orders": {
         parameters: {
             query?: never;
@@ -13716,6 +13796,275 @@ export interface operations {
                             decision: "acknowledged" | "correction" | null;
                             correctionReason: string | null;
                         }[];
+                    };
+                };
+            };
+        };
+    };
+    DamageClaimsController_propose: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    bookingId: string;
+                    amountMinor: number;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uuid */
+                        bookingId: string;
+                        /** Format: uuid */
+                        inspectionId: string;
+                        reportRevision: number;
+                        depositMinor: number;
+                        proposedMinor: number;
+                        reason: string;
+                        /** Format: date-time */
+                        createdAt: string;
+                        /** @enum {string|null} */
+                        response: "accepted" | "disputed" | null;
+                        responseReason: string | null;
+                        /** Format: date-time */
+                        respondedAt: string | null;
+                        deductionMinor: number | null;
+                        refundMinor: number | null;
+                        /** Format: date-time */
+                        resolvedAt: string | null;
+                        resolutionReason: string | null;
+                        /** @enum {string} */
+                        currency: "LKR";
+                        /** @enum {string} */
+                        status: "awaiting_customer" | "awaiting_admin" | "reserved" | "resolved_zero_deposit";
+                    };
+                };
+            };
+        };
+    };
+    DamageClaimsController_read: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        claim: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            bookingId: string;
+                            /** Format: uuid */
+                            inspectionId: string;
+                            reportRevision: number;
+                            depositMinor: number;
+                            proposedMinor: number;
+                            reason: string;
+                            /** Format: date-time */
+                            createdAt: string;
+                            /** @enum {string|null} */
+                            response: "accepted" | "disputed" | null;
+                            responseReason: string | null;
+                            /** Format: date-time */
+                            respondedAt: string | null;
+                            deductionMinor: number | null;
+                            refundMinor: number | null;
+                            /** Format: date-time */
+                            resolvedAt: string | null;
+                            resolutionReason: string | null;
+                            /** @enum {string} */
+                            currency: "LKR";
+                            /** @enum {string} */
+                            status: "awaiting_customer" | "awaiting_admin" | "reserved" | "resolved_zero_deposit";
+                        } | null;
+                    };
+                };
+            };
+        };
+    };
+    DamageClaimsController_respond: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    response: "accepted" | "disputed";
+                    /** @default  */
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uuid */
+                        bookingId: string;
+                        /** Format: uuid */
+                        inspectionId: string;
+                        reportRevision: number;
+                        depositMinor: number;
+                        proposedMinor: number;
+                        reason: string;
+                        /** Format: date-time */
+                        createdAt: string;
+                        /** @enum {string|null} */
+                        response: "accepted" | "disputed" | null;
+                        responseReason: string | null;
+                        /** Format: date-time */
+                        respondedAt: string | null;
+                        deductionMinor: number | null;
+                        refundMinor: number | null;
+                        /** Format: date-time */
+                        resolvedAt: string | null;
+                        resolutionReason: string | null;
+                        /** @enum {string} */
+                        currency: "LKR";
+                        /** @enum {string} */
+                        status: "awaiting_customer" | "awaiting_admin" | "reserved" | "resolved_zero_deposit";
+                    };
+                };
+            };
+        };
+    };
+    DamageClaimsController_queue: {
+        parameters: {
+            query?: {
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            bookingId: string;
+                            /** Format: uuid */
+                            inspectionId: string;
+                            reportRevision: number;
+                            depositMinor: number;
+                            proposedMinor: number;
+                            reason: string;
+                            /** Format: date-time */
+                            createdAt: string;
+                            /** @enum {string|null} */
+                            response: "accepted" | "disputed" | null;
+                            responseReason: string | null;
+                            /** Format: date-time */
+                            respondedAt: string | null;
+                            deductionMinor: number | null;
+                            refundMinor: number | null;
+                            /** Format: date-time */
+                            resolvedAt: string | null;
+                            resolutionReason: string | null;
+                            /** @enum {string} */
+                            currency: "LKR";
+                            /** @enum {string} */
+                            status: "awaiting_customer" | "awaiting_admin" | "reserved" | "resolved_zero_deposit";
+                        }[];
+                        /** Format: uuid */
+                        nextCursor: string | null;
+                    };
+                };
+            };
+        };
+    };
+    DamageClaimsController_resolve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    approveDeduction: boolean;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uuid */
+                        bookingId: string;
+                        /** Format: uuid */
+                        inspectionId: string;
+                        reportRevision: number;
+                        depositMinor: number;
+                        proposedMinor: number;
+                        reason: string;
+                        /** Format: date-time */
+                        createdAt: string;
+                        /** @enum {string|null} */
+                        response: "accepted" | "disputed" | null;
+                        responseReason: string | null;
+                        /** Format: date-time */
+                        respondedAt: string | null;
+                        deductionMinor: number | null;
+                        refundMinor: number | null;
+                        /** Format: date-time */
+                        resolvedAt: string | null;
+                        resolutionReason: string | null;
+                        /** @enum {string} */
+                        currency: "LKR";
+                        /** @enum {string} */
+                        status: "awaiting_customer" | "awaiting_admin" | "reserved" | "resolved_zero_deposit";
                     };
                 };
             };
