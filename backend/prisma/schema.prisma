@@ -77,6 +77,8 @@ model AuthUser {
   customerInquiries Inquiry[] @relation("InquiryCustomer")
   providerInquiries Inquiry[] @relation("InquiryProvider")
   inquiryMessages InquiryMessage[]
+  bookingMessages BookingMessage[]
+  bookingMessageReads BookingMessageRead[]
   availability AvailabilityCalendar?
   authoredQuotations BookingQuotation[] @relation("QuotationAuthor")
   decidedQuotations BookingQuotation[] @relation("QuotationDecider")
@@ -562,6 +564,8 @@ enum ProviderDecision {
 
 model Booking {
   agreedAt DateTime? @map("agreed_at") @db.Timestamptz(3)
+  messages BookingMessage[]
+  messageReads BookingMessageRead[]
   quotations BookingQuotation[]
   agreement BookingAgreement?
   providerDecision ProviderDecision? @map("provider_decision")
@@ -639,4 +643,28 @@ model BookingAgreement {
   booking Booking @relation(fields: [bookingId], references: [id], onDelete: Restrict)
   quotation BookingQuotation @relation(fields: [quotationId], references: [id], onDelete: Restrict)
   @@map("booking_agreements")
+}
+
+model BookingMessage {
+  id BigInt @id @default(autoincrement())
+  bookingId String @map("booking_id") @db.Uuid
+  authorId String @map("author_id") @db.Uuid
+  requestKey String @map("request_key") @db.Uuid
+  body String @db.VarChar(4000)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  author AuthUser @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  @@unique([bookingId, authorId, requestKey])
+  @@index([bookingId, id])
+  @@map("booking_messages")
+}
+
+model BookingMessageRead {
+  bookingId String @map("booking_id") @db.Uuid
+  readerId String @map("reader_id") @db.Uuid
+  throughId BigInt @map("through_id")
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  reader AuthUser @relation(fields: [readerId], references: [id], onDelete: Restrict)
+  @@id([bookingId, readerId])
+  @@map("booking_message_reads")
 }

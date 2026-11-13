@@ -338,6 +338,23 @@ test('renter owns revisions and public browse only shows approved published equi
     assert.equal(createHash('sha256').update(artifact.data.artifact).digest('hex'), agreement.data.digest);
     assert.equal(JSON.parse(artifact.data.artifact).serviceAdvanceMinor, 175000);
     assert.equal((await call('bookings/' + winner.id, undefined, renter)).data.state, 'agreed');
+    const chat = 'conversations/' + winner.id;
+    assert.equal((await call(chat + '/messages', undefined, other)).status, 404);
+    const message = { requestKey: randomUUID(), body: 'Please confirm the pickup time.' };
+    const sent = await call(chat + '/messages', message, winnerCustomer);
+    assert.equal(sent.status, 200);
+    assert.equal((await call(chat + '/messages', message, winnerCustomer)).data.id, sent.data.id);
+    assert.equal((await call(chat + '/messages', { ...message, body: 'Different message' }, winnerCustomer)).status, 409);
+    const response = await call(chat + '/messages', { requestKey: randomUUID(), body: 'Pickup is confirmed.' }, renter);
+    assert.equal(response.status, 200);
+    const resumed = await call(chat + '/messages?after=' + sent.data.id, undefined, winnerCustomer);
+    assert.deepEqual(resumed.data.items.map((item: { id: string }) => item.id), [response.data.id]);
+    assert.equal((await call(chat + '/read', { throughId: response.data.id }, winnerCustomer, 'PUT')).status, 200);
+    const older = await call(chat + '/read', { throughId: sent.data.id }, winnerCustomer, 'PUT');
+    assert.equal(older.data.throughId, response.data.id);
+    const history = await call(chat + '/messages', undefined, renter);
+    assert.ok(history.data.receipts.some((receipt: { readerId: string; throughId: string }) =>
+      receipt.readerId === winnerCustomer.user.id && receipt.throughId === response.data.id));
     const versions = await call(quotations, undefined, renter);
     assert.deepEqual(versions.data.items.map((item: { status: string }) => item.status), ['accepted', 'superseded']);
     await deps.db.booking.update({ where: { id: winner.id }, data: { holdExpiresAt: new Date(Date.now() - 1000) } });
@@ -377,6 +394,8 @@ test('renter owns revisions and public browse only shows approved published equi
       await deps.db.profileAudit.deleteMany({ where: { targetUserId: { in: ids } } });
       await deps.db.portfolioItem.deleteMany({ where: owned });
       await deps.db.asset.deleteMany({ where: owned });
+      await deps.db.bookingMessageRead.deleteMany({ where: { booking: { customerId: { in: ids } } } });
+      await deps.db.bookingMessage.deleteMany({ where: { booking: { customerId: { in: ids } } } });
       await deps.db.bookingAgreement.deleteMany({ where: { booking: { customerId: { in: ids } } } });
       await deps.db.bookingQuotation.deleteMany({ where: { booking: { customerId: { in: ids } } } });
       await deps.db.booking.deleteMany({ where: { customerId: { in: ids } } });

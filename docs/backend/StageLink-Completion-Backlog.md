@@ -24,7 +24,8 @@ A checked box marks implemented backend code. PostgreSQL integration, client wir
 - [x] P08 provider calendars, blackouts, date-specific stock, booking requests, captured terms and renewable holds.
 - [x] P09 provider decisions and calendar/history projections.
 - [x] P09 quotation revisions, counteroffers, authenticated acceptance and SHA-256 agreement evidence.
-- [ ] P10 authorized, durable Socket.IO chat.
+- [x] P10 booking text persistence, retry deduplication, read receipts, and history catch-up.
+- [ ] P10 Socket.IO delivery and typing, authorized attachments, and session revocation.
 - [ ] P11–P14 financial journal, PayHere and Stripe, reconciliation, completion, settlements, documents, verified reviews, inspections and deposit settlement.
 - [ ] P15–P17 AI, KYC, support, disputes, reminders and system controls.
 - [ ] P18 analytics, security, accessibility, backup and rollback, and end-to-end release verification.

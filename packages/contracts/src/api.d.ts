@@ -1381,6 +1381,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/conversations/{id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["BookingMessagesController_history"];
+        put?: never;
+        post: operations["BookingMessagesController_send"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/conversations/{id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["BookingMessagesController_markRead"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -10913,6 +10945,121 @@ export interface operations {
                         /** Format: date-time */
                         createdAt: string;
                         artifact: string;
+                    };
+                };
+            };
+        };
+    };
+    BookingMessagesController_history: {
+        parameters: {
+            query?: {
+                after?: string;
+                before?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Booking conversation ID. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            id: string;
+                            /** Format: uuid */
+                            authorId: string;
+                            body: string;
+                            /** Format: date-time */
+                            createdAt: string;
+                        }[];
+                        nextCursor: string | null;
+                        receipts: {
+                            throughId: string;
+                            /** Format: uuid */
+                            readerId: string;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    BookingMessagesController_send: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Booking conversation ID. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    requestKey: string;
+                    body: string;
+                    draft?: {
+                        /** Format: uuid */
+                        id: string;
+                        revision: number;
+                        key: string;
+                    };
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        /** Format: uuid */
+                        authorId: string;
+                        body: string;
+                        /** Format: date-time */
+                        createdAt: string;
+                    };
+                };
+            };
+        };
+    };
+    BookingMessagesController_markRead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Booking conversation ID. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    throughId: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        throughId: string;
+                        /** Format: uuid */
+                        readerId: string;
                     };
                 };
             };

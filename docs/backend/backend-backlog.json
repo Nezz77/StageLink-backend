@@ -155,7 +155,7 @@
         "P07",
         "P09"
       ],
-      "status": "not_started",
+      "status": "in_progress",
       "tickets": [
         "BE-041"
       ]
@@ -1474,10 +1474,11 @@
         "Socket connections and messages check persisted account/session permissions; revoked/logout/reset sessions are disconnected and cannot send or read messages (P02 follow-through)."
       ],
       "requires_new_report_ui": false,
-      "status": "not_started",
+      "status": "in_progress",
       "ui_coverage_ids": [
         "UI-031"
-      ]
+      ],
+      "remaining": "Socket.IO delivery and typing, authorized attachments, session revocation, and PostgreSQL integration."
     },
     {
       "id": "BE-042",

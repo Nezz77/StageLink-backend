@@ -1,0 +1,118 @@
+import { Body, Controller, Get, HttpCode, Param, Post, Put, Query, Req } from '@nestjs/common';
+import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiParam, ApiQuery, ApiTags, type SchemaObject } from '@nestjs/swagger';
+import type { Request } from 'express';
+import { z } from 'zod';
+import type { Booking, BookingMessage, Prisma } from '../../../generated/prisma/client.js';
+import type { AuthService } from '../auth/service.js';
+import { PublicError } from '../auth/errors.js';
+import { ProfileService } from '../profiles/service.js';
+import { consumeDraft, draftReference } from '../events/drafts.js';
+import { member } from './requests.js';
+
+const uuid = z.string().uuid();
+const sequence = z.string().regex(/^[1-9][0-9]{0,18}$/).refine(value => BigInt(value) <= 9_223_372_036_854_775_807n);
+const messageText = z.string().trim().min(1).max(4000);
+const send = z.object({ requestKey: uuid, body: messageText, draft: draftReference.optional() }).strict();
+const read = z.object({ throughId: sequence }).strict();
+const query = z.object({ before: sequence.optional(), after: sequence.optional() }).strict().refine(input => !input.before || !input.after);
+const message = z.object({ id: sequence, authorId: uuid, body: messageText, createdAt: z.iso.datetime() });
+const receipt = read.extend({ readerId: uuid });
+const page = z.object({ items: z.array(message), nextCursor: sequence.nullable(), receipts: z.array(receipt) });
+const schema = (value: z.ZodType) => z.toJSONSchema(value, { target: 'openapi-3.0' }) as SchemaObject;
+const pageSize = 40;
+
+function parse<T>(type: z.ZodType<T>, value: unknown): T {
+  const parsed = type.safeParse(value);
+  if (!parsed.success) throw new PublicError(400, 'INVALID_BOOKING_MESSAGE', 'Check the message or cursor.');
+  return parsed.data;
+}
+
+function present(record: BookingMessage) {
+  return { id: String(record.id), authorId: record.authorId, body: record.body, createdAt: record.createdAt.toISOString() };
+}
+
+export function makeBookingMessagesController(auth: AuthService) {
+  const db = auth.deps.db;
+  const profiles = new ProfileService(auth);
+  const identity = (req: Request) => auth.authenticate(req.get('Authorization'));
+
+  async function write<T>(req: Request, bookingId: string, work: (tx: Prisma.TransactionClient, booking: Booking, userId: string) => Promise<T>) {
+    if (req.get('Origin') !== auth.config.WEB_ORIGIN || req.get('Sec-Fetch-Site') === 'cross-site' || !req.is('application/json')) {
+      throw new PublicError(403, 'ORIGIN_REJECTED', 'Open StageLink in its own browser tab and try again.');
+    }
+    const actor = await identity(req);
+    profiles.checkCsrf(actor, req.get('X-CSRF-Token'));
+    return db.$transaction(async tx => {
+      const current = await profiles.actor(tx, actor);
+      const booking = await member(tx, bookingId, current.user.id);
+      // Serialize message insertion across participants so a committed cursor cannot skip a late insert.
+      await tx.$queryRaw`SELECT id FROM bookings WHERE id=${bookingId}::uuid FOR UPDATE`;
+      return work(tx, await member(tx, booking.id, current.user.id), current.user.id);
+    });
+  }
+
+  @ApiTags('Booking chat')
+  @ApiBearerAuth()
+  @ApiParam({ name: 'id', format: 'uuid', description: 'Booking conversation ID.' })
+  @Controller('conversations/:id')
+  class BookingMessagesController {
+    @Get('messages')
+    @ApiQuery({ name: 'before', required: false, type: String })
+    @ApiQuery({ name: 'after', required: false, type: String })
+    @ApiOkResponse({ schema: schema(page) })
+    async history(@Req() req: Request, @Param('id') id: string, @Query() raw: unknown) {
+      const { user } = await identity(req);
+      const bookingId = parse(uuid, id);
+      const { before, after } = parse(query, raw);
+      return db.$transaction(async tx => {
+        await member(tx, bookingId, user.id);
+        const rows = await tx.bookingMessage.findMany({
+          where: { bookingId, ...(before ? { id: { lt: BigInt(before) } } : after ? { id: { gt: BigInt(after) } } : {}) },
+          orderBy: { id: after ? 'asc' : 'desc' }, take: pageSize + 1,
+        });
+        const readRows = await tx.bookingMessageRead.findMany({ where: { bookingId } });
+        const items = rows.slice(0, pageSize).map(present);
+        return { items, nextCursor: rows.length > pageSize ? items[pageSize - 1]!.id : null,
+          receipts: readRows.map(row => ({ readerId: row.readerId, throughId: String(row.throughId) })) };
+      }, { isolationLevel: 'RepeatableRead' });
+    }
+
+    @Post('messages')
+    @HttpCode(200)
+    @ApiBody({ schema: schema(send) })
+    @ApiOkResponse({ schema: schema(message) })
+    send(@Req() req: Request, @Param('id') id: string, @Body() raw: unknown) {
+      const bookingId = parse(uuid, id);
+      const input = parse(send, raw);
+      return write(req, bookingId, async (tx, booking, authorId) => {
+        const key = { bookingId, authorId, requestKey: input.requestKey };
+        const previous = await tx.bookingMessage.findUnique({ where: { bookingId_authorId_requestKey: key } });
+        if (previous) {
+          if (previous.body !== input.body) throw new PublicError(409, 'REQUEST_KEY_REUSED', 'Use a new request key for a different message.');
+          return present(previous);
+        }
+        if (booking.providerDecision === 'rejected') throw new PublicError(409, 'CONVERSATION_CLOSED', 'This booking conversation is closed.');
+        if (input.draft) await consumeDraft(tx, authorId, input.draft, 'message');
+        return present(await tx.bookingMessage.create({ data: { ...key, body: input.body } }));
+      });
+    }
+
+    @Put('read')
+    @ApiBody({ schema: schema(read) })
+    @ApiOkResponse({ schema: schema(receipt) })
+    markRead(@Req() req: Request, @Param('id') id: string, @Body() raw: unknown) {
+      const bookingId = parse(uuid, id);
+      const throughId = BigInt(parse(read, raw).throughId);
+      return write(req, bookingId, async (tx, _booking, readerId) => {
+        const selected = await tx.bookingMessage.findFirst({ where: { id: throughId, bookingId }, select: { id: true } });
+        if (!selected) throw new PublicError(404, 'MESSAGE_NOT_FOUND', 'This message is unavailable.');
+        const where = { bookingId_readerId: { bookingId, readerId } };
+        const previous = await tx.bookingMessageRead.findUnique({ where });
+        if (previous && previous.throughId >= throughId) return { readerId, throughId: String(previous.throughId) };
+        await tx.bookingMessageRead.upsert({ where, create: { bookingId, readerId, throughId }, update: { throughId } });
+        return { readerId, throughId: String(throughId) };
+      });
+    }
+  }
+  return BookingMessagesController;
+}

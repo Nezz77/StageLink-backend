@@ -1,6 +1,6 @@
 # StageLink backend implementation plan
 
-The [completion backlog](StageLink-Completion-Backlog.md) tracks implemented backend tasks and pending verification. P09 booking negotiation is implemented and awaits PostgreSQL integration verification. P10 durable chat is next. Provider acceptance extends the reservation for negotiation by up to 24 hours, capped at the booking start. A provider decision is recorded independently of agreement acceptance or payment.
+The [completion backlog](StageLink-Completion-Backlog.md) tracks implemented backend tasks and pending verification. P09 booking negotiation is implemented and awaits PostgreSQL integration verification. P10 durable chat is in progress. Text, read receipts, and history catch-up use REST. Socket.IO and attachments remain open. Provider acceptance extends the reservation for negotiation by up to 24 hours, capped at the booking start. A provider decision is recorded independently of agreement acceptance or payment.
 
 
 Prepared 1 November 2026. Scope: all current public, customer, artist, equipment-provider and administrator UI workflows, the 14 completed frontend feature extensions, and remaining backend responsibilities named in the supplied proposal. This request supersedes the earlier frontend-only restriction for future implementation. This deliverable is a plan; no backend application, Git branch or live integration was created during planning.
