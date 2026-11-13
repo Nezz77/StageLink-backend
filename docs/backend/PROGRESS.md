@@ -38,8 +38,8 @@ P04 local validation passed: nine backend unit tests, four real dependency integ
 
 P02 remote CI is recorded in `auth-validation.json`; local completion is separate from remote verification. No production readiness or deployment is claimed.
 
-## Next phase
+## Current phase
 
-P05: persistent catalog listings, gig/package/spec versions and rental policies. Bind the P04 storage assets to listing ownership as this phase goes live. Follow the remaining phases in `backend-backlog.json` as each preview feature is converted.
+P05 started on 13 November 2026. **Manage gigs** now connects the artist account to persistent gig drafts, revisions, publishing, pausing and archiving. Public gig detail reads the explicitly published version. The marketplace still shows sample browse data. PostgreSQL and HTTP integration verification, package tiers and add-ons, rental and venue catalogs, inventory, and listing media remain open. See the [completion backlog](StageLink-Completion-Backlog.md).
 
 P10/BE-041 explicitly retains the socket-security follow-through: authenticate socket connections/messages using persisted sessions and disconnect revoked sessions. There are no sockets to disconnect in P02. Provider approvals, hosted SMTP, payment/model providers, final retention/security/load checks and deployment remain later work.

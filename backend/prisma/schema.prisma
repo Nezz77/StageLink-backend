@@ -69,6 +69,7 @@ model AuthUser {
   assets Asset[]
   portfolio PortfolioItem[]
   avatar AvatarBinding?
+  artistGigs ArtistGig[]
   @@map("auth_users")
 }
 model AuthSession {
@@ -282,4 +283,37 @@ model AssetHold {
   until DateTime @db.Timestamptz(3)
   asset Asset @relation(fields:[assetId],references:[id],onDelete:Restrict)
   @@map("asset_holds")
+}
+
+enum GigStatus {
+  draft
+  published
+  paused
+  archived
+}
+
+model ArtistGig {
+  id String @id @default(uuid()) @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  revision Int @default(1)
+  publishedVersion Int? @map("published_version")
+  status GigStatus @default(draft)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
+  owner AuthUser @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  versions ArtistGigVersion[] @relation("GigVersions")
+  publication ArtistGigVersion? @relation("GigPublication", fields: [id, publishedVersion], references: [gigId, version], onDelete: Restrict)
+  @@index([ownerId, status])
+  @@map("artist_gigs")
+}
+
+model ArtistGigVersion {
+  gigId String @map("gig_id") @db.Uuid
+  version Int
+  title String @db.VarChar(120)
+  description String @db.VarChar(2000)
+  priceMinor Int @map("price_minor")
+  gig ArtistGig @relation("GigVersions", fields: [gigId], references: [id], onDelete: Restrict)
+  publications ArtistGig[] @relation("GigPublication")
+  @@id([gigId, version])
+  @@map("artist_gig_versions")
 }

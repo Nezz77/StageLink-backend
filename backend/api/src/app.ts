@@ -12,6 +12,7 @@ import { AuthService } from './auth/service.js';
 import { makeAuthController } from './auth/controller.js';
 import { makeProfileControllers } from './profiles/controller.js';
 import { makeMediaControllers } from './media/controller.js';
+import { makeGigControllers } from './catalog/gigs.js';
 import { MediaStore } from '../../shared/media-store.js';
 import { PublicError } from './auth/errors.js';
 
@@ -67,7 +68,7 @@ export async function createApp(config: Config, dependencies: Resources = resour
   }
   const auth = new AuthService(config, dependencies);
   const mediaStore = new MediaStore(config);
-  @Module({ controllers: [HealthController, makeAuthController(auth), ...makeProfileControllers(auth), ...makeMediaControllers(auth, mediaStore)] })
+  @Module({ controllers: [HealthController, makeAuthController(auth), ...makeProfileControllers(auth), ...makeMediaControllers(auth, mediaStore), ...makeGigControllers(auth)] })
   class AppModule {
     async onApplicationShutdown() { mediaStore.close(); await closeResources(dependencies); }
   }
@@ -98,7 +99,7 @@ export async function createApp(config: Config, dependencies: Resources = resour
 }
 export function openApi(app: INestApplication) {
   return SwaggerModule.createDocument(app, new DocumentBuilder()
-    .setTitle('StageLink API').setDescription('Accounts, profiles, media, onboarding and infrastructure. Other business endpoints follow per phase.')
+    .setTitle('StageLink API').setDescription('Accounts, profiles, media, onboarding, artist gigs and infrastructure. Other business endpoints follow per phase.')
     .addBearerAuth().addCookieAuth('stagelink_refresh')
     .setVersion('0.1.0').build());
 }
