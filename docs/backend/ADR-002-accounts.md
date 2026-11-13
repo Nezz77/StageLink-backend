@@ -34,4 +34,4 @@ Sockets do not exist in P02. P10 must check persisted sessions at connection/mes
 
 ## Evidence
 
-See `auth-validation.json` and `figma-auth-mapping.json` for checked behavior and real design/prototype node IDs. Six backend unit tests, two dependency integration scenarios and 163 frontend tests passed locally, with TypeScript and production/container builds. Browser screenshots use a disposable `.test` account. Figma flows are visual prototypes; they do not execute the database or deliver email.
+See `auth-validation.json` for checked behavior. Six backend unit tests, two dependency integration scenarios and 163 frontend tests passed locally, with TypeScript and production/container builds. Browser screenshots use a disposable `.test` account. Figma flows are visual prototypes; they do not execute the database or deliver email.

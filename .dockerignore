@@ -1,46 +1,11 @@
-# Dependencies
-node_modules/
-.pnpm-store/
-
-# Build output
-dist/
-
-# Git
 .git/
-.gitattributes
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Dev files
-*.local
-.env.local
-.env.development
-
-# Figma tooling (not needed in container)
-.figma/*
-!.figma/make/
-.figma/make/*
-!.figma/make/site.json
-
-# Logs
-*.log
-npm-debug.log*
-pnpm-debug.log*
-
-# Editor
-.vscode/
-.idea/
-
-# Backend dependencies and local secrets
-**/node_modules
-**/dist
-**/.venv
-**/__pycache__
-**/.pytest_cache
-.env
+**/node_modules/
+**/dist/
+**/.venv/
+**/__pycache__/
+**/.pytest_cache/
 **/.env
 **/.env.*
-
+**/*.log
+**/.DS_Store
 backend/generated/

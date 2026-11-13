@@ -1,8 +1,8 @@
 # StageLink backend
 
-Development stays on `backend` in the same [StageLink repository](https://github.com/Nezz77/StageLink/tree/backend). GitHub's `frontend` branch remains the original UI baseline. See the [whole-backend plan](StageLink-Backend-Implementation-Plan.md), [backlog](backend-backlog.json), [coverage](UI-Backend-Coverage.csv), [foundation decisions](ADR-001-foundation.md), [account decisions](ADR-002-accounts.md), and [progress](PROGRESS.md).
+Backend development stays on `backend` in the [StageLink repository](https://github.com/Nezz77/StageLink-Frontend/tree/backend). See the [whole-backend plan](StageLink-Backend-Implementation-Plan.md), [backlog](backend-backlog.json), [coverage](UI-Backend-Coverage.csv), [foundation decisions](ADR-001-foundation.md), [account decisions](ADR-002-accounts.md), and [progress](PROGRESS.md).
 
-P01 infrastructure, P02 accounts and P03 profiles/onboarding are implemented. Account creation, sign-in, verification, recovery, assigned-role selection and sign-out use PostgreSQL. Catalog content remains a labeled preview. Contact details, artist/renter applications, approved profile snapshots and restricted payout destination review now persist. Uploads, KYC, bookings, chat and payments follow in their scheduled phases. Public artist/renter registration does not approve a provider to publish or receive payouts.
+The API supports accounts, profile onboarding, payout destination review, media, artist gigs, and rental listings. Bookings, chat and payments are tracked in the backlog.
 
 ## Start locally
 
@@ -10,19 +10,18 @@ Use Node 24.22.1 and Docker. From the repository root:
 
 ```sh
 node backend/scripts/setup-env.mjs
-docker compose --env-file infra/.env -f infra/compose.backend.yml --profile web up --build -d --wait
+docker compose --env-file infra/.env -f infra/compose.backend.yml up --build -d --wait
 ```
 
 Setup creates ignored configuration files with separate random signing, mail-encryption and payout-encryption keys. It fills missing settings and preserves valid existing keys and custom values. Do not copy an example over an existing `.env`. If setup reports mismatched existing keys, align the intended configuration explicitly; it does not rotate them silently. Database passwords in these defaults are for this loopback development stack only.
 
-- Website and real account forms: [localhost:3000](http://localhost:3000).
-- API docs through the same origin: [localhost:3000/api/docs](http://localhost:3000/api/docs).
+- API docs: [localhost:4000/api/docs](http://localhost:4000/api/docs).
 - Local verification/recovery inbox: [127.0.0.1:8025](http://127.0.0.1:8025). Mailpit captures mail locally; it does not deliver to external inboxes.
 - API health: [localhost:4000/api/v1/health/ready](http://localhost:4000/api/v1/health/ready).
 
-Host ports bind loopback: website 3000, API 4000, PostgreSQL 55432, Redis 56379, Mailpit 8025/1025. AI has no public port. Migrations must succeed before API/worker start. No accounts or business records are seeded automatically.
+Host ports bind loopback: API 4000, PostgreSQL 55432, Redis 56379, Mailpit 8025/1025, and S3Mock 59090. AI has no public port. Migrations must succeed before API/worker start. No accounts or business records are seeded automatically.
 
-Create an account through the website, open its verification message in Mailpit, then follow the link or paste its one-time code. Use `localhost:3000` consistently: mutations require the exact configured browser origin. Registration returns the same acceptance message for new and existing addresses and never overwrites an existing password.
+When connecting a separately running web client, set `WEB_ORIGIN` to its exact origin. Browser mutations enforce this origin. Verification and recovery messages are available in Mailpit.
 
 Stop while retaining database/Redis volumes:
 
@@ -34,11 +33,11 @@ This is a local development configuration, not a production deployment.
 
 ## Host development
 
-Backend uses npm independently from the pnpm frontend:
+Use npm from the backend directory:
 
 ```sh
 node backend/scripts/setup-env.mjs
-docker compose --env-file infra/.env -f infra/compose.backend.yml up -d postgres redis mailpit
+docker compose --env-file infra/.env -f infra/compose.backend.yml up -d postgres redis mailpit storage
 cd backend
 npm ci
 npm run db:generate
@@ -50,9 +49,7 @@ npm run dev:api
 # In another terminal with the same environment: npm run dev:worker
 ```
 
-Root `.env.local` enables API mode and the Vite `/api` proxy. If developing at another website origin, set `WEB_ORIGIN` to that exact origin and restart API/worker processes. Docker reads `infra/.env`; host processes use the explicitly loaded `backend/.env`. Matching keys are required when using both.
-
-API mode is the default on this branch. `VITE_AUTH_MODE=demo` explicitly builds the earlier frontend demonstration, including simulated recovery and sample workspaces. API mode never falls back to a demo identity on errors and never opens sample private dashboards as a real account. Demo mode must not be used as an authentication substitute.
+Docker reads `infra/.env`. Host processes use the explicitly loaded `backend/.env`. Use matching signing and encryption keys when switching between host and container processes.
 
 ## Validation
 
@@ -63,15 +60,12 @@ npm run typecheck
 npm test
 npm run contracts
 cd ..
-pnpm typecheck
-pnpm test
-pnpm build
 sh backend/scripts/check-integration.sh
 ```
 
 Integration uses a separate Compose project, `stagelink_test`, PostgreSQL 55433, Redis 56380 and Mailpit 11025/18025. Tests reject non-test database names and remove only their own rows/jobs/Redis namespace. They do not truncate shared tables or flush Redis. Coverage includes migrations, outages, worker restart and duplicate delivery; accounts also test separate users, privilege rejection, rotation/replay, actual SMTP capture, single-use/expired tokens, password replacement and session revocation.
 
-Tests need permission to listen on a temporary HTTP port. Credential mutation is exercised through real HTTP integration tests; browser QA covers forms, login, reload, role selection, sign-out, errors and responsive themes.
+The HTTP tests listen on a temporary loopback port.
 
 Generated contracts are `contracts/openapi.json` → `packages/contracts/src/api.d.ts`. Regenerate and commit both after endpoint changes; CI rejects drift. Never edit an applied migration. Update the expected migration constant when adding one.
 
@@ -89,12 +83,11 @@ The command refuses terminal password input and refuses to overwrite any account
 
 ## Profiles and onboarding
 
-From your account, choose **Edit your profile**, **Set up artist profile** / **Set up equipment storefront**, or **Payout destination**. Verify your account email before submitting an application/destination. Current-password checks protect email and bank changes. Approved public profile previews omit contact details and exact coordinates. Administrators use **Review submissions**; review approval does not enable real transfers or verify KYC. See [ADR 003](ADR-003-profiles.md) for revision/approval boundaries. P04 media is implemented; P05 catalog is next.
-
+Authenticated clients use the `/api/v1/me` routes to manage profile data, submit artist or renter applications, and manage payout destinations. The administrator routes accept and reject submissions. Public snapshots omit contact details and exact coordinates. See [ADR 003](ADR-003-profiles.md) for authorization and versioning.
 
 ## Persistent media (P04)
 
-From your account choose **Media library**. Verify email before uploading. Choose a purpose, upload your own supported file, wait for Ready, then preview or add it to your portfolio. Profile-photo files can be bound using **Use as profile photo**. Portfolio edits stay private until submitted and approved; administrators review under their own **Media library → Portfolio review**. Published portfolio content appears in **Artist profile / Equipment storefront → Preview public profile** once the provider profile is also approved.
+Authenticated media routes provide uploads and private asset access. The worker validates uploads and builds derivatives. Portfolio items require administrator review and an approved provider profile before public access.
 
 The local Compose stack includes persistent S3Mock on loopback port 59090 (test: 59091). Host configuration uses `MEDIA_DRIVER=local-s3`, `S3_BUCKET=stagelink-media`, `S3_REGION=us-east-1` and `S3_ENDPOINT=http://127.0.0.1:59090`. Production must use `MEDIA_DRIVER=aws`, the intended private bucket/region and the AWS credential chain; do not use the emulator for real hosted evidence. Live AWS has not been configured/tested. FFmpeg/FFprobe are required for the host worker/tests and included in the backend image. CI installs them explicitly.
 

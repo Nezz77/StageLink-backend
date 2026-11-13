@@ -10,17 +10,14 @@ P01: NestJS/Prisma/PostgreSQL API, Redis/BullMQ worker with recoverable transact
 
 P02: persistent public account registration, login, assigned-role selection, email verification, password recovery, refresh rotation/replay protection and sign-out. Administrator creation is an operator-only, create-only CLI; ordinary signup cannot request admin. PostgreSQL stores identity, hashed credentials/tokens and revocable sessions. The mail worker delivers transactionally queued, encrypted payloads to a local Mailpit inbox. No external email provider is enabled.
 
-The backend branch now defaults to the real account UI. A newly signed-in account sees its own identity and assigned roles. Sample bookings/balances/messages stay in the explicit demo app; catalog browsing is clearly labeled as a preview. Booking/chat/payment APIs remain to be implemented; profiles and payout metadata are now persistent. Artist/renter account types are not provider approval.
+The account API serves authenticated account data and assigned roles. A newly signed-in account sees its own identity and assigned roles. Sample bookings/balances/messages stay in the explicit demo app; catalog browsing is clearly labeled as a preview. Booking/chat/payment APIs remain to be implemented; profiles and payout metadata are now persistent. Artist/renter account types are not provider approval.
 
-New Figma material is recorded in `figma-auth-mapping.json`: 18 editable design states, 18 monochrome wireframes and 18 prototype states, with 80 native reactions and four named starting flows. Existing frontend journeys are preserved. The prototype simulates outcomes; it does not call the account backend.
 
 P03: current-account contact details, separate confirmed email changes, artist/renter onboarding, approved public snapshots, encrypted and versioned payout destinations, and revision-safe administrator reviews. Provider profile review remains separate from KYC and real payout eligibility. Full bank numbers never enter API responses. See ADR 003 for the exact authorization and versioning boundaries.
 
-P03 Figma adds 15 editable design states, 15 wireframe states and 15 prototype states, with 59 native connections and four starting flows. Field component widths were repaired and final screenshots inspected. The mapping in `figma-profile-mapping.json` records the actual final nodes; these prototypes simulate outcomes.
 
 P04: durable private media library, profile-photo binding, real image/audio/video validation and derivatives, artist/renter portfolios, allowlisted video embeds, publication review and expiring read capabilities. PostgreSQL owns processing/lease/revision state; bytes use the S3 adapter with a persistent local development emulator. Future business modules will attach files under their own authorization. PDF/archive/SVG uploads remain unsupported. Live AWS is not configured or verified.
 
-P04 Figma adds 18 editable design states, 18 wireframes and 18 prototype states with 103 internal/outgoing native reactions plus one incoming account-to-media bridge. All new prototype destinations resolve. See `figma-media-mapping.json` and ADR 004.
 
 ## Validation
 
@@ -28,7 +25,6 @@ See `foundation-validation.json` for P01 and `auth-validation.json` for P02. Loc
 
 Integration verifies two independent accounts, attempted privilege escalation, token expiry/single use, actual SMTP capture, refresh replay revocation, real password replacement, revoked sessions and controlled admin bootstrap. It also retains the existing outbox recovery/restart tests. Browser QA verifies sign-in/reload, role persistence, sign-out, incorrect-password feedback, recovery email feedback, responsive account layouts at actual CSS widths 312/375/1440, and dark/light themes. Credential mutation is verified through HTTP integration rather than automated browser password entry.
 
-Figma structural checks found editable text/components/SVGs, Geist/Fraunces fonts, no flattened image fills, and no broken prototype destinations. Screenshots were inspected for account, sign-in and wireframe views. Design mapping and local browser evidence are committed with this checkpoint.
 
 P03 local checks passed: seven backend unit tests, three real dependency integration scenarios, 166 frontend tests, both TypeScript checks, regenerated contracts, API/worker/web builds and healthy Compose services. Browser checks cover saved contact reload, provider submissions, keyboard-edited opening hours, account separation, unsaved guards, masked payout details, admin queue rendering, light/dark themes and CSS widths 375/1440. Sensitive mutations were tested through isolated HTTP integration, not automated browser credential entry or approval clicks. Disposable QA accounts were removed after verification. See `profiles-validation.json`.
 
@@ -47,3 +43,5 @@ P10/BE-041 explicitly retains the socket-security follow-through: authenticate s
 BE-029 equipment listings are implemented in API mode. Renters can manage drafts with a daily LKR rate, stock quantity and optional technical specs, then publish through an approved storefront. Public equipment browse reads published versions. Stock quantity records catalog capacity. Date-specific stock availability and reservations are scheduled in P08. TypeScript, Prisma schema, frontend build and frontend tests passed. Database integration was blocked by the unavailable Docker daemon.
 
 BE-030 extends the existing rental API with venue and bundle types. Venue listings store guest capacity and represent one exclusive space. Bundles reference versioned published equipment owned by the same renter. Publishing a changed component revision or taking it offline pauses dependent bundles. Daily rates remain required, with optional hourly and weekly rates. The public estimator multiplies one selected rate by the number of whole periods. Reservation overlap enforcement and booking price snapshots follow in the booking phases.
+
+The backend branch now contains server code, database migrations, API contracts, backend documentation, and backend infrastructure. The combined integration snapshot is preserved locally at `frontend-integration`.

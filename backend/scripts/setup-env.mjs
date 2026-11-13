@@ -16,7 +16,6 @@ const shared = { AUTH_JWT_SECRET: jwt, AUTH_MAIL_KEY: mail, PAYOUT_DATA_KEY: pay
 const defaults = {
   'infra/.env': { POSTGRES_USER:'stagelink', POSTGRES_PASSWORD:'local-development-only', POSTGRES_DB:'stagelink_dev', WEB_ORIGIN:'http://localhost:3000', ...shared },
   'backend/.env': { NODE_ENV:'development', DATABASE_URL:'postgresql://stagelink:local-development-only@127.0.0.1:55432/stagelink_dev?connect_timeout=3', REDIS_URL:'redis://127.0.0.1:56379', PORT:'4000', WEB_ORIGIN:'http://localhost:3000', ...shared, SMTP_HOST:'127.0.0.1', SMTP_PORT:'1025', SMTP_FROM:'noreply@stagelink.local' },
-  '.env.local': { VITE_AUTH_MODE:'api', VITE_API_PROXY_TARGET:'http://127.0.0.1:4000' },
 };
 for (const [name, values] of Object.entries(defaults)) {
   const current = await existing(name); let text = current.text; const changed = [];

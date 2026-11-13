@@ -16,6 +16,7 @@ test('local setup fills missing keys, preserves valid settings and never prints 
     const run = () => execFileSync(process.execPath, [script], { encoding: 'utf8' });
     const read = (file: string) => readFile(resolve(root, file), 'utf8');
     const output = run();
+    await assert.rejects(stat(resolve(root, '.env.local')), { code: 'ENOENT' });
     const first = await read('infra/.env'), host = parseEnv(await read('backend/.env'));
     const keys = parseEnv(first);
     for (const name of ['AUTH_JWT_SECRET', 'AUTH_MAIL_KEY', 'PAYOUT_DATA_KEY']) {
