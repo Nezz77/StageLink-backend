@@ -949,6 +949,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public/featured-packages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["PublicFeedController_featuredPackages"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/public/announcements": {
         parameters: {
             query?: never;
@@ -8538,6 +8554,60 @@ export interface operations {
                             gigs: number;
                             rentals: number;
                         };
+                    };
+                };
+            };
+        };
+    };
+    PublicFeedController_featuredPackages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            title: string;
+                            priceMinor: number;
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            ownerId: string;
+                            version: number;
+                            /** @enum {string} */
+                            currency: "LKR";
+                            packages: {
+                                /** @enum {string} */
+                                id: "standard" | "deluxe" | "vip";
+                                title: string;
+                                /** @enum {string} */
+                                pricing: "fixed" | "custom";
+                                durationMinutes: number;
+                                performers: number;
+                                basePriceMinor: number | null;
+                                included: string;
+                                excluded: string;
+                                addons: {
+                                    id: string;
+                                    title: string;
+                                    priceMinor: number;
+                                }[];
+                            }[];
+                            artist: {
+                                displayName: string;
+                                city: string;
+                                /** @enum {string} */
+                                category: "Vocalist" | "Band" | "DJ" | "Dancer" | "Instrumentalist";
+                            };
+                        }[];
                     };
                 };
             };

@@ -83,6 +83,12 @@ test('gig ownership, publication snapshots and concurrent revisions', async () =
       { ...fixed, id: 'deluxe', performers: 4 },
       { ...fixed, id: 'vip', pricing: 'custom', basePriceMinor: null, addons: [] },
     ];
+    async function featured() {
+      const response = await call('public/featured-packages');
+      assert.equal(response.status, 200);
+      return response.data.items.find((item: { id: string }) => item.id === created.data.id);
+    }
+    assert.equal(await featured(), undefined);
     const change = { ...fields, packages, title: 'Revised acoustic set', revision: 2 };
     assert.equal((await call(privatePath, { ...change, packages: [packages[0]] }, artist, 'PATCH')).status, 400);
     const attempts = await Promise.all([
@@ -116,9 +122,14 @@ test('gig ownership, publication snapshots and concurrent revisions', async () =
     const republished = await call(publicPath);
     assert.equal(republished.data.title, change.title);
     assert.deepEqual(republished.data.packages, packages);
+    const preview = await featured();
+    assert.deepEqual(preview.packages, packages);
+    assert.equal(preview.version, republished.data.version);
+    assert.equal('description' in preview, false);
     await deps.db.authUser.update({ where: { id: artist.user.id }, data: { disabledAt: new Date() } });
     assert.equal((await call(publicPath)).status, 404);
     assert.equal(await listed(), undefined);
+    assert.equal(await featured(), undefined);
     await deps.db.authUser.update({ where: { id: artist.user.id }, data: { disabledAt: null } });
     assert.equal((await call(privatePath + '/status', { revision: 4, action: 'pause' }, artist)).status, 200);
     assert.equal((await call(publicPath)).status, 404);

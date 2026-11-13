@@ -71,6 +71,13 @@ function presentPublic(gig: PublicRow) {
   };
 }
 
+export const featuredGig = listing.omit({ description: true });
+
+export function presentFeaturedGig(gig: PublicRow) {
+  const { description: _description, ...featured } = presentPublic(gig);
+  return featured;
+}
+
 export function presentGigSummary(gig: PublicRow) {
   const { description: _description, packages: _packages, ...summary } = presentPublic(gig);
   return summary;

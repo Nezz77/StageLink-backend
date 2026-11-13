@@ -21242,6 +21242,209 @@
         ]
       }
     },
+    "/api/v1/public/featured-packages": {
+      "get": {
+        "operationId": "PublicFeedController_featuredPackages",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "title": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 120
+                          },
+                          "priceMinor": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "exclusiveMinimum": true,
+                            "maximum": 100000000
+                          },
+                          "id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "ownerId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "version": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "exclusiveMinimum": true,
+                            "maximum": 2147483647
+                          },
+                          "currency": {
+                            "type": "string",
+                            "enum": [
+                              "LKR"
+                            ]
+                          },
+                          "packages": {
+                            "maxItems": 3,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "enum": [
+                                    "standard",
+                                    "deluxe",
+                                    "vip"
+                                  ]
+                                },
+                                "title": {
+                                  "type": "string",
+                                  "minLength": 3,
+                                  "maxLength": 60
+                                },
+                                "pricing": {
+                                  "type": "string",
+                                  "enum": [
+                                    "fixed",
+                                    "custom"
+                                  ]
+                                },
+                                "durationMinutes": {
+                                  "type": "integer",
+                                  "minimum": 30,
+                                  "maximum": 720,
+                                  "multipleOf": 15
+                                },
+                                "performers": {
+                                  "type": "integer",
+                                  "minimum": 1,
+                                  "maximum": 50
+                                },
+                                "basePriceMinor": {
+                                  "nullable": true,
+                                  "type": "integer",
+                                  "minimum": 100,
+                                  "maximum": 100000000
+                                },
+                                "included": {
+                                  "type": "string",
+                                  "minLength": 3,
+                                  "maxLength": 350
+                                },
+                                "excluded": {
+                                  "type": "string",
+                                  "minLength": 3,
+                                  "maxLength": 250
+                                },
+                                "addons": {
+                                  "maxItems": 3,
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "id": {
+                                        "type": "string",
+                                        "pattern": "^[a-z0-9-]{1,24}$"
+                                      },
+                                      "title": {
+                                        "type": "string",
+                                        "minLength": 3,
+                                        "maxLength": 60
+                                      },
+                                      "priceMinor": {
+                                        "type": "integer",
+                                        "minimum": 100,
+                                        "maximum": 100000000
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "title",
+                                      "priceMinor"
+                                    ],
+                                    "additionalProperties": false
+                                  }
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "title",
+                                "pricing",
+                                "durationMinutes",
+                                "performers",
+                                "basePriceMinor",
+                                "included",
+                                "excluded",
+                                "addons"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "artist": {
+                            "type": "object",
+                            "properties": {
+                              "displayName": {
+                                "type": "string"
+                              },
+                              "city": {
+                                "type": "string"
+                              },
+                              "category": {
+                                "type": "string",
+                                "enum": [
+                                  "Vocalist",
+                                  "Band",
+                                  "DJ",
+                                  "Dancer",
+                                  "Instrumentalist"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "displayName",
+                              "city",
+                              "category"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "title",
+                          "priceMinor",
+                          "id",
+                          "ownerId",
+                          "version",
+                          "currency",
+                          "packages",
+                          "artist"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Public catalog"
+        ]
+      }
+    },
     "/api/v1/public/announcements": {
       "get": {
         "operationId": "PublicFeedController_announcements",

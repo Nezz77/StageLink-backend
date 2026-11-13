@@ -3,13 +3,14 @@ import { ApiOkResponse, ApiTags, type SchemaObject } from '@nestjs/swagger';
 import { z } from 'zod';
 import type { Resources } from '../../../shared/resources.js';
 import type { Prisma } from '../../../generated/prisma/client.js';
-import { gigSummary, presentGigSummary, publicGigFilter, publicGigInclude } from './gigs.js';
+import { featuredGig, gigSummary, presentFeaturedGig, presentGigSummary, publicGigFilter, publicGigInclude } from './gigs.js';
 import { rentalSummary, presentRentalSummary, publicRentalFilter, publicRentalInclude } from './rentals.js';
 
 const announcement = z.object({
   id: z.string().uuid(), title: z.string(), body: z.string(),
   startsAt: z.iso.datetime(), endsAt: z.iso.datetime().nullable(),
 });
+const featured = z.object({ items: z.array(featuredGig) });
 const announcements = z.object({ items: z.array(announcement) });
 const feed = z.object({
   gigs: z.array(gigSummary), rentals: z.array(rentalSummary), announcements: z.array(announcement),
@@ -48,6 +49,18 @@ export function makePublicFeedController(db: Resources['db']) {
           announcements: await activeAnnouncements(tx, now),
           totals: { gigs: await tx.artistGig.count({ where: publicGigFilter }), rentals: await tx.rentalListing.count({ where: publicRentalFilter }) },
         };
+      }, { isolationLevel: 'RepeatableRead' });
+    }
+
+    @Get('featured-packages')
+    @ApiOkResponse({ schema: schema(featured) })
+    async featuredPackages() {
+      return db.$transaction(async tx => {
+        const gigs = await tx.artistGig.findMany({
+          where: { ...publicGigFilter, publication: { is: { NOT: { packages: { equals: [] } } } } },
+          include: publicGigInclude, orderBy: { id: 'asc' }, take: 6,
+        });
+        return { items: gigs.map(presentFeaturedGig) };
       }, { isolationLevel: 'RepeatableRead' });
     }
 

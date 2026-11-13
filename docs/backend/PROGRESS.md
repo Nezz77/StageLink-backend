@@ -57,3 +57,5 @@ BE-011 adds a public feed of approved, published gigs and rentals, live listing 
 BE-022 adds private customer event briefs with a date, city, LKR budget and typed artist, equipment or venue requirements. Customers can create, list, read, update and delete their own briefs. Revision checks protect edits and deletion. Briefs can be used as input for later recommendations and inquiries.
 
 BE-012 adds cursor-paginated discovery by listing or provider name, city, advertised LKR price, artist genre, rental category or type, and distance from an input coordinate. Distance uses approximate coordinates saved with the last approved provider revision. API responses omit coordinates. Rating filters depend on verified review data in P13.
+
+BE-063 adds featured package previews derived from published gig versions with configured package tiers. It returns the same LKR pricing and artist summary as the published gig and has an empty result when no listings qualify.
