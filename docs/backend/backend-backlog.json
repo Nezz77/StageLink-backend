@@ -1986,10 +1986,11 @@
         "Applicable schema/API/auth/UI/reload/failure tests and checkpoint evidence complete"
       ],
       "requires_new_report_ui": false,
-      "status": "not_started",
+      "status": "in_progress",
       "ui_coverage_ids": [
         "UI-046"
-      ]
+      ],
+      "remaining": "Connect real bounded provider previews and generation, persist usage linked to published versions, and verify the API and frontend/Figma integration."
     },
     {
       "id": "BE-057",

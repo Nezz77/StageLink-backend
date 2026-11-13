@@ -293,6 +293,102 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/ai/prompts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["PromptController_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/ai/prompts/{key}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["PromptController_versions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/ai/prompts/{key}/draft": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["PromptController_draft"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/ai/prompts/{key}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["PromptController_preview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/ai/prompts/{key}/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["PromptController_publish"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/ai/prompts/{key}/rollback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["PromptController_rollback"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/profile": {
         parameters: {
             query?: never;
@@ -3844,6 +3940,241 @@ export interface operations {
                             model: string;
                             requests: number;
                         }[];
+                    };
+                };
+            };
+        };
+    };
+    PromptController_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** @enum {string} */
+                            key: "bio" | "equipment";
+                            revision: number;
+                            draft: string | null;
+                            current: {
+                                version: number;
+                                body: string;
+                                reason: string;
+                                rolledBackFrom: number | null;
+                                /** Format: date-time */
+                                createdAt: string;
+                            };
+                            /** Format: date-time */
+                            updatedAt: string;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    PromptController_versions: {
+        parameters: {
+            query?: {
+                beforeVersion?: number;
+            };
+            header?: never;
+            path: {
+                key: "bio" | "equipment";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            version: number;
+                            body: string;
+                            reason: string;
+                            rolledBackFrom: number | null;
+                            /** Format: date-time */
+                            createdAt: string;
+                        }[];
+                        nextVersion: number | null;
+                    };
+                };
+            };
+        };
+    };
+    PromptController_draft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: "bio" | "equipment";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    expectedRevision: number;
+                    body: string | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        key: "bio" | "equipment";
+                        revision: number;
+                        draft: string | null;
+                        current: {
+                            version: number;
+                            body: string;
+                            reason: string;
+                            rolledBackFrom: number | null;
+                            /** Format: date-time */
+                            createdAt: string;
+                        };
+                        /** Format: date-time */
+                        updatedAt: string;
+                    };
+                };
+            };
+        };
+    };
+    PromptController_preview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: "bio" | "equipment";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    body?: string;
+                    fields: {
+                        [key: string]: string;
+                    };
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        resolved: string;
+                        /** @enum {string} */
+                        modelStatus: "unavailable";
+                        /** @enum {string|null} */
+                        output: null;
+                    };
+                };
+            };
+        };
+    };
+    PromptController_publish: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: "bio" | "equipment";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    expectedRevision: number;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        key: "bio" | "equipment";
+                        revision: number;
+                        draft: string | null;
+                        current: {
+                            version: number;
+                            body: string;
+                            reason: string;
+                            rolledBackFrom: number | null;
+                            /** Format: date-time */
+                            createdAt: string;
+                        };
+                        /** Format: date-time */
+                        updatedAt: string;
+                    };
+                };
+            };
+        };
+    };
+    PromptController_rollback: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                key: "bio" | "equipment";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    expectedRevision: number;
+                    reason: string;
+                    version: number;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        key: "bio" | "equipment";
+                        revision: number;
+                        draft: string | null;
+                        current: {
+                            version: number;
+                            body: string;
+                            reason: string;
+                            rolledBackFrom: number | null;
+                            /** Format: date-time */
+                            createdAt: string;
+                        };
+                        /** Format: date-time */
+                        updatedAt: string;
                     };
                 };
             };

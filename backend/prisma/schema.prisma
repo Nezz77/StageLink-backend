@@ -88,6 +88,7 @@ model AuthUser {
   submittedInspections EquipmentInspectionReport[] @relation("InspectionSubmitter")
   decidedInspections EquipmentInspectionReport[] @relation("InspectionDecider")
   matchingVersions MatchingVersion[]
+  promptVersions AiPromptVersion[]
   resolvedDamageClaims DamageClaim[]
   decidedRefunds RefundRequest[]
   checkIns BookingCheckIn[]
@@ -1171,4 +1172,29 @@ model AiModelCall {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   @@index([createdAt])
   @@map("ai_model_calls")
+}
+
+model AiPromptTemplate {
+  key String @id @db.VarChar(20)
+  revision Int @default(1)
+  draft String? @db.VarChar(3000)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
+  versions AiPromptVersion[]
+  @@map("ai_prompt_templates")
+}
+
+model AiPromptVersion {
+  key String @db.VarChar(20)
+  version Int
+  body String @db.VarChar(3000)
+  reason String @db.VarChar(500)
+  actorId String? @map("actor_id") @db.Uuid
+  rolledBackFrom Int? @map("rolled_back_from")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  template AiPromptTemplate @relation(fields: [key], references: [key], onDelete: Restrict)
+  actor AuthUser? @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  rollbackSource AiPromptVersion? @relation("PromptRollback", fields: [key, rolledBackFrom], references: [key, version], onDelete: Restrict)
+  rollbacks AiPromptVersion[] @relation("PromptRollback")
+  @@id([key, version])
+  @@map("ai_prompt_versions")
 }
