@@ -1,28 +1,37 @@
 import { useState } from 'react';
 import { Check, Music2, Plus, Trash2 } from 'lucide-react';
 import { money } from '../lib/booking';
-import { demoPackages, readPackageDrafts, parsePackages, packageSnapshot, choiceError, durationLabel, type PackageDraft, type PackageCatalog, type PackageChoice, type PackageSnapshot } from '../lib/gigPackages';
+import { demoPackages, tierIds, readPackageDrafts, parsePackages, packageSnapshot, choiceError, durationLabel, type PackageDraft, type PackageCatalog, type PackageChoice, type PackageSnapshot } from '../lib/gigPackages';
 import '../gigPackages.css';
 
-export function GigPackageEditor({ value, error, onChange }: { value?: string; error?: string; onChange: (value: string) => void }) {
+export function GigPackageEditor({ value, error, onChange, currency = 'USD' }: { value?: string; error?: string; onChange: (value: string) => void; currency?: 'USD' | 'LKR' }) {
   const rows = readPackageDrafts(value);
   const [active, setActive] = useState(0);
   const update = (patch: Partial<PackageDraft>) => onChange(JSON.stringify(rows.map((p, i) => i === active ? { ...p, ...patch } : p)));
-  const p = rows[active];
-  return <section className="gp-section" aria-label="Gig package editor"><div className="gp-heading"><div><span className="sl-eyebrow">YOUR SHOW / THREE WAYS</span><h3>Performance packages</h3></div><label className="gp-toggle"><input type="checkbox" checked={!!value} onChange={e => onChange(e.target.checked ? JSON.stringify(demoPackages()) : '')} />Offer three tiers</label></div>
+  const p = rows[Math.min(active, rows.length - 1)];
+  const live = currency === 'LKR';
+  function toggle(enabled: boolean) {
+    setActive(0);
+    const initial: PackageDraft[] = live ? tierIds.map(id => ({
+      id, title: '', pricing: id === 'vip' ? 'custom' : 'fixed',
+      duration: '120', performers: '1', price: '', included: '', excluded: '', addons: [],
+    })) : demoPackages();
+    onChange(enabled ? JSON.stringify(initial) : '');
+  }
+  return <section className="gp-section" aria-label="Gig package editor"><div className="gp-heading"><div><span className="sl-eyebrow">YOUR SHOW / THREE WAYS</span><h3>Performance packages</h3></div><label className="gp-toggle"><input type="checkbox" checked={!!value} onChange={e => toggle(e.target.checked)} />Offer three tiers</label></div>
     <p className="mg-muted">Set one event price per package. Customers compare the lineup, duration and inclusions before requesting a booking.</p>
-    {!value && <p>Enable to load editable demo examples. Your existing hourly / event price applies until packages are published.</p>}
+    {!value && <p>{live ? 'Enable to configure three tiers. Customers see the base gig price until you publish packages.' : 'Enable to load editable demo examples. Your existing hourly / event price applies until packages are published.'}</p>}
     {value && p && <><div className="gp-tabs" role="tablist" aria-label="Edit tier">{rows.map((tier, i) => <button type="button" role="tab" aria-selected={active === i} aria-controls="gp-tier-panel" id={`gp-tab-${i}`} key={tier.id} onClick={() => setActive(i)}>{tier.id.toUpperCase()}</button>)}</div><div id="gp-tier-panel" role="tabpanel" aria-labelledby={`gp-tab-${active}`} tabIndex={0}>
       <label className="mg-field">Package title<input aria-label="Package title" value={p.title} maxLength={60} onChange={e => update({ title: e.target.value })} /></label>
       <div className="mg-fields"><label className="mg-field">Duration (minutes)<input aria-label="Package duration" type="number" min={30} max={720} step={15} value={p.duration} onChange={e => update({ duration: e.target.value })} /></label><label className="mg-field">Performers<input aria-label="Package performers" type="number" min={1} max={50} value={p.performers} onChange={e => update({ performers: e.target.value })} /></label></div>
       {p.id === 'vip' && <label className="mg-field">VIP pricing<select aria-label="VIP pricing" value={p.pricing} onChange={e => update({ pricing: e.target.value as 'fixed' | 'custom', price: '' , addons: [] })}><option value="custom">Custom quotation required</option><option value="fixed">Fixed event price</option></select></label>}
-      {p.pricing === 'fixed' ? <label className="mg-field">Package price (USD / event)<input aria-label="Package price" type="number" min={1} max={1000000} step="0.01" value={p.price} onChange={e => update({ price: e.target.value })} /></label> : <div className="gp-note">Custom quote required. A provider quotation must be agreed before escrow checkout becomes available.</div>}
+      {p.pricing === 'fixed' ? <label className="mg-field">Package price ({currency} / event)<input aria-label="Package price" type="number" min={1} max={1000000} step="0.01" value={p.price} onChange={e => update({ price: e.target.value })} /></label> : <div className="gp-note">Custom quote required. A provider quotation must be agreed before escrow checkout becomes available.</div>}
       <div className="mg-fields"><label className="mg-field">Included · one per line<textarea aria-label="Included services" value={p.included} rows={4} maxLength={350} onChange={e => update({ included: e.target.value })} /></label><label className="mg-field">Excluded · one per line<textarea aria-label="Excluded services" value={p.excluded} rows={4} maxLength={250} onChange={e => update({ excluded: e.target.value })} /></label></div>
-      {p.pricing === 'fixed' && <div><h4>Optional add-ons</h4>{p.addons.map((addon, i) => <div className="gp-addon-edit" key={addon.id}><label className="mg-field">Add-on title<input aria-label={`Add-on ${i + 1} title`} value={addon.title} maxLength={60} onChange={e => update({ addons: p.addons.map((a, j) => i === j ? { ...a, title: e.target.value } : a) })} /></label><label className="mg-field">USD<input aria-label={`Add-on ${i + 1} price`} type="number" min={1} step="0.01" value={addon.price} onChange={e => update({ addons: p.addons.map((a, j) => i === j ? { ...a, price: e.target.value } : a) })} /></label><button type="button" className="mg-icon" aria-label={`Remove ${addon.title || 'add-on'}`} onClick={() => update({ addons: p.addons.filter((_, j) => j !== i) })}><Trash2 size={16} /></button></div>)}<button className="btn-ghost" type="button" disabled={p.addons.length >= 3} onClick={() => update({ addons: [...p.addons, { id: `addon-${crypto.randomUUID().slice(0, 8)}`, title: '', price: '' }] })}><Plus size={14} />Add optional service</button></div>}
+      {p.pricing === 'fixed' && <div><h4>Optional add-ons</h4>{p.addons.map((addon, i) => <div className="gp-addon-edit" key={addon.id}><label className="mg-field">Add-on title<input aria-label={`Add-on ${i + 1} title`} value={addon.title} maxLength={60} onChange={e => update({ addons: p.addons.map((a, j) => i === j ? { ...a, title: e.target.value } : a) })} /></label><label className="mg-field">{currency}<input aria-label={`Add-on ${i + 1} price`} type="number" min={1} step="0.01" value={addon.price} onChange={e => update({ addons: p.addons.map((a, j) => i === j ? { ...a, price: e.target.value } : a) })} /></label><button type="button" className="mg-icon" aria-label={`Remove ${addon.title || 'add-on'}`} onClick={() => update({ addons: p.addons.filter((_, j) => j !== i) })}><Trash2 size={16} /></button></div>)}<button className="btn-ghost" type="button" disabled={p.addons.length >= 3} onClick={() => update({ addons: [...p.addons, { id: `addon-${crypto.randomUUID().slice(0, 8)}`, title: '', price: '' }] })}><Plus size={14} />Add optional service</button></div>}
     </div></>}
     {error && <p className="mg-error" role="alert">{error}</p>}
     {!!value && !p && <p role="alert">Package draft could not be read. Turn packages off and on to reset the examples.</p>}
-    {!!value && <p className="mg-muted">Save listing publishes all three tiers in this session. Existing bookings keep their package snapshot.</p>}
+    {!!value && <p className="mg-muted">{live ? 'Save draft, then publish when the tiers are ready for customers.' : 'Save listing publishes all three tiers in this session. Existing bookings keep their package snapshot.'}</p>}
   </section>;
 }
 

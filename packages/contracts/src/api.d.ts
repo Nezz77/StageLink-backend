@@ -6923,6 +6923,23 @@ export interface operations {
                         version: number;
                         /** @enum {string} */
                         currency: "LKR";
+                        packages: {
+                            /** @enum {string} */
+                            id: "standard" | "deluxe" | "vip";
+                            title: string;
+                            /** @enum {string} */
+                            pricing: "fixed" | "custom";
+                            durationMinutes: number;
+                            performers: number;
+                            basePriceMinor: number | null;
+                            included: string;
+                            excluded: string;
+                            addons: {
+                                id: string;
+                                title: string;
+                                priceMinor: number;
+                            }[];
+                        }[];
                         revision: number;
                         /** @enum {string} */
                         status: "draft" | "published" | "paused" | "archived";
@@ -6945,6 +6962,23 @@ export interface operations {
                     title: string;
                     description: string;
                     priceMinor: number;
+                    packages?: {
+                        /** @enum {string} */
+                        id: "standard" | "deluxe" | "vip";
+                        title: string;
+                        /** @enum {string} */
+                        pricing: "fixed" | "custom";
+                        durationMinutes: number;
+                        performers: number;
+                        basePriceMinor: number | null;
+                        included: string;
+                        excluded: string;
+                        addons: {
+                            id: string;
+                            title: string;
+                            priceMinor: number;
+                        }[];
+                    }[];
                 };
             };
         };
@@ -6965,6 +6999,23 @@ export interface operations {
                         version: number;
                         /** @enum {string} */
                         currency: "LKR";
+                        packages: {
+                            /** @enum {string} */
+                            id: "standard" | "deluxe" | "vip";
+                            title: string;
+                            /** @enum {string} */
+                            pricing: "fixed" | "custom";
+                            durationMinutes: number;
+                            performers: number;
+                            basePriceMinor: number | null;
+                            included: string;
+                            excluded: string;
+                            addons: {
+                                id: string;
+                                title: string;
+                                priceMinor: number;
+                            }[];
+                        }[];
                         revision: number;
                         /** @enum {string} */
                         status: "draft" | "published" | "paused" | "archived";
@@ -6989,6 +7040,23 @@ export interface operations {
                     title: string;
                     description: string;
                     priceMinor: number;
+                    packages?: {
+                        /** @enum {string} */
+                        id: "standard" | "deluxe" | "vip";
+                        title: string;
+                        /** @enum {string} */
+                        pricing: "fixed" | "custom";
+                        durationMinutes: number;
+                        performers: number;
+                        basePriceMinor: number | null;
+                        included: string;
+                        excluded: string;
+                        addons: {
+                            id: string;
+                            title: string;
+                            priceMinor: number;
+                        }[];
+                    }[];
                     revision: number;
                 };
             };
@@ -7010,6 +7078,23 @@ export interface operations {
                         version: number;
                         /** @enum {string} */
                         currency: "LKR";
+                        packages: {
+                            /** @enum {string} */
+                            id: "standard" | "deluxe" | "vip";
+                            title: string;
+                            /** @enum {string} */
+                            pricing: "fixed" | "custom";
+                            durationMinutes: number;
+                            performers: number;
+                            basePriceMinor: number | null;
+                            included: string;
+                            excluded: string;
+                            addons: {
+                                id: string;
+                                title: string;
+                                priceMinor: number;
+                            }[];
+                        }[];
                         revision: number;
                         /** @enum {string} */
                         status: "draft" | "published" | "paused" | "archived";
@@ -7054,6 +7139,23 @@ export interface operations {
                         version: number;
                         /** @enum {string} */
                         currency: "LKR";
+                        packages: {
+                            /** @enum {string} */
+                            id: "standard" | "deluxe" | "vip";
+                            title: string;
+                            /** @enum {string} */
+                            pricing: "fixed" | "custom";
+                            durationMinutes: number;
+                            performers: number;
+                            basePriceMinor: number | null;
+                            included: string;
+                            excluded: string;
+                            addons: {
+                                id: string;
+                                title: string;
+                                priceMinor: number;
+                            }[];
+                        }[];
                         revision: number;
                         /** @enum {string} */
                         status: "draft" | "published" | "paused" | "archived";
@@ -7090,6 +7192,23 @@ export interface operations {
                         version: number;
                         /** @enum {string} */
                         currency: "LKR";
+                        packages: {
+                            /** @enum {string} */
+                            id: "standard" | "deluxe" | "vip";
+                            title: string;
+                            /** @enum {string} */
+                            pricing: "fixed" | "custom";
+                            durationMinutes: number;
+                            performers: number;
+                            basePriceMinor: number | null;
+                            included: string;
+                            excluded: string;
+                            addons: {
+                                id: string;
+                                title: string;
+                                priceMinor: number;
+                            }[];
+                        }[];
                     };
                 };
             };

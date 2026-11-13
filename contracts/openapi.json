@@ -16077,6 +16077,103 @@
                           "LKR"
                         ]
                       },
+                      "packages": {
+                        "maxItems": 3,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "enum": [
+                                "standard",
+                                "deluxe",
+                                "vip"
+                              ]
+                            },
+                            "title": {
+                              "type": "string",
+                              "minLength": 3,
+                              "maxLength": 60
+                            },
+                            "pricing": {
+                              "type": "string",
+                              "enum": [
+                                "fixed",
+                                "custom"
+                              ]
+                            },
+                            "durationMinutes": {
+                              "type": "integer",
+                              "minimum": 30,
+                              "maximum": 720,
+                              "multipleOf": 15
+                            },
+                            "performers": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 50
+                            },
+                            "basePriceMinor": {
+                              "nullable": true,
+                              "type": "integer",
+                              "minimum": 100,
+                              "maximum": 100000000
+                            },
+                            "included": {
+                              "type": "string",
+                              "minLength": 3,
+                              "maxLength": 350
+                            },
+                            "excluded": {
+                              "type": "string",
+                              "minLength": 3,
+                              "maxLength": 250
+                            },
+                            "addons": {
+                              "maxItems": 3,
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string",
+                                    "pattern": "^[a-z0-9-]{1,24}$"
+                                  },
+                                  "title": {
+                                    "type": "string",
+                                    "minLength": 3,
+                                    "maxLength": 60
+                                  },
+                                  "priceMinor": {
+                                    "type": "integer",
+                                    "minimum": 100,
+                                    "maximum": 100000000
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "title",
+                                  "priceMinor"
+                                ],
+                                "additionalProperties": false
+                              }
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "title",
+                            "pricing",
+                            "durationMinutes",
+                            "performers",
+                            "basePriceMinor",
+                            "included",
+                            "excluded",
+                            "addons"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
                       "revision": {
                         "type": "integer",
                         "minimum": 0,
@@ -16108,6 +16205,7 @@
                       "ownerId",
                       "version",
                       "currency",
+                      "packages",
                       "revision",
                       "status",
                       "publishedVersion"
@@ -16153,6 +16251,103 @@
                     "minimum": 0,
                     "exclusiveMinimum": true,
                     "maximum": 100000000
+                  },
+                  "packages": {
+                    "maxItems": 3,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "enum": [
+                            "standard",
+                            "deluxe",
+                            "vip"
+                          ]
+                        },
+                        "title": {
+                          "type": "string",
+                          "minLength": 3,
+                          "maxLength": 60
+                        },
+                        "pricing": {
+                          "type": "string",
+                          "enum": [
+                            "fixed",
+                            "custom"
+                          ]
+                        },
+                        "durationMinutes": {
+                          "type": "integer",
+                          "minimum": 30,
+                          "maximum": 720,
+                          "multipleOf": 15
+                        },
+                        "performers": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 50
+                        },
+                        "basePriceMinor": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": 100,
+                          "maximum": 100000000
+                        },
+                        "included": {
+                          "type": "string",
+                          "minLength": 3,
+                          "maxLength": 350
+                        },
+                        "excluded": {
+                          "type": "string",
+                          "minLength": 3,
+                          "maxLength": 250
+                        },
+                        "addons": {
+                          "maxItems": 3,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "pattern": "^[a-z0-9-]{1,24}$"
+                              },
+                              "title": {
+                                "type": "string",
+                                "minLength": 3,
+                                "maxLength": 60
+                              },
+                              "priceMinor": {
+                                "type": "integer",
+                                "minimum": 100,
+                                "maximum": 100000000
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "title",
+                              "priceMinor"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "title",
+                        "pricing",
+                        "durationMinutes",
+                        "performers",
+                        "basePriceMinor",
+                        "included",
+                        "excluded",
+                        "addons"
+                      ],
+                      "additionalProperties": false
+                    }
                   }
                 },
                 "required": [
@@ -16211,6 +16406,103 @@
                         "LKR"
                       ]
                     },
+                    "packages": {
+                      "maxItems": 3,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "enum": [
+                              "standard",
+                              "deluxe",
+                              "vip"
+                            ]
+                          },
+                          "title": {
+                            "type": "string",
+                            "minLength": 3,
+                            "maxLength": 60
+                          },
+                          "pricing": {
+                            "type": "string",
+                            "enum": [
+                              "fixed",
+                              "custom"
+                            ]
+                          },
+                          "durationMinutes": {
+                            "type": "integer",
+                            "minimum": 30,
+                            "maximum": 720,
+                            "multipleOf": 15
+                          },
+                          "performers": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 50
+                          },
+                          "basePriceMinor": {
+                            "nullable": true,
+                            "type": "integer",
+                            "minimum": 100,
+                            "maximum": 100000000
+                          },
+                          "included": {
+                            "type": "string",
+                            "minLength": 3,
+                            "maxLength": 350
+                          },
+                          "excluded": {
+                            "type": "string",
+                            "minLength": 3,
+                            "maxLength": 250
+                          },
+                          "addons": {
+                            "maxItems": 3,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "pattern": "^[a-z0-9-]{1,24}$"
+                                },
+                                "title": {
+                                  "type": "string",
+                                  "minLength": 3,
+                                  "maxLength": 60
+                                },
+                                "priceMinor": {
+                                  "type": "integer",
+                                  "minimum": 100,
+                                  "maximum": 100000000
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "title",
+                                "priceMinor"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "title",
+                          "pricing",
+                          "durationMinutes",
+                          "performers",
+                          "basePriceMinor",
+                          "included",
+                          "excluded",
+                          "addons"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
                     "revision": {
                       "type": "integer",
                       "minimum": 0,
@@ -16242,6 +16534,7 @@
                     "ownerId",
                     "version",
                     "currency",
+                    "packages",
                     "revision",
                     "status",
                     "publishedVersion"
@@ -16298,6 +16591,103 @@
                     "minimum": 0,
                     "exclusiveMinimum": true,
                     "maximum": 100000000
+                  },
+                  "packages": {
+                    "maxItems": 3,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "enum": [
+                            "standard",
+                            "deluxe",
+                            "vip"
+                          ]
+                        },
+                        "title": {
+                          "type": "string",
+                          "minLength": 3,
+                          "maxLength": 60
+                        },
+                        "pricing": {
+                          "type": "string",
+                          "enum": [
+                            "fixed",
+                            "custom"
+                          ]
+                        },
+                        "durationMinutes": {
+                          "type": "integer",
+                          "minimum": 30,
+                          "maximum": 720,
+                          "multipleOf": 15
+                        },
+                        "performers": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 50
+                        },
+                        "basePriceMinor": {
+                          "nullable": true,
+                          "type": "integer",
+                          "minimum": 100,
+                          "maximum": 100000000
+                        },
+                        "included": {
+                          "type": "string",
+                          "minLength": 3,
+                          "maxLength": 350
+                        },
+                        "excluded": {
+                          "type": "string",
+                          "minLength": 3,
+                          "maxLength": 250
+                        },
+                        "addons": {
+                          "maxItems": 3,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "pattern": "^[a-z0-9-]{1,24}$"
+                              },
+                              "title": {
+                                "type": "string",
+                                "minLength": 3,
+                                "maxLength": 60
+                              },
+                              "priceMinor": {
+                                "type": "integer",
+                                "minimum": 100,
+                                "maximum": 100000000
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "title",
+                              "priceMinor"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "title",
+                        "pricing",
+                        "durationMinutes",
+                        "performers",
+                        "basePriceMinor",
+                        "included",
+                        "excluded",
+                        "addons"
+                      ],
+                      "additionalProperties": false
+                    }
                   },
                   "revision": {
                     "type": "integer",
@@ -16363,6 +16753,103 @@
                         "LKR"
                       ]
                     },
+                    "packages": {
+                      "maxItems": 3,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "enum": [
+                              "standard",
+                              "deluxe",
+                              "vip"
+                            ]
+                          },
+                          "title": {
+                            "type": "string",
+                            "minLength": 3,
+                            "maxLength": 60
+                          },
+                          "pricing": {
+                            "type": "string",
+                            "enum": [
+                              "fixed",
+                              "custom"
+                            ]
+                          },
+                          "durationMinutes": {
+                            "type": "integer",
+                            "minimum": 30,
+                            "maximum": 720,
+                            "multipleOf": 15
+                          },
+                          "performers": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 50
+                          },
+                          "basePriceMinor": {
+                            "nullable": true,
+                            "type": "integer",
+                            "minimum": 100,
+                            "maximum": 100000000
+                          },
+                          "included": {
+                            "type": "string",
+                            "minLength": 3,
+                            "maxLength": 350
+                          },
+                          "excluded": {
+                            "type": "string",
+                            "minLength": 3,
+                            "maxLength": 250
+                          },
+                          "addons": {
+                            "maxItems": 3,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "pattern": "^[a-z0-9-]{1,24}$"
+                                },
+                                "title": {
+                                  "type": "string",
+                                  "minLength": 3,
+                                  "maxLength": 60
+                                },
+                                "priceMinor": {
+                                  "type": "integer",
+                                  "minimum": 100,
+                                  "maximum": 100000000
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "title",
+                                "priceMinor"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "title",
+                          "pricing",
+                          "durationMinutes",
+                          "performers",
+                          "basePriceMinor",
+                          "included",
+                          "excluded",
+                          "addons"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
                     "revision": {
                       "type": "integer",
                       "minimum": 0,
@@ -16394,6 +16881,7 @@
                     "ownerId",
                     "version",
                     "currency",
+                    "packages",
                     "revision",
                     "status",
                     "publishedVersion"
@@ -16505,6 +16993,103 @@
                         "LKR"
                       ]
                     },
+                    "packages": {
+                      "maxItems": 3,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "enum": [
+                              "standard",
+                              "deluxe",
+                              "vip"
+                            ]
+                          },
+                          "title": {
+                            "type": "string",
+                            "minLength": 3,
+                            "maxLength": 60
+                          },
+                          "pricing": {
+                            "type": "string",
+                            "enum": [
+                              "fixed",
+                              "custom"
+                            ]
+                          },
+                          "durationMinutes": {
+                            "type": "integer",
+                            "minimum": 30,
+                            "maximum": 720,
+                            "multipleOf": 15
+                          },
+                          "performers": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 50
+                          },
+                          "basePriceMinor": {
+                            "nullable": true,
+                            "type": "integer",
+                            "minimum": 100,
+                            "maximum": 100000000
+                          },
+                          "included": {
+                            "type": "string",
+                            "minLength": 3,
+                            "maxLength": 350
+                          },
+                          "excluded": {
+                            "type": "string",
+                            "minLength": 3,
+                            "maxLength": 250
+                          },
+                          "addons": {
+                            "maxItems": 3,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "pattern": "^[a-z0-9-]{1,24}$"
+                                },
+                                "title": {
+                                  "type": "string",
+                                  "minLength": 3,
+                                  "maxLength": 60
+                                },
+                                "priceMinor": {
+                                  "type": "integer",
+                                  "minimum": 100,
+                                  "maximum": 100000000
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "title",
+                                "priceMinor"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "title",
+                          "pricing",
+                          "durationMinutes",
+                          "performers",
+                          "basePriceMinor",
+                          "included",
+                          "excluded",
+                          "addons"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
                     "revision": {
                       "type": "integer",
                       "minimum": 0,
@@ -16536,6 +17121,7 @@
                     "ownerId",
                     "version",
                     "currency",
+                    "packages",
                     "revision",
                     "status",
                     "publishedVersion"
@@ -16615,6 +17201,103 @@
                       "enum": [
                         "LKR"
                       ]
+                    },
+                    "packages": {
+                      "maxItems": 3,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "enum": [
+                              "standard",
+                              "deluxe",
+                              "vip"
+                            ]
+                          },
+                          "title": {
+                            "type": "string",
+                            "minLength": 3,
+                            "maxLength": 60
+                          },
+                          "pricing": {
+                            "type": "string",
+                            "enum": [
+                              "fixed",
+                              "custom"
+                            ]
+                          },
+                          "durationMinutes": {
+                            "type": "integer",
+                            "minimum": 30,
+                            "maximum": 720,
+                            "multipleOf": 15
+                          },
+                          "performers": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 50
+                          },
+                          "basePriceMinor": {
+                            "nullable": true,
+                            "type": "integer",
+                            "minimum": 100,
+                            "maximum": 100000000
+                          },
+                          "included": {
+                            "type": "string",
+                            "minLength": 3,
+                            "maxLength": 350
+                          },
+                          "excluded": {
+                            "type": "string",
+                            "minLength": 3,
+                            "maxLength": 250
+                          },
+                          "addons": {
+                            "maxItems": 3,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "pattern": "^[a-z0-9-]{1,24}$"
+                                },
+                                "title": {
+                                  "type": "string",
+                                  "minLength": 3,
+                                  "maxLength": 60
+                                },
+                                "priceMinor": {
+                                  "type": "integer",
+                                  "minimum": 100,
+                                  "maximum": 100000000
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "title",
+                                "priceMinor"
+                              ],
+                              "additionalProperties": false
+                            }
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "title",
+                          "pricing",
+                          "durationMinutes",
+                          "performers",
+                          "basePriceMinor",
+                          "included",
+                          "excluded",
+                          "addons"
+                        ],
+                        "additionalProperties": false
+                      }
                     }
                   },
                   "required": [
@@ -16624,7 +17307,8 @@
                     "id",
                     "ownerId",
                     "version",
-                    "currency"
+                    "currency",
+                    "packages"
                   ],
                   "additionalProperties": false
                 }

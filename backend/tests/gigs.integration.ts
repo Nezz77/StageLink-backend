@@ -70,15 +70,31 @@ test('gig ownership, publication snapshots and concurrent revisions', async () =
     assert.equal((await call(`admin/providers/${artist.user.id}/artist/decision`, decision, admin)).status, 200);
 
     assert.equal((await call(privatePath + '/status', { revision: 1, action: 'publish' }, artist)).status, 200);
-    const change = { ...fields, title: 'Revised acoustic set', revision: 2 };
+    const fixed = {
+      title: 'Acoustic package', pricing: 'fixed', durationMinutes: 120, performers: 2,
+      basePriceMinor: 1500000, included: 'Acoustic set', excluded: 'Lighting',
+      addons: [{ id: 'sound', title: 'Sound system', priceMinor: 100000 }],
+    };
+    const packages = [
+      { ...fixed, id: 'standard' },
+      { ...fixed, id: 'deluxe', performers: 4 },
+      { ...fixed, id: 'vip', pricing: 'custom', basePriceMinor: null, addons: [] },
+    ];
+    const change = { ...fields, packages, title: 'Revised acoustic set', revision: 2 };
+    assert.equal((await call(privatePath, { ...change, packages: [packages[0]] }, artist, 'PATCH')).status, 400);
     const attempts = await Promise.all([
       call(privatePath, change, artist, 'PATCH'),
       call(privatePath, change, artist, 'PATCH'),
     ]);
     assert.deepEqual(attempts.map(result => result.status).sort(), [200, 409]);
-    assert.equal((await call(publicPath)).data.title, fields.title);
+    const stillPublished = await call(publicPath);
+    assert.equal(stillPublished.data.title, fields.title);
+    assert.deepEqual(stillPublished.data.packages, []);
+    assert.deepEqual((await call('me/gigs', undefined, artist)).data[0].packages, packages);
     assert.equal((await call(privatePath + '/status', { revision: 3, action: 'publish' }, artist)).status, 200);
-    assert.equal((await call(publicPath)).data.title, change.title);
+    const republished = await call(publicPath);
+    assert.equal(republished.data.title, change.title);
+    assert.deepEqual(republished.data.packages, packages);
     assert.equal((await call(privatePath + '/status', { revision: 4, action: 'pause' }, artist)).status, 200);
     assert.equal((await call(publicPath)).status, 404);
     assert.equal((await call(privatePath + '/status', { revision: 5, action: 'archive' }, artist)).status, 200);

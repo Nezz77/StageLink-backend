@@ -312,6 +312,7 @@ model ArtistGigVersion {
   title String @db.VarChar(120)
   description String @db.VarChar(2000)
   priceMinor Int @map("price_minor")
+  packages Json @default("[]")
   gig ArtistGig @relation("GigVersions", fields: [gigId], references: [id], onDelete: Restrict)
   publications ArtistGig[] @relation("GigPublication")
   @@id([gigId, version])

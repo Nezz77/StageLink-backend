@@ -4,6 +4,21 @@ import { gigClient, type Gig } from '../api/gigs';
 import { lkrToMinor } from '../lib/profileMoney';
 import ConfirmDialog from './ConfirmDialog';
 import { Notice } from './DashboardUI';
+import { GigPackageEditor } from './GigPackages';
+import { packageErrors, readPackageDrafts } from '../lib/gigPackages';
+
+function packageDraft(gig: Gig) {
+  if (!gig.packages.length) return '';
+  return JSON.stringify(gig.packages.map(tier => ({
+    id: tier.id, title: tier.title, pricing: tier.pricing,
+    duration: String(tier.durationMinutes), performers: String(tier.performers),
+    price: tier.basePriceMinor === null ? '' : (tier.basePriceMinor / 100).toFixed(2),
+    included: tier.included, excluded: tier.excluded,
+    addons: tier.addons.map(addon => ({
+      id: addon.id, title: addon.title, price: (addon.priceMinor / 100).toFixed(2),
+    })),
+  })));
+}
 
 const blank = { title: '', description: '', price: '' };
 
@@ -12,6 +27,8 @@ export default function PersistentGigs({ onBack }: { onBack: () => void }) {
   const [editing, setEditing] = useState<Gig | null>(null);
   const [archive, setArchive] = useState<Gig | null>(null);
   const [fields, setFields] = useState(blank);
+  const [packages, setPackages] = useState('');
+  const [packageError, setPackageError] = useState('');
   const [busy, setBusy] = useState(true);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState('');
@@ -29,6 +46,8 @@ export default function PersistentGigs({ onBack }: { onBack: () => void }) {
   function reset() {
     setEditing(null);
     setFields(blank);
+    setPackages('');
+    setPackageError('');
   }
 
   async function run(work: () => Promise<void>, message: string) {
@@ -54,10 +73,24 @@ export default function PersistentGigs({ onBack }: { onBack: () => void }) {
 
   function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const issue = packageErrors(packages, 'LKR');
+    setPackageError(issue);
+    if (issue) return;
     void run(async () => {
       const priceMinor = lkrToMinor(fields.price);
       if (priceMinor <= 0) throw new Error('Enter a positive LKR amount with up to two decimals.');
-      const body = { title: fields.title, description: fields.description, priceMinor };
+      const body = {
+        title: fields.title, description: fields.description, priceMinor,
+        packages: readPackageDrafts(packages).map(tier => ({
+          id: tier.id, title: tier.title, pricing: tier.pricing,
+          durationMinutes: Number(tier.duration), performers: Number(tier.performers),
+          basePriceMinor: tier.pricing === 'fixed' ? lkrToMinor(tier.price) : null,
+          included: tier.included, excluded: tier.excluded,
+          addons: tier.addons.map(addon => ({
+            id: addon.id, title: addon.title, priceMinor: lkrToMinor(addon.price),
+          })),
+        })),
+      };
       store(await (editing ? gigClient.edit(editing.id, editing.revision, body) : gigClient.create(body)));
       reset();
     }, 'Gig draft saved.');
@@ -86,6 +119,12 @@ export default function PersistentGigs({ onBack }: { onBack: () => void }) {
         <label className="mg-field">Title<input required maxLength={120} value={fields.title} onChange={event => setFields({ ...fields, title: event.target.value })}/></label>
         <label className="mg-field">Description<textarea required maxLength={2000} value={fields.description} onChange={event => setFields({ ...fields, description: event.target.value })}/></label>
         <label className="mg-field">Base price (LKR)<input required inputMode="decimal" value={fields.price} onChange={event => setFields({ ...fields, price: event.target.value })}/></label>
+        <fieldset disabled={busy}>
+          <GigPackageEditor key={editing?.id ?? 'new'} value={packages} currency="LKR" error={packageError} onChange={value => {
+            setPackages(value);
+            setPackageError('');
+          }}/>
+        </fieldset>
         <button className="btn-primary" disabled={busy}>Save draft</button>
         {editing && <button className="btn-ghost" type="button" disabled={busy} onClick={reset}>Cancel edit</button>}
       </form>
@@ -94,10 +133,13 @@ export default function PersistentGigs({ onBack }: { onBack: () => void }) {
         {gigs.map(gig => <li key={gig.id} className="card p-5">
           <h2 className="font-semibold">{gig.title}</h2>
           <p>{gig.status} · LKR {(gig.priceMinor / 100).toFixed(2)}</p>
+          {gig.packages.length > 0 && <p>{gig.packages.length} package tiers</p>}
           {gig.status === 'published' && gig.version !== gig.publishedVersion && <p>Unpublished changes</p>}
           <div className="flex flex-wrap gap-2 mt-3">
             <button className="btn-ghost" disabled={busy} onClick={() => {
               setEditing(gig);
+              setPackages(packageDraft(gig));
+              setPackageError('');
               setFields({ title: gig.title, description: gig.description, price: (gig.priceMinor / 100).toFixed(2) });
             }}>Edit</button>
             {(gig.status !== 'published' || gig.version !== gig.publishedVersion) &&

@@ -13,9 +13,10 @@ export const demoPackages = (): PackageDraft[] => [
 export function readPackageDrafts(raw?: string): PackageDraft[] { try { const value = JSON.parse(raw ?? ''); return Array.isArray(value) ? value : []; } catch { return []; } }
 const moneyValid = (value: unknown) => typeof value === 'string' && /^\d+(\.\d{1,2})?$/.test(value) && Number(value) >= 1 && Number(value) <= 1000000;
 const textValid = (value: unknown, min: number, max: number) => typeof value === 'string' && value.trim().length >= min && value.length <= max;
-export function packageErrors(raw?: string): string {
+export function packageErrors(raw?: string, currency: 'USD' | 'LKR' = 'USD'): string {
   if (!raw) return '';
   if (typeof raw !== 'string' || raw.length > 3000) return 'Keep package details under 3,000 characters.';
+  const symbol = currency === 'USD' ? '$' : 'LKR ';
   const rows = readPackageDrafts(raw);
   if (rows.length !== 3 || rows.some((p, i) => !p || p.id !== tierIds[i])) return 'Configure Standard, Deluxe and VIP in order.';
   for (const p of rows) {
@@ -24,11 +25,11 @@ export function packageErrors(raw?: string): string {
     if (!['fixed', 'custom'].includes(p.pricing) || (p.id !== 'vip' && p.pricing !== 'fixed')) return `${label}: Standard and Deluxe require a fixed price.`;
     if (!/^\d+$/.test(p.duration) || Number(p.duration) < 30 || Number(p.duration) > 720 || Number(p.duration) % 15) return `${label}: choose 30–720 minutes in 15-minute steps.`;
     if (!/^\d+$/.test(p.performers) || Number(p.performers) < 1 || Number(p.performers) > 50) return `${label}: enter 1–50 performers.`;
-    if (p.pricing === 'fixed' ? !moneyValid(p.price) : p.price !== '') return `${label}: ${p.pricing === 'fixed' ? 'enter $1–$1,000,000 with up to two decimals.' : 'leave the price empty for a custom quote.'}`;
+    if (p.pricing === 'fixed' ? !moneyValid(p.price) : p.price !== '') return `${label}: ${p.pricing === 'fixed' ? `enter ${symbol}1–${symbol}1,000,000 with up to two decimals.` : 'leave the price empty for a custom quote.'}`;
     if (!textValid(p.included, 3, 350) || !textValid(p.excluded, 3, 250)) return `${label}: describe included and excluded services (up to 350 / 250 characters).`;
     if (!Array.isArray(p.addons) || p.addons.length > 3 || (p.pricing === 'custom' && p.addons.length)) return `${label}: use up to three add-ons on fixed packages only.`;
     if (p.addons.some(a => !a || !/^[a-z0-9-]{1,24}$/.test(a.id) || !textValid(a.title, 3, 60) || !moneyValid(a.price)) || new Set(p.addons.map(a => a.id)).size !== p.addons.length) return `${label}: give every add-on a unique ID, title and valid price.`;
-    if (p.pricing === 'fixed' && Number(p.price) + p.addons.reduce((s, a) => s + Number(a.price), 0) > 1000000) return `${label}: package plus all add-ons must stay within $1,000,000.`;
+    if (p.pricing === 'fixed' && Number(p.price) + p.addons.reduce((s, a) => s + Number(a.price), 0) > 1000000) return `${label}: package plus all add-ons must stay within ${symbol}1,000,000.`;
   }
   return '';
 }

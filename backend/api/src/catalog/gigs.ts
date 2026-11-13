@@ -6,6 +6,7 @@ import type { ArtistGig, ArtistGigVersion } from '../../../generated/prisma/clie
 import type { AuthService, Identity } from '../auth/service.js';
 import { PublicError } from '../auth/errors.js';
 import { ProfileService } from '../profiles/service.js';
+import { gigPackages } from './packages.js';
 
 const uuid = z.string().uuid();
 const revision = z.number().int().positive().max(2_147_483_647);
@@ -14,9 +15,10 @@ const gigFields = z.object({
   description: z.string().trim().min(1).max(2000),
   priceMinor: z.number().int().positive().max(100_000_000),
 }).strict();
-const editFields = gigFields.extend({ revision });
+const writeFields = gigFields.extend({ packages: gigPackages.optional() });
+const editFields = writeFields.extend({ revision });
 const transitionFields = z.object({ revision, action: z.enum(['publish', 'pause', 'archive']) }).strict();
-const publicGig = gigFields.extend({ id: uuid, ownerId: uuid, version: revision, currency: z.literal('LKR') });
+const publicGig = gigFields.extend({ id: uuid, ownerId: uuid, version: revision, currency: z.literal('LKR'), packages: gigPackages });
 const ownerGig = publicGig.extend({
   revision, status: z.enum(['draft', 'published', 'paused', 'archived']),
   publishedVersion: revision.nullable(),
@@ -26,14 +28,16 @@ const missing = () => new PublicError(404, 'GIG_NOT_FOUND', 'This gig is not ava
 
 function parse<T>(type: z.ZodType<T>, value: unknown): T {
   const result = type.safeParse(value);
-  if (!result.success) throw new PublicError(400, 'INVALID_GIG_INPUT', 'Check the gig details and try again.');
+  if (!result.success) throw new PublicError(400, 'INVALID_GIG_INPUT', result.error.issues[0]?.path[0] === 'packages'
+    ? 'Check the package tiers, duration, lineup, and prices before saving.'
+    : 'Check the gig details and try again.');
   return result.data;
 }
 
 function present(gig: ArtistGig, version: ArtistGigVersion) {
   return {
     id: gig.id, ownerId: gig.ownerId, version: version.version, currency: 'LKR' as const,
-    title: version.title, description: version.description, priceMinor: version.priceMinor,
+    title: version.title, description: version.description, priceMinor: version.priceMinor, packages: gigPackages.parse(version.packages),
   };
 }
 
@@ -92,8 +96,8 @@ export function makeGigControllers(auth: AuthService) {
             break;
         }
       } else {
-        const { revision: _revision, ...fields } = input;
-        version = await tx.artistGigVersion.create({ data: { gigId: id, version: nextRevision, ...fields } });
+        const { revision: _revision, packages, ...fields } = input;
+        version = await tx.artistGigVersion.create({ data: { gigId: id, version: nextRevision, ...fields, packages: packages ?? gigPackages.parse(version.packages) } });
       }
       const updated = await tx.artistGig.update({
         where: { id }, data: { ...data, revision: nextRevision, updatedAt: new Date() },
@@ -116,16 +120,20 @@ export function makeGigControllers(auth: AuthService) {
         include: { versions: { orderBy: { version: 'desc' }, take: 1 } },
         orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }],
       });
-      return gigs.map(gig => {        const [version] = gig.versions;        if (!version) throw new Error('Gig version is missing.');        return ownerView(gig, version);      });
+      return gigs.map(gig => {
+        const [version] = gig.versions;
+        if (!version) throw new Error('Gig version is missing.');
+        return ownerView(gig, version);
+      });
     }
 
     @Post()
     @HttpCode(200)
-    @ApiBody({ schema: schema(gigFields) })
+    @ApiBody({ schema: schema(writeFields) })
     @ApiOkResponse({ schema: schema(ownerGig) })
     async create(@Req() req: Request, @Body() body: unknown) {
       const identity = await mutation(req);
-      const fields = parse(gigFields, body);
+      const fields = parse(writeFields, body);
       return db.$transaction(async tx => {
         const current = await profiles.actor(tx, identity);
         profiles.providerRole(current, 'artist');
