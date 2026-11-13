@@ -682,3 +682,53 @@ model BookingMessageAttachment {
   @@index([assetId])
   @@map("booking_message_attachments")
 }
+
+enum JournalAccountKind {
+  clearing
+  available
+  reserved
+}
+
+enum JournalPurpose {
+  service
+  deposit
+}
+
+model FinancialAccount {
+  id String @id @default(uuid()) @db.Uuid
+  scope String @db.VarChar(120)
+  currency String @db.Char(3)
+  purpose JournalPurpose
+  kind JournalAccountKind
+  postingRevision BigInt @default(0) @map("posting_revision")
+  entries JournalEntry[]
+  @@unique([scope, currency, purpose, kind])
+  @@unique([id, currency, purpose])
+  @@map("financial_accounts")
+}
+
+model JournalTransaction {
+  id String @id @default(uuid()) @db.Uuid
+  source String @db.VarChar(60)
+  reference String @db.VarChar(160)
+  currency String @db.Char(3)
+  purpose JournalPurpose
+  postedAt DateTime? @map("posted_at") @db.Timestamptz(3)
+  entries JournalEntry[]
+  @@unique([source, reference])
+  @@unique([id, currency, purpose])
+  @@map("journal_transactions")
+}
+
+model JournalEntry {
+  transactionId String @map("transaction_id") @db.Uuid
+  accountId String @map("account_id") @db.Uuid
+  currency String @db.Char(3)
+  purpose JournalPurpose
+  amountMinor BigInt @map("amount_minor")
+  transaction JournalTransaction @relation(fields: [transactionId, currency, purpose], references: [id, currency, purpose], onDelete: NoAction, onUpdate: NoAction)
+  account FinancialAccount @relation(fields: [accountId, currency, purpose], references: [id, currency, purpose], onDelete: NoAction, onUpdate: NoAction)
+  @@id([transactionId, accountId])
+  @@index([accountId])
+  @@map("journal_entries")
+}

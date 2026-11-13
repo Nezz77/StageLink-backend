@@ -166,7 +166,7 @@
       "depends_on": [
         "P09"
       ],
-      "status": "not_started",
+      "status": "in_progress",
       "tickets": [
         "BE-006",
         "BE-044",
@@ -362,8 +362,9 @@
       "acceptance": [
         "Posted transactions balance per currency, cannot be mutated, deduplicate commands/events and reserve funds atomically"
       ],
-      "status": "not_started",
-      "ui_coverage_ids": []
+      "status": "implemented_pending_verification",
+      "ui_coverage_ids": [],
+      "remaining": "Run Prisma journal integration and concurrent reservation checks against the deployed PostgreSQL version."
     },
     {
       "id": "BE-007",
