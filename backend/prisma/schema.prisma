@@ -77,6 +77,7 @@ model AuthUser {
   customerInquiries Inquiry[] @relation("InquiryCustomer")
   providerInquiries Inquiry[] @relation("InquiryProvider")
   inquiryMessages InquiryMessage[]
+  availability AvailabilityCalendar?
   @@map("auth_users")
 }
 model AuthSession {
@@ -526,4 +527,25 @@ model InquiryMessage {
   @@unique([inquiryId, authorId, requestKey])
   @@index([inquiryId, id])
   @@map("inquiry_messages")
+}
+
+model AvailabilityCalendar {
+  ownerId String @id @map("owner_id") @db.Uuid
+  timezone String @db.VarChar(100)
+  hours Json
+  revision Int @default(1)
+  owner AuthUser @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  blocks AvailabilityBlock[]
+  @@map("availability_calendars")
+}
+
+model AvailabilityBlock {
+  id String @id @default(uuid()) @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  startsAt DateTime @map("starts_at") @db.Timestamptz(3)
+  endsAt DateTime @map("ends_at") @db.Timestamptz(3)
+  reason String @db.VarChar(500)
+  calendar AvailabilityCalendar @relation(fields: [ownerId], references: [ownerId], onDelete: Cascade)
+  @@index([ownerId, startsAt])
+  @@map("availability_blocks")
 }

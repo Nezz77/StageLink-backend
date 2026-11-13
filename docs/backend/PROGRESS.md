@@ -65,3 +65,5 @@ BE-020 adds an owner-scoped archive for saved artists, gigs and rentals, with ca
 BE-021 adds private, revision-checked drafts for event briefs and message text. The API accepts typed fields and caps draft count per account. Event brief submission can consume the exact draft in the same database transaction. Message-draft consumption follows with inquiry and chat submission.
 
 BE-040 persists member-only inquiries and text replies with idempotent request keys and optional message-draft consumption. A thread records its published listing version at creation and remains readable to its members after a listing is archived. Linking the inquiry to a booking follows with booking submission.
+
+BE-028 adds provider-wide recurring hours and blackout periods with IANA timezone, overlap checks and optimistic revision checks. Public reads require an approved provider and show time windows without blackout reasons. Booking and stock holds will use this calendar in P08.

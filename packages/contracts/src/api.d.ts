@@ -1141,6 +1141,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/availability": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AvailabilityController_get"];
+        put: operations["AvailabilityController_update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/availability/blocks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AvailabilityController_addBlock"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/availability/blocks/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["AvailabilityController_removeBlock"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/providers/{id}/availability": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["PublicAvailabilityController_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -9433,6 +9497,223 @@ export interface operations {
                         body: string;
                         /** Format: date-time */
                         createdAt: string;
+                    };
+                };
+            };
+        };
+    };
+    AvailabilityController_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        configured: boolean;
+                        timezone: string;
+                        hours: {
+                            day: number;
+                            opens: string | null;
+                            closes: string | null;
+                        }[];
+                        revision: number;
+                        blocks: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: date-time */
+                            startsAt: string;
+                            /** Format: date-time */
+                            endsAt: string;
+                            reason: string;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    AvailabilityController_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    revision: number;
+                    timezone: string;
+                    hours: {
+                        day: number;
+                        opens: string | null;
+                        closes: string | null;
+                    }[];
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        configured: boolean;
+                        timezone: string;
+                        hours: {
+                            day: number;
+                            opens: string | null;
+                            closes: string | null;
+                        }[];
+                        revision: number;
+                        blocks: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: date-time */
+                            startsAt: string;
+                            /** Format: date-time */
+                            endsAt: string;
+                            reason: string;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    AvailabilityController_addBlock: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    revision: number;
+                    /** Format: date-time */
+                    startsAt: string;
+                    /** Format: date-time */
+                    endsAt: string;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        configured: boolean;
+                        timezone: string;
+                        hours: {
+                            day: number;
+                            opens: string | null;
+                            closes: string | null;
+                        }[];
+                        revision: number;
+                        blocks: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: date-time */
+                            startsAt: string;
+                            /** Format: date-time */
+                            endsAt: string;
+                            reason: string;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    AvailabilityController_removeBlock: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    revision: number;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        configured: boolean;
+                        timezone: string;
+                        hours: {
+                            day: number;
+                            opens: string | null;
+                            closes: string | null;
+                        }[];
+                        revision: number;
+                        blocks: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: date-time */
+                            startsAt: string;
+                            /** Format: date-time */
+                            endsAt: string;
+                            reason: string;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    PublicAvailabilityController_get: {
+        parameters: {
+            query: {
+                endsAt: string;
+                startsAt: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        configured: boolean;
+                        timezone: string;
+                        hours: {
+                            day: number;
+                            opens: string | null;
+                            closes: string | null;
+                        }[];
+                        blocks: {
+                            /** Format: date-time */
+                            startsAt: string;
+                            /** Format: date-time */
+                            endsAt: string;
+                        }[];
                     };
                 };
             };

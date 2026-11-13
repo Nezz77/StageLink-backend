@@ -72,6 +72,26 @@ test('gig ownership, publication snapshots and concurrent revisions', async () =
     const decision = { revision: 2, approved: true, reason: 'Approved artist profile for the catalog fixture' };
     assert.equal((await call(`admin/providers/${artist.user.id}/artist/decision`, decision, admin)).status, 200);
 
+    const calendarPath = `providers/${artist.user.id}/availability?startsAt=2028-01-01T00%3A00%3A00Z&endsAt=2028-02-01T00%3A00%3A00Z`;
+    assert.equal((await call(calendarPath)).data.configured, false);
+    const hours = Array.from({ length: 7 }, (_, day) => ({ day, opens: '09:00', closes: '17:00' }));
+    const calendar = { revision: 0, timezone: 'Asia/Colombo', hours };
+    assert.equal((await call('me/availability', { ...calendar, timezone: 'Not/AZone' }, artist, 'PUT')).status, 400);
+    assert.equal((await call('me/availability', calendar, artist, 'PUT')).status, 200);
+    const block = { revision: 1, startsAt: '2028-01-10T09:00:00+05:30', endsAt: '2028-01-10T17:00:00+05:30', reason: 'Private leave' };
+    const savedBlock = await call('me/availability/blocks', block, artist);
+    assert.equal(savedBlock.status, 200);
+    assert.equal(savedBlock.data.blocks[0].reason, block.reason);
+    assert.equal((await call('me/availability/blocks', { ...block, revision: 2 }, artist)).status, 409);
+    const publicCalendar = await call(calendarPath);
+    assert.equal(publicCalendar.status, 200);
+    assert.equal(publicCalendar.data.timezone, 'Asia/Colombo');
+    assert.deepEqual(publicCalendar.data.blocks, [{ startsAt: '2028-01-10T03:30:00.000Z', endsAt: '2028-01-10T11:30:00.000Z' }]);
+    const blackoutPath = 'me/availability/blocks/' + savedBlock.data.blocks[0].id;
+    assert.equal((await call(blackoutPath, { revision: 1 }, artist, 'DELETE')).status, 409);
+    assert.equal((await call(blackoutPath, { revision: 2 }, artist, 'DELETE')).status, 200);
+    assert.deepEqual((await call(calendarPath)).data.blocks, []);
+
     assert.equal((await call(privatePath + '/status', { revision: 1, action: 'publish' }, artist)).status, 200);
     const fixed = {
       title: 'Acoustic package', pricing: 'fixed', durationMinutes: 120, performers: 2,
