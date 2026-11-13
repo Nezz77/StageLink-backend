@@ -147,6 +147,27 @@ test('completion requires a paid advance, provider check-in and resolved overtim
     assert.equal((await call(moderation, { revision: 2, status: 'hidden', reason: 'Withheld for further review.' }, admin)).data.status, 'hidden');
     assert.equal((await call(reviewPath, undefined, provider)).data.review, null);
 
+    const caseInput = {
+      requestKey: randomUUID(), subject: 'Booking follow-up', body: 'Please help with this booking follow-up.', bookingId,
+    };
+    const ticket = await call('cases', caseInput, customer);
+    assert.equal(ticket.status, 200);
+    assert.equal((await call('cases', caseInput, customer)).data.id, ticket.data.id);
+    assert.equal((await call('cases', caseInput, outsider)).status, 404);
+    const casePath = 'cases/' + ticket.data.id;
+    assert.equal((await call(casePath, undefined, provider)).status, 404);
+    const note = { requestKey: randomUUID(), body: 'Internal triage notes.' };
+    assert.equal((await call('admin/' + casePath + '/notes', note, admin)).data.kind, 'note');
+    const publicReply = { requestKey: randomUUID(), body: 'We have received your case.' };
+    assert.equal((await call('admin/' + casePath + '/replies', publicReply, admin)).status, 200);
+    const history = await call(casePath + '/replies', undefined, customer);
+    assert.deepEqual(history.data.items.map((item: { body: string }) => item.body), [publicReply.body]);
+    assert.equal((await call('admin/' + casePath + '/entries', undefined, customer)).status, 403);
+    assert.equal((await call('admin/' + casePath + '/status', { expectedRevision: 1, status: 'resolved', reason: 'The question was answered.' }, admin)).data.status, 'resolved');
+    assert.equal((await call(casePath + '/replies', publicReply, customer)).data.code, 'SUPPORT_CASE_RESOLVED');
+    assert.equal((await call('admin/' + casePath + '/status', { expectedRevision: 2, status: 'open', reason: 'Reopened to follow up.' }, admin)).data.status, 'open');
+    assert.equal((await call(casePath + '/replies', publicReply, customer)).status, 200);
+
     const holdPath = 'admin/' + path + '/holds';
     const hold = { expectedRevision: 0, held: true, reason: 'Review payment evidence.' };
     assert.equal((await call(holdPath, hold, provider)).status, 403);
@@ -184,6 +205,7 @@ test('completion requires a paid advance, provider check-in and resolved overtim
       if (bookingId) {
         await deps.db.payHereAttempt.deleteMany({ where: { order: { bookingId } } });
         await deps.db.paymentOrder.deleteMany({ where: { bookingId } });
+        await deps.db.supportCase.deleteMany({ where: { bookingId } });
         await deps.db.bookingReview.deleteMany({ where: { bookingId } });
         await deps.db.bookingPayoutHold.deleteMany({ where: { bookingId } });
         await deps.db.bookingCompletion.deleteMany({ where: { bookingId } });

@@ -485,6 +485,166 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/cases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["SupportController_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/cases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["SupportController_mine"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cases/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["SupportController_read"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cases/{id}/replies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["SupportController_replies"];
+        put?: never;
+        post: operations["SupportController_reply"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/cases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["SupportController_queue"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/cases/{id}/entries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["SupportController_entries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/cases/{id}/replies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["SupportController_staffReply"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/cases/{id}/notes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["SupportController_note"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/cases/{id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["SupportController_status"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/cases/{id}/assignment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["SupportController_assign"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/profile": {
         parameters: {
             query?: never;
@@ -4580,6 +4740,455 @@ export interface operations {
             };
         };
     };
+    SupportController_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    requestKey: string;
+                    subject: string;
+                    body: string;
+                    /** Format: uuid */
+                    bookingId?: string;
+                    assetIds?: string[];
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        subject: string;
+                        body: string;
+                        /** Format: uuid */
+                        bookingId: string | null;
+                        /** @enum {string} */
+                        status: "open" | "resolved";
+                        revision: number;
+                        /** Format: date-time */
+                        createdAt: string;
+                        assetIds: string[];
+                    };
+                };
+            };
+        };
+    };
+    SupportController_mine: {
+        parameters: {
+            query?: {
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** Format: uuid */
+                            id: string;
+                            subject: string;
+                            body: string;
+                            /** Format: uuid */
+                            bookingId: string | null;
+                            /** @enum {string} */
+                            status: "open" | "resolved";
+                            revision: number;
+                            /** Format: date-time */
+                            createdAt: string;
+                            assetIds: string[];
+                        }[];
+                        /** Format: uuid */
+                        nextCursor: string | null;
+                    };
+                };
+            };
+        };
+    };
+    SupportController_read: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        subject: string;
+                        body: string;
+                        /** Format: uuid */
+                        bookingId: string | null;
+                        /** @enum {string} */
+                        status: "open" | "resolved";
+                        revision: number;
+                        /** Format: date-time */
+                        createdAt: string;
+                        assetIds: string[];
+                    };
+                };
+            };
+        };
+    };
+    SupportController_replies: {
+        parameters: {
+            query?: {
+                before?: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            id: string;
+                            staff: boolean;
+                            body: string;
+                            /** Format: date-time */
+                            createdAt: string;
+                        }[];
+                        nextCursor: string | null;
+                    };
+                };
+            };
+        };
+    };
+    SupportController_reply: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    requestKey: string;
+                    body: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        staff: boolean;
+                        body: string;
+                        /** Format: date-time */
+                        createdAt: string;
+                    };
+                };
+            };
+        };
+    };
+    SupportController_queue: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                status?: "open" | "resolved";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** Format: uuid */
+                            id: string;
+                            subject: string;
+                            body: string;
+                            /** Format: uuid */
+                            bookingId: string | null;
+                            /** @enum {string} */
+                            status: "open" | "resolved";
+                            revision: number;
+                            /** Format: date-time */
+                            createdAt: string;
+                            assetIds: string[];
+                            /** Format: uuid */
+                            ownerId: string;
+                            /** Format: uuid */
+                            assigneeId: string | null;
+                        }[];
+                        /** Format: uuid */
+                        nextCursor: string | null;
+                    };
+                };
+            };
+        };
+    };
+    SupportController_entries: {
+        parameters: {
+            query?: {
+                before?: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            id: string;
+                            staff: boolean;
+                            body: string;
+                            /** Format: date-time */
+                            createdAt: string;
+                            /** @enum {string} */
+                            kind: "reply" | "note" | "status" | "assignment";
+                            /** Format: uuid */
+                            actorId: string;
+                            /** Format: uuid */
+                            assigneeId: string | null;
+                            /** @enum {string|null} */
+                            status: "open" | "resolved" | null;
+                            revision: number | null;
+                        }[];
+                        nextCursor: string | null;
+                    };
+                };
+            };
+        };
+    };
+    SupportController_staffReply: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    requestKey: string;
+                    body: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        staff: boolean;
+                        body: string;
+                        /** Format: date-time */
+                        createdAt: string;
+                        /** @enum {string} */
+                        kind: "reply" | "note" | "status" | "assignment";
+                        /** Format: uuid */
+                        actorId: string;
+                        /** Format: uuid */
+                        assigneeId: string | null;
+                        /** @enum {string|null} */
+                        status: "open" | "resolved" | null;
+                        revision: number | null;
+                    };
+                };
+            };
+        };
+    };
+    SupportController_note: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    requestKey: string;
+                    body: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        staff: boolean;
+                        body: string;
+                        /** Format: date-time */
+                        createdAt: string;
+                        /** @enum {string} */
+                        kind: "reply" | "note" | "status" | "assignment";
+                        /** Format: uuid */
+                        actorId: string;
+                        /** Format: uuid */
+                        assigneeId: string | null;
+                        /** @enum {string|null} */
+                        status: "open" | "resolved" | null;
+                        revision: number | null;
+                    };
+                };
+            };
+        };
+    };
+    SupportController_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    expectedRevision: number;
+                    reason: string;
+                    /** @enum {string} */
+                    status: "open" | "resolved";
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        subject: string;
+                        body: string;
+                        /** Format: uuid */
+                        bookingId: string | null;
+                        /** @enum {string} */
+                        status: "open" | "resolved";
+                        revision: number;
+                        /** Format: date-time */
+                        createdAt: string;
+                        assetIds: string[];
+                        /** Format: uuid */
+                        ownerId: string;
+                        /** Format: uuid */
+                        assigneeId: string | null;
+                    };
+                };
+            };
+        };
+    };
+    SupportController_assign: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    expectedRevision: number;
+                    reason: string;
+                    /** Format: uuid */
+                    assigneeId: string | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        subject: string;
+                        body: string;
+                        /** Format: uuid */
+                        bookingId: string | null;
+                        /** @enum {string} */
+                        status: "open" | "resolved";
+                        revision: number;
+                        /** Format: date-time */
+                        createdAt: string;
+                        assetIds: string[];
+                        /** Format: uuid */
+                        ownerId: string;
+                        /** Format: uuid */
+                        assigneeId: string | null;
+                    };
+                };
+            };
+        };
+    };
     ProfilesController_profile: {
         parameters: {
             query?: never;
@@ -6752,7 +7361,7 @@ export interface operations {
                             /** Format: uuid */
                             id: string;
                             /** @enum {string} */
-                            purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review" | "inspection" | "verification";
+                            purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review" | "inspection" | "verification" | "support";
                             /** @enum {string} */
                             status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                             filename: string;
@@ -6895,7 +7504,7 @@ export interface operations {
             content: {
                 "application/json": {
                     /** @enum {string} */
-                    purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review" | "inspection" | "verification";
+                    purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review" | "inspection" | "verification" | "support";
                     filename: string;
                     /** @enum {string} */
                     mime: "image/jpeg" | "image/png" | "image/webp" | "audio/mpeg" | "audio/wav" | "video/mp4" | "video/webm";
@@ -6914,7 +7523,7 @@ export interface operations {
                         /** Format: uuid */
                         id: string;
                         /** @enum {string} */
-                        purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review" | "inspection" | "verification";
+                        purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review" | "inspection" | "verification" | "support";
                         /** @enum {string} */
                         status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                         filename: string;
@@ -7754,7 +8363,7 @@ export interface operations {
                                 /** Format: uuid */
                                 id: string;
                                 /** @enum {string} */
-                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review" | "inspection" | "verification";
+                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review" | "inspection" | "verification" | "support";
                                 /** @enum {string} */
                                 status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                                 filename: string;
@@ -7933,7 +8542,7 @@ export interface operations {
                                 /** Format: uuid */
                                 id: string;
                                 /** @enum {string} */
-                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review" | "inspection" | "verification";
+                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review" | "inspection" | "verification" | "support";
                                 /** @enum {string} */
                                 status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                                 filename: string;
@@ -8115,7 +8724,7 @@ export interface operations {
                                 /** Format: uuid */
                                 id: string;
                                 /** @enum {string} */
-                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review" | "inspection" | "verification";
+                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review" | "inspection" | "verification" | "support";
                                 /** @enum {string} */
                                 status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                                 filename: string;
@@ -8289,7 +8898,7 @@ export interface operations {
                                 /** Format: uuid */
                                 id: string;
                                 /** @enum {string} */
-                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review" | "inspection" | "verification";
+                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review" | "inspection" | "verification" | "support";
                                 /** @enum {string} */
                                 status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                                 filename: string;
@@ -8463,7 +9072,7 @@ export interface operations {
                                 /** Format: uuid */
                                 id: string;
                                 /** @enum {string} */
-                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review" | "inspection" | "verification";
+                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review" | "inspection" | "verification" | "support";
                                 /** @enum {string} */
                                 status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                                 filename: string;
@@ -8629,7 +9238,7 @@ export interface operations {
                                 /** Format: uuid */
                                 id: string;
                                 /** @enum {string} */
-                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review" | "inspection" | "verification";
+                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review" | "inspection" | "verification" | "support";
                                 /** @enum {string} */
                                 status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                                 filename: string;
@@ -8936,7 +9545,7 @@ export interface operations {
                                 /** Format: uuid */
                                 id: string;
                                 /** @enum {string} */
-                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review" | "inspection" | "verification";
+                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review" | "inspection" | "verification" | "support";
                                 /** @enum {string} */
                                 status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                                 filename: string;

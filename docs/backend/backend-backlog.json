@@ -1886,10 +1886,11 @@
         "Applicable schema/API/auth/UI/reload/failure tests and checkpoint evidence complete"
       ],
       "requires_new_report_ui": false,
-      "status": "not_started",
+      "status": "in_progress",
       "ui_coverage_ids": [
         "UI-043"
-      ]
+      ],
+      "remaining": "Add support notification events, realtime delivery, and private PDF attachments. Verify integration and frontend/Figma wiring."
     },
     {
       "id": "BE-054",

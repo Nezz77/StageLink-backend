@@ -46,7 +46,8 @@ A checked box marks implemented backend code. PostgreSQL integration, client wir
 - [x] P15 Prompt drafts, placeholder validation, preview, published history and rollback.
 - [x] P15 Top-three event-brief artist recommendations using published listings and versioned catalog weights.
 - [x] P16 Private provider verification submissions, administrative review and resubmission history.
-- [ ] P15–P17 AI provider calls and output previews, semantic ranking, verification policy enforcement, support, disputes, reminders and system controls.
+- [x] P16 Support tickets, member/staff replies, private notes, assignments and reopen history.
+- [ ] P15–P17 AI provider calls and output previews, semantic ranking, verification policy enforcement, support notifications, disputes, reminders and system controls.
 - [ ] P18 analytics, security, accessibility, backup and rollback, and end-to-end release verification.
 
 ## Verification and client integration
