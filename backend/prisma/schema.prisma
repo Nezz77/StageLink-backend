@@ -78,6 +78,8 @@ model AuthUser {
   providerInquiries Inquiry[] @relation("InquiryProvider")
   inquiryMessages InquiryMessage[]
   availability AvailabilityCalendar?
+  customerBookings Booking[] @relation("BookingCustomer")
+  providerBookings Booking[] @relation("BookingProvider")
   @@map("auth_users")
 }
 model AuthSession {
@@ -509,6 +511,7 @@ model Inquiry {
   customer AuthUser @relation("InquiryCustomer", fields: [customerId], references: [id], onDelete: Restrict)
   provider AuthUser @relation("InquiryProvider", fields: [providerId], references: [id], onDelete: Restrict)
   messages InquiryMessage[]
+  booking Booking?
   @@unique([customerId, requestKey])
   @@index([customerId, id])
   @@index([providerId, id])
@@ -548,4 +551,46 @@ model AvailabilityBlock {
   calendar AvailabilityCalendar @relation(fields: [ownerId], references: [ownerId], onDelete: Cascade)
   @@index([ownerId, startsAt])
   @@map("availability_blocks")
+}
+
+model Booking {
+  id String @id @default(uuid()) @db.Uuid
+  customerId String @map("customer_id") @db.Uuid
+  providerId String @map("provider_id") @db.Uuid
+  inquiryId String? @unique @map("inquiry_id") @db.Uuid
+  requestKey String @map("request_key") @db.Uuid
+  requestDigest String @map("request_digest") @db.Char(64)
+  targetKind SavedItemKind @map("target_kind")
+  targetId String @map("target_id") @db.Uuid
+  targetVersion Int @map("target_version")
+  startsAt DateTime @map("starts_at") @db.Timestamptz(3)
+  endsAt DateTime @map("ends_at") @db.Timestamptz(3)
+  holdExpiresAt DateTime @map("hold_expires_at") @db.Timestamptz(3)
+  snapshot Json
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  customer AuthUser @relation("BookingCustomer", fields: [customerId], references: [id], onDelete: Restrict)
+  provider AuthUser @relation("BookingProvider", fields: [providerId], references: [id], onDelete: Restrict)
+  inquiry Inquiry? @relation(fields: [inquiryId], references: [id], onDelete: Restrict)
+  lines BookingReservationLine[]
+  @@unique([customerId, requestKey])
+  @@index([customerId, id])
+  @@index([providerId, id])
+  @@map("bookings")
+}
+
+enum ReservationResource {
+  artist
+  equipment
+  venue
+}
+
+model BookingReservationLine {
+  bookingId String @map("booking_id") @db.Uuid
+  resource ReservationResource
+  resourceId String @map("resource_id") @db.Uuid
+  quantity Int
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  @@id([bookingId, resource, resourceId])
+  @@index([resource, resourceId])
+  @@map("booking_reservation_lines")
 }

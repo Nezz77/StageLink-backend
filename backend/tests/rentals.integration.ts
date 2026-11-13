@@ -264,6 +264,40 @@ test('renter owns revisions and public browse only shows approved published equi
     assert.equal(bundleDraft.status, 200);
     assert.deepEqual(bundleDraft.data.bundleItems, [{ listingId: id, quantity: 2, title: fields.title, version: 3 }]);
     assert.equal((await call(`me/rentals/${bundleDraft.data.id}/status`, { revision: 1, action: 'publish' }, renter)).status, 200);
+    assert.equal((await call(units, { listingId: id, serial: 'SN-02' }, renter)).status, 200);
+    const secondCustomer = await fixture('customer');
+    const bookingFields = {
+      targetKind: 'rental', targetId: id, targetVersion: 3, quantity: 1, rateUnit: 'day',
+      startsAt: '2090-03-01T09:00:00Z', endsAt: '2090-03-03T09:00:00Z',
+    };
+    const bookingRequest = { ...bookingFields, requestKey: randomUUID(), inquiryId: opened[0]?.data.id };
+    const booked = await call('bookings', bookingRequest, customer);
+    assert.equal(booked.status, 200);
+    assert.equal(booked.data.snapshot.subtotalMinor, 500000);
+    assert.equal(booked.data.snapshot.depositMinor, 0);
+    assert.equal((await call('bookings', bookingRequest, customer)).data.id, booked.data.id);
+    assert.equal((await call('bookings', { ...bookingRequest, quantity: 2 }, customer)).status, 409);
+    assert.equal((await call('bookings/' + booked.data.id, undefined, other)).status, 404);
+    assert.equal((await call('bookings/' + booked.data.id, undefined, renter)).status, 200);
+
+    const bundleRequest = { ...bookingFields, targetId: bundleDraft.data.id, targetVersion: 1, requestKey: randomUUID() };
+    assert.equal((await call('bookings', bundleRequest, secondCustomer)).status, 409);
+    const availabilityQuery = new URLSearchParams({
+      targetKind: 'rental', targetVersion: '1', quantity: '1', rateUnit: 'day',
+      startsAt: bookingFields.startsAt, endsAt: bookingFields.endsAt,
+    });
+    const availabilityPath = 'listings/' + bundleDraft.data.id + '/availability?' + availabilityQuery;
+    assert.deepEqual((await call(availabilityPath)).data, { available: false });
+    await deps.db.booking.update({ where: { id: booked.data.id }, data: { holdExpiresAt: new Date(Date.now() - 1000) } });
+    assert.deepEqual((await call(availabilityPath)).data, { available: true });
+    const competing = await Promise.all([
+      call('bookings', bundleRequest, secondCustomer),
+      call('bookings', { ...bookingFields, quantity: 2, requestKey: randomUUID() }, customer),
+    ]);
+    assert.deepEqual(competing.map(result => result.status).sort(), [200, 409]);
+    assert.equal((await call('bookings/' + booked.data.id + '/reservation-renewals', {
+      expectedHoldExpiresAt: (await call('bookings/' + booked.data.id, undefined, customer)).data.holdExpiresAt,
+    }, customer)).status, 409);
     const staleBundle = await call('me/rentals', bundle, renter);
     assert.equal(staleBundle.status, 200);
     assert.equal((await publicItem()).dailyRateMinor, edit.dailyRateMinor);
@@ -296,6 +330,7 @@ test('renter owns revisions and public browse only shows approved published equi
       await deps.db.profileAudit.deleteMany({ where: { targetUserId: { in: ids } } });
       await deps.db.portfolioItem.deleteMany({ where: owned });
       await deps.db.asset.deleteMany({ where: owned });
+      await deps.db.booking.deleteMany({ where: { customerId: { in: ids } } });
       await deps.db.inquiry.deleteMany({ where: { customerId: { in: ids } } });
       await deps.db.authUser.deleteMany({ where: { id: { in: ids } } });
       let cursor = '0';

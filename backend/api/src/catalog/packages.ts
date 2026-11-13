@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 const money = z.number().int().min(100).max(100_000_000);
 const title = z.string().trim().min(3).max(60);
-const packageTier = z.object({
+export const packageTier = z.object({
   id: z.enum(['standard', 'deluxe', 'vip']),
   title,
   pricing: z.enum(['fixed', 'custom']),
