@@ -1570,10 +1570,11 @@
         "Applicable schema/API/auth/UI/reload/failure tests and checkpoint evidence complete"
       ],
       "requires_new_report_ui": false,
-      "status": "not_started",
+      "status": "in_progress",
       "ui_coverage_ids": [
         "UI-034"
-      ]
+      ],
+      "remaining": "Run a real PayHere sandbox checkout and public HTTPS callback, reconcile review cases and enable balance only after booking completion."
     },
     {
       "id": "BE-045",

@@ -9,7 +9,13 @@ import { resources } from '../shared/resources.js';
 import { MediaStore, derivativeKey, originalKey } from '../shared/media-store.js';
 import { processMediaBatch } from '../shared/media-processing.js';
 
-const config = readConfig({ ...process.env, AUTH_RATE_PREFIX: 'rentals-test-' + randomUUID() });
+const merchantId = '1210000';
+const merchantSecret = 'sandbox-fixture-secret';
+const config = readConfig({
+  ...process.env, AUTH_RATE_PREFIX: 'rentals-test-' + randomUUID(),
+  PAYHERE_SANDBOX_MERCHANT_ID: merchantId, PAYHERE_SANDBOX_MERCHANT_SECRET: merchantSecret,
+  PAYHERE_SANDBOX_NOTIFY_URL: 'https://stage.test/api/v1/payments/webhooks/payhere',
+});
 if (config.NODE_ENV !== 'test' || !new URL(config.DATABASE_URL).pathname.endsWith('_test') || !config.S3_BUCKET.endsWith('-test')) {
   throw new Error('Equipment listing integration requires an isolated *_test database.');
 }
@@ -358,6 +364,33 @@ test('renter owns revisions and public browse only shows approved published equi
     assert.equal((await call(ordersPath, { purpose: 'advance', amountMinor: 1 }, winnerCustomer)).status, 400);
     assert.equal((await call('payment-orders/' + advanceOrder.id, undefined, other)).status, 404);
     assert.equal((await call('payment-orders/' + advanceOrder.id, undefined, renter)).status, 200);
+    const checkoutPath = 'payment-orders/' + advanceOrder.id + '/sessions';
+    const billing = { firstName: 'Test', lastName: 'Customer', phone: '0771234567', address: 'Main Street', city: 'Colombo', country: 'Sri Lanka' };
+    assert.equal((await call(checkoutPath, billing, other)).status, 404);
+    const checkout = await call(checkoutPath, billing, winnerCustomer);
+    assert.equal(checkout.status, 200);
+    assert.equal(checkout.data.action, 'https://sandbox.payhere.lk/pay/checkout');
+    assert.equal(checkout.data.fields.amount, '1750.00');
+    assert.equal((await call(checkoutPath, billing, winnerCustomer)).data.fields.order_id, checkout.data.fields.order_id);
+    const md5 = (value: string) => createHash('md5').update(value).digest('hex').toUpperCase();
+    const form = {
+      merchant_id: merchantId, order_id: checkout.data.fields.order_id, payment_id: 'fixture-payment',
+      payhere_amount: '1750.00', payhere_currency: 'LKR', status_code: '-1',
+    };
+    async function notify(fields: Record<string, string>, signature?: string) {
+      const hash = signature ?? md5(fields.merchant_id! + fields.order_id! + fields.payhere_amount! +
+        fields.payhere_currency! + fields.status_code! + md5(merchantSecret));
+      return fetch(base + '/api/v1/payments/webhooks/payhere', {
+        method: 'POST', body: new URLSearchParams({ ...fields, md5sig: hash }),
+      });
+    }
+    assert.equal((await notify(form, '0'.repeat(32))).status, 401);
+    assert.equal((await notify({ ...form, payhere_amount: '1.00' })).status, 409);
+    assert.equal((await notify(form)).status, 200);
+    assert.equal((await notify(form)).status, 200);
+    assert.equal(await deps.db.payHereEvent.count({ where: { attemptId: form.order_id } }), 1);
+    assert.equal((await call('payment-orders/' + advanceOrder.id, undefined, winnerCustomer)).data.status, 'cancelled');
+    assert.equal((await call(checkoutPath, billing, winnerCustomer)).status, 409);
     const chat = 'conversations/' + winner.id;
     assert.equal((await call(chat + '/messages', undefined, other)).status, 404);
     const message = { requestKey: randomUUID(), body: 'Please confirm the pickup time.' };
@@ -463,6 +496,9 @@ test('renter owns revisions and public browse only shows approved published equi
         await store.remove(derivativeKey(assetId, 'display'));
       }
       await deps.db.asset.deleteMany({ where: owned });
+      const orderFixtures = { booking: { customerId: { in: ids } } };
+      await deps.db.payHereEvent.deleteMany({ where: { attempt: { order: orderFixtures } } });
+      await deps.db.payHereAttempt.deleteMany({ where: { order: orderFixtures } });
       await deps.db.paymentOrder.deleteMany({ where: { booking: { customerId: { in: ids } } } });
       await deps.db.bookingAgreement.deleteMany({ where: { booking: { customerId: { in: ids } } } });
       await deps.db.bookingQuotation.deleteMany({ where: { booking: { customerId: { in: ids } } } });

@@ -28917,6 +28917,289 @@
           "Payment orders"
         ]
       }
+    },
+    "/api/v1/payment-orders/{id}/sessions": {
+      "post": {
+        "operationId": "PayHereController_createSession",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "firstName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60
+                  },
+                  "lastName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 60
+                  },
+                  "phone": {
+                    "type": "string",
+                    "pattern": "^\\+?[0-9][0-9 ()-]{5,24}[0-9]$"
+                  },
+                  "address": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "city": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  },
+                  "country": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 80
+                  }
+                },
+                "required": [
+                  "firstName",
+                  "lastName",
+                  "phone",
+                  "address",
+                  "city",
+                  "country"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "action": {
+                      "type": "string",
+                      "enum": [
+                        "https://sandbox.payhere.lk/pay/checkout"
+                      ]
+                    },
+                    "method": {
+                      "type": "string",
+                      "enum": [
+                        "POST"
+                      ]
+                    },
+                    "expiresAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    },
+                    "fields": {
+                      "type": "object",
+                      "properties": {
+                        "merchant_id": {
+                          "type": "string"
+                        },
+                        "order_id": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        },
+                        "amount": {
+                          "type": "string"
+                        },
+                        "currency": {
+                          "type": "string",
+                          "enum": [
+                            "LKR"
+                          ]
+                        },
+                        "hash": {
+                          "type": "string"
+                        },
+                        "items": {
+                          "type": "string"
+                        },
+                        "return_url": {
+                          "type": "string"
+                        },
+                        "cancel_url": {
+                          "type": "string"
+                        },
+                        "notify_url": {
+                          "type": "string"
+                        },
+                        "first_name": {
+                          "type": "string"
+                        },
+                        "last_name": {
+                          "type": "string"
+                        },
+                        "email": {
+                          "type": "string",
+                          "format": "email",
+                          "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                        },
+                        "phone": {
+                          "type": "string"
+                        },
+                        "address": {
+                          "type": "string"
+                        },
+                        "city": {
+                          "type": "string"
+                        },
+                        "country": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "merchant_id",
+                        "order_id",
+                        "amount",
+                        "currency",
+                        "hash",
+                        "items",
+                        "return_url",
+                        "cancel_url",
+                        "notify_url",
+                        "first_name",
+                        "last_name",
+                        "email",
+                        "phone",
+                        "address",
+                        "city",
+                        "country"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "action",
+                    "method",
+                    "expiresAt",
+                    "fields"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "PayHere sandbox"
+        ]
+      }
+    },
+    "/api/v1/payments/webhooks/payhere": {
+      "post": {
+        "operationId": "PayHereController_notify",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "merchant_id": {
+                    "type": "string",
+                    "pattern": "^\\d{1,30}$"
+                  },
+                  "order_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "payment_id": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_-]{1,120}$"
+                  },
+                  "payhere_amount": {
+                    "type": "string",
+                    "pattern": "^\\d{1,8}\\.\\d{2}$"
+                  },
+                  "payhere_currency": {
+                    "type": "string",
+                    "enum": [
+                      "LKR"
+                    ]
+                  },
+                  "status_code": {
+                    "type": "string",
+                    "enum": [
+                      "0",
+                      "2",
+                      "-1",
+                      "-2",
+                      "-3"
+                    ]
+                  },
+                  "md5sig": {
+                    "type": "string",
+                    "pattern": "^[a-fA-F0-9]{32}$"
+                  }
+                },
+                "required": [
+                  "merchant_id",
+                  "order_id",
+                  "payment_id",
+                  "payhere_amount",
+                  "payhere_currency",
+                  "status_code",
+                  "md5sig"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "received": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    }
+                  },
+                  "required": [
+                    "received"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "PayHere sandbox"
+        ]
+      }
     }
   },
   "info": {

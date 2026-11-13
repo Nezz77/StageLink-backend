@@ -716,6 +716,7 @@ model JournalTransaction {
   purpose JournalPurpose
   postedAt DateTime? @map("posted_at") @db.Timestamptz(3)
   entries JournalEntry[]
+  payhereEvent PayHereEvent?
   @@unique([source, reference])
   @@unique([id, currency, purpose])
   @@map("journal_transactions")
@@ -758,6 +759,29 @@ model PaymentOrder {
   status PaymentOrderStatus @default(open)
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   booking Booking @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  payhereAttempt PayHereAttempt?
   @@unique([bookingId, purpose])
   @@map("payment_orders")
+}
+
+model PayHereAttempt {
+  id String @id @default(uuid()) @db.Uuid
+  orderId String @unique @map("order_id") @db.Uuid
+  createdAt DateTime @map("created_at") @db.Timestamptz(3)
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(3)
+  order PaymentOrder @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  events PayHereEvent[]
+  @@map("payhere_attempts")
+}
+
+model PayHereEvent {
+  attemptId String @map("attempt_id") @db.Uuid
+  statusCode String @map("status_code") @db.VarChar(2)
+  reportedPaymentId String @map("reported_payment_id") @db.VarChar(120)
+  receivedAt DateTime @default(now()) @map("received_at") @db.Timestamptz(3)
+  journalId String? @unique @map("journal_id") @db.Uuid
+  attempt PayHereAttempt @relation(fields: [attemptId], references: [id], onDelete: Restrict)
+  journal JournalTransaction? @relation(fields: [journalId], references: [id], onDelete: Restrict)
+  @@id([attemptId, statusCode])
+  @@map("payhere_events")
 }

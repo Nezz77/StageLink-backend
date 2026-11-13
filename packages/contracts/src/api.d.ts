@@ -1445,6 +1445,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/payment-orders/{id}/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["PayHereController_createSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/payments/webhooks/payhere": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["PayHereController_notify"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -11221,6 +11253,103 @@ export interface operations {
                         status: "open" | "pending" | "failed" | "cancelled" | "paid" | "review";
                         /** Format: date-time */
                         createdAt: string;
+                    };
+                };
+            };
+        };
+    };
+    PayHereController_createSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    firstName: string;
+                    lastName: string;
+                    phone: string;
+                    address: string;
+                    city: string;
+                    country: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        action: "https://sandbox.payhere.lk/pay/checkout";
+                        /** @enum {string} */
+                        method: "POST";
+                        /** Format: date-time */
+                        expiresAt: string;
+                        fields: {
+                            merchant_id: string;
+                            /** Format: uuid */
+                            order_id: string;
+                            amount: string;
+                            /** @enum {string} */
+                            currency: "LKR";
+                            hash: string;
+                            items: string;
+                            return_url: string;
+                            cancel_url: string;
+                            notify_url: string;
+                            first_name: string;
+                            last_name: string;
+                            /** Format: email */
+                            email: string;
+                            phone: string;
+                            address: string;
+                            city: string;
+                            country: string;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    PayHereController_notify: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/x-www-form-urlencoded": {
+                    merchant_id: string;
+                    /** Format: uuid */
+                    order_id: string;
+                    payment_id: string;
+                    payhere_amount: string;
+                    /** @enum {string} */
+                    payhere_currency: "LKR";
+                    /** @enum {string} */
+                    status_code: "0" | "2" | "-1" | "-2" | "-3";
+                    md5sig: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        received: true;
                     };
                 };
             };

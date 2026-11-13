@@ -12,3 +12,15 @@ test('configuration rejects missing, malformed and unsafe settings without leaki
   assert.throws(()=>readConfig({...valid,PAYOUT_DATA_KEY:valid.AUTH_MAIL_KEY}));
   assert.throws(()=>readConfig({...valid,PAYOUT_DATA_KEY:valid.AUTH_JWT_SECRET}));
 });
+
+test('PayHere sandbox requires all three settings and an HTTPS webhook path', () => {
+  const sandbox = {
+    PAYHERE_SANDBOX_MERCHANT_ID: '1210000',
+    PAYHERE_SANDBOX_MERCHANT_SECRET: 'test-only',
+    PAYHERE_SANDBOX_NOTIFY_URL: 'https://stage.test/api/v1/payments/webhooks/payhere',
+  };
+  assert.equal(readConfig({ ...valid, ...sandbox }).PAYHERE_SANDBOX_MERCHANT_ID, '1210000');
+  assert.throws(() => readConfig({ ...valid, ...sandbox, PAYHERE_SANDBOX_MERCHANT_SECRET: '' }));
+  assert.throws(() => readConfig({ ...valid, ...sandbox, PAYHERE_SANDBOX_NOTIFY_URL: 'http://localhost:4000/api/v1/payments/webhooks/payhere' }));
+  assert.equal(readConfig({ ...valid, PAYHERE_SANDBOX_MERCHANT_ID: '' }).PAYHERE_SANDBOX_MERCHANT_ID, undefined);
+});

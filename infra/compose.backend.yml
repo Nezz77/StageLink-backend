@@ -18,6 +18,9 @@ x-node: &node
     SMTP_FROM: noreply@stagelink.local
     DATABASE_URL: postgresql://${POSTGRES_USER:?Set POSTGRES_USER}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:?Set POSTGRES_DB}?connect_timeout=3&pool_timeout=3
     REDIS_URL: redis://redis:6379
+    PAYHERE_SANDBOX_MERCHANT_ID: ${PAYHERE_SANDBOX_MERCHANT_ID:-}
+    PAYHERE_SANDBOX_MERCHANT_SECRET: ${PAYHERE_SANDBOX_MERCHANT_SECRET:-}
+    PAYHERE_SANDBOX_NOTIFY_URL: ${PAYHERE_SANDBOX_NOTIFY_URL:-}
     WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
   restart: unless-stopped
 services:

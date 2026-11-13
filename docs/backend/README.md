@@ -92,3 +92,9 @@ Authenticated media routes provide uploads and private asset access. The worker 
 The local Compose stack includes persistent S3Mock on loopback port 59090 (test: 59091). Host configuration uses `MEDIA_DRIVER=local-s3`, `S3_BUCKET=stagelink-media`, `S3_REGION=us-east-1` and `S3_ENDPOINT=http://127.0.0.1:59090`. Production must use `MEDIA_DRIVER=aws`, the intended private bucket/region and the AWS credential chain; do not use the emulator for real hosted evidence. Live AWS has not been configured/tested. FFmpeg/FFprobe are required for the host worker/tests and included in the backend image. CI installs them explicitly.
 
 Images: JPEG/PNG/WebP ≤8 MiB and 16 MP. Artist audio: MP3/WAV ≤20 MiB. Artist video: MP4/WebM ≤40 MiB. Audio/video ≤10 minutes, with actual previews up to 30 seconds. PDF/SVG/archive/executable formats are not accepted. See [ADR 004](ADR-004-media.md) for processing, retention, capability and future business-reference boundaries.
+
+## PayHere sandbox
+
+Set `PAYHERE_SANDBOX_MERCHANT_ID`, `PAYHERE_SANDBOX_MERCHANT_SECRET`, and `PAYHERE_SANDBOX_NOTIFY_URL` together. Use the sandbox merchant details and a publicly reachable HTTPS endpoint at `/api/v1/payments/webhooks/payhere`. With all three settings empty, checkout is disabled.
+
+The booking customer creates an advance or deposit order and requests a hosted checkout session. Submit the returned fields to its sandbox action URL. After returning, fetch the payment order to see the state recorded from the verified callback. Expired or ambiguous outcomes require reconciliation before a new attempt. Balance collection depends on booking completion. See the [PayHere Checkout API](https://support.payhere.lk/api-%26-mobile-sdk/checkout-api).
