@@ -6,6 +6,7 @@ import type { Prisma } from '../../../generated/prisma/client.js';
 import type { Config } from '../../../shared/config.js';
 import { openAccount, postJournal } from '../../../shared/payments/journal.js';
 import { createStripeCheckout, stripeEvent, stripeSession, stripeSessionReference, validStripeSignature } from '../../../shared/payments/stripe.js';
+import { checkoutExpiry, lockBooking, paidAdvance } from '../bookings/lifecycle.js';
 import { PublicError } from '../auth/errors.js';
 import type { AuthService } from '../auth/service.js';
 import { parse, paymentAccess, readOrder, schema, uuid } from './orders.js';
@@ -51,24 +52,26 @@ export function makeStripeController(auth: AuthService) {
       const orderId = parse(uuid, id);
       parse(empty, body);
       const config = settings(auth.config);
-      const { attempt, amountMinor } = await access.write(req, async (tx, actor) => {
+      const { attempt, amountMinor, bookingId } = await access.write(req, async (tx, actor) => {
         const { booking } = await readOrder(tx, orderId, actor.user.id);
         if (booking.customerId !== actor.user.id) {
           throw new PublicError(403, 'PAYMENT_CUSTOMER_REQUIRED', 'Only the booking customer can start checkout.');
         }
+        await lockBooking(tx, booking.id);
         await lockOrder(tx, orderId);
         const order = await tx.paymentOrder.findUniqueOrThrow({
           where: { id: orderId }, include: { stripeAttempt: true, payhereAttempt: { select: { id: true } } },
         });
         if (order.payhereAttempt) throw new PublicError(409, 'CHECKOUT_GATEWAY_SELECTED', 'This order already has a PayHere checkout.');
         const now = new Date();
-        if (!booking.agreedAt || booking.startsAt <= now || !['open', 'pending'].includes(order.status)) checkoutUnavailable();
+        const deadline = await checkoutExpiry(tx, booking, order.purpose, now, checkoutLifetimeMs);
+        if (!deadline || !['open', 'pending'].includes(order.status)) checkoutUnavailable();
         if (order.stripeAttempt) {
           if (order.stripeAttempt.expiresAt <= now) checkoutUnavailable();
-          return { attempt: order.stripeAttempt, amountMinor: order.amountMinor };
+          return { attempt: order.stripeAttempt, amountMinor: order.amountMinor, bookingId: booking.id };
         }
 
-        const expiresAt = new Date(Math.floor(Math.min(booking.startsAt.getTime(), now.getTime() + checkoutLifetimeMs) / 1000) * 1000);
+        const expiresAt = new Date(Math.floor(deadline.getTime() / 1000) * 1000);
         if (expiresAt.getTime() - now.getTime() <= minimumLifetimeMs + 8000) checkoutUnavailable();
         const redirect = new URL(auth.config.WEB_ORIGIN);
         redirect.searchParams.set('paymentOrder', orderId);
@@ -76,7 +79,7 @@ export function makeStripeController(auth: AuthService) {
           data: { orderId, createdAt: now, expiresAt, returnUrl: redirect.href },
         });
         await tx.paymentOrder.update({ where: { id: orderId }, data: { status: 'pending' } });
-        return { attempt, amountMinor: order.amountMinor };
+        return { attempt, amountMinor: order.amountMinor, bookingId: booking.id };
       });
       if (attempt.checkoutUrl) return { url: attempt.checkoutUrl, expiresAt: attempt.expiresAt.toISOString() };
 
@@ -86,13 +89,15 @@ export function makeStripeController(auth: AuthService) {
       catch { throw new PublicError(503, 'STRIPE_CHECKOUT_UNAVAILABLE', 'Stripe checkout could not be opened. Retry this order.'); }
 
       const checkoutSession = await db.$transaction(async tx => {
+        await lockBooking(tx, bookingId);
         await lockOrder(tx, orderId);
         const current = await tx.stripeAttempt.findUniqueOrThrow({ where: { id: attempt.id }, include: { order: true } });
         if (current.sessionId && current.sessionId !== session.id) {
           throw new PublicError(409, 'STRIPE_SESSION_MISMATCH', 'This checkout needs reconciliation.');
         }
         const available = current.order.status === 'pending' && session.status === 'open' &&
-          current.expiresAt > new Date();
+          current.expiresAt > new Date() &&
+          (current.order.purpose !== 'balance' || await paidAdvance(tx, bookingId));
         const url = available ? session.url : null;
         if (current.sessionId !== session.id || current.checkoutUrl !== url) {
           await tx.stripeAttempt.update({
@@ -121,11 +126,12 @@ export function makeStripeController(auth: AuthService) {
       if (!reference.success) return { received: true };
       return db.$transaction(async tx => {
         // A Stripe account can also emit Checkout events for other integrations.
-        const attempt = await tx.stripeAttempt.findUnique({ where: { id: reference.data.client_reference_id } });
+        const attempt = await tx.stripeAttempt.findUnique({ where: { id: reference.data.client_reference_id }, include: { order: { select: { bookingId: true } } } });
         if (!attempt) return { received: true };
         const session = parse(stripeSession, event.data.object);
         const captured = (event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded') &&
           session.status === 'complete' && session.payment_status === 'paid';
+        await lockBooking(tx, attempt.order.bookingId);
         await lockOrder(tx, attempt.orderId);
         const current = await tx.stripeAttempt.findUniqueOrThrow({ where: { id: attempt.id }, include: { order: true } });
         const { order } = current;
@@ -143,7 +149,8 @@ export function makeStripeController(auth: AuthService) {
         let status = order.status;
         let journalId = current.journalId;
         if (captured && !journalId) {
-          status = event.created * 1000 >= current.expiresAt.getTime() || order.status !== 'pending' ? 'review' : 'paid';
+          const advanceInReview = order.purpose === 'balance' && !await paidAdvance(tx, order.bookingId);
+          status = event.created * 1000 >= current.expiresAt.getTime() || order.status !== 'pending' || advanceInReview ? 'review' : 'paid';
           const fund = { currency: order.currency, purpose: order.purpose === 'deposit' ? 'deposit' as const : 'service' as const };
           const clearing = await openAccount(tx, { ...fund, scope: 'gateway:stripe:test', kind: 'clearing' });
           const destination = await openAccount(tx, {

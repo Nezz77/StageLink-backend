@@ -82,6 +82,11 @@ model AuthUser {
   availability AvailabilityCalendar?
   authoredQuotations BookingQuotation[] @relation("QuotationAuthor")
   decidedQuotations BookingQuotation[] @relation("QuotationDecider")
+  checkIns BookingCheckIn[]
+  proposedOvertime OvertimeProposal[] @relation("OvertimeAuthor")
+  decidedOvertime OvertimeProposal[] @relation("OvertimeDecider")
+  reportedCompletions BookingCompletion[] @relation("CompletionReporter")
+  verifiedCompletions BookingCompletion[] @relation("CompletionVerifier")
   customerBookings Booking[] @relation("BookingCustomer")
   providerBookings Booking[] @relation("BookingProvider")
   @@map("auth_users")
@@ -570,6 +575,9 @@ model Booking {
   quotations BookingQuotation[]
   agreement BookingAgreement?
   paymentOrders PaymentOrder[]
+  checkIn BookingCheckIn?
+  overtimeProposals OvertimeProposal[]
+  completion BookingCompletion?
   providerDecision ProviderDecision? @map("provider_decision")
   decidedAt DateTime? @map("decided_at") @db.Timestamptz(3)
   decisionReason String? @map("decision_reason") @db.VarChar(500)
@@ -812,4 +820,52 @@ model StripeEvent {
   attempt StripeAttempt @relation(fields: [attemptId], references: [id], onDelete: Restrict)
   @@index([attemptId])
   @@map("stripe_events")
+}
+
+model BookingCheckIn {
+  bookingId String @id @map("booking_id") @db.Uuid
+  recordedBy String @map("recorded_by") @db.Uuid
+  recordedAt DateTime @map("recorded_at") @db.Timestamptz(3)
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  recorder AuthUser @relation(fields: [recordedBy], references: [id], onDelete: Restrict)
+  @@map("booking_check_ins")
+}
+
+model OvertimeProposal {
+  id String @id @default(uuid()) @db.Uuid
+  bookingId String @map("booking_id") @db.Uuid
+  requestKey String @map("request_key") @db.Uuid
+  version Int
+  proposedBy String @map("proposed_by") @db.Uuid
+  minutes Int
+  amountMinor Int @map("amount_minor")
+  createdAt DateTime @map("created_at") @db.Timestamptz(3)
+  decision String? @db.VarChar(8)
+  decidedBy String? @map("decided_by") @db.Uuid
+  decidedAt DateTime? @map("decided_at") @db.Timestamptz(3)
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  proposer AuthUser @relation("OvertimeAuthor", fields: [proposedBy], references: [id], onDelete: Restrict)
+  decider AuthUser? @relation("OvertimeDecider", fields: [decidedBy], references: [id], onDelete: Restrict)
+  @@unique([bookingId, requestKey])
+  @@unique([bookingId, version])
+  @@map("overtime_proposals")
+}
+
+model BookingCompletion {
+  bookingId String @id @map("booking_id") @db.Uuid
+  reportedBy String @map("reported_by") @db.Uuid
+  reportedAt DateTime @map("reported_at") @db.Timestamptz(3)
+  originalMinor Int @map("original_minor")
+  advanceMinor Int @map("advance_minor")
+  overtimeMinor Int @map("overtime_minor")
+  overtimeMinutes Int @map("overtime_minutes")
+  balanceMinor Int @map("balance_minor")
+  platformFeeMinor Int @map("platform_fee_minor")
+  verifiedBy String? @map("verified_by") @db.Uuid
+  verifiedAt DateTime? @map("verified_at") @db.Timestamptz(3)
+  verificationReason String? @map("verification_reason") @db.VarChar(500)
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  reporter AuthUser @relation("CompletionReporter", fields: [reportedBy], references: [id], onDelete: Restrict)
+  verifier AuthUser? @relation("CompletionVerifier", fields: [verifiedBy], references: [id], onDelete: Restrict)
+  @@map("booking_completions")
 }

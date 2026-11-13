@@ -31,8 +31,10 @@ A checked box marks implemented backend code. PostgreSQL integration, client wir
 - [x] P11 server-priced advance and deposit orders with participant-only status reads.
 - [x] P11 PayHere sandbox hosted checkout and signed notification intake for advances and deposits.
 - [x] P11 Stripe test-mode hosted Checkout and signed notification intake for advances and deposits.
-- [ ] P11 Verify real PayHere and Stripe sandbox callbacks, confirm Stripe merchant LKR support and Connect eligibility, and enable balance collection after booking completion.
-- [ ] P12–P14 reconciliation, completion, settlements, documents, verified reviews, inspections and deposit settlement.
+- [ ] P11 Verify real PayHere and Stripe sandbox callbacks, confirm Stripe merchant LKR support and Connect eligibility, and reconcile gateway outcomes.
+- [x] P12 provider check-in, counterparty overtime decisions, completion reporting and admin verification.
+- [x] P12 final balance from the accepted agreement and approved overtime, with sandbox checkout after reported completion.
+- [ ] P12–P14 cancellation, refunds, reconciliation, settlements, documents, verified reviews, inspections and deposit settlement.
 - [ ] P15–P17 AI, KYC, support, disputes, reminders and system controls.
 - [ ] P18 analytics, security, accessibility, backup and rollback, and end-to-end release verification.
 

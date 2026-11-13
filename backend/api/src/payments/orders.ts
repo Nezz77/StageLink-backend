@@ -5,6 +5,7 @@ import { z } from 'zod';
 import type { PaymentOrder, Prisma } from '../../../generated/prisma/client.js';
 import type { AuthService, Identity } from '../auth/service.js';
 import { PublicError } from '../auth/errors.js';
+import { agreementAmounts, lockBooking, paidAdvance } from '../bookings/lifecycle.js';
 import { member } from '../bookings/requests.js';
 import { ProfileService } from '../profiles/service.js';
 
@@ -12,10 +13,6 @@ export const uuid = z.string().uuid();
 const purpose = z.enum(['advance', 'balance', 'deposit']);
 const create = z.object({ purpose }).strict();
 const minor = z.number().int().min(0).max(2_147_483_647);
-const agreementAmounts = z.object({
-  version: z.literal(1), currency: z.literal('LKR'),
-  totalMinor: minor.positive(), serviceAdvanceMinor: minor.positive(), depositMinor: minor,
-});
 const order = z.object({
   id: uuid, bookingId: uuid, purpose, amountMinor: minor.positive(), currency: z.literal('LKR'),
   status: z.enum(['open', 'pending', 'failed', 'cancelled', 'paid', 'review']), createdAt: z.iso.datetime(),
@@ -82,20 +79,26 @@ export function makePaymentOrdersController(auth: AuthService) {
       return access.write(req, async (tx, actor) => {
         const booking = await member(tx, bookingId, actor.user.id);
         if (booking.customerId !== actor.user.id) throw new PublicError(403, 'PAYMENT_CUSTOMER_REQUIRED', 'Only the booking customer can create a payment order.');
+        await lockBooking(tx, booking.id);
         const where = { bookingId_purpose: { bookingId, purpose } };
         const existing = await tx.paymentOrder.findUnique({ where });
         if (existing) return presentOrder(existing);
-        if (!booking.agreedAt || booking.startsAt <= new Date()) {
-          throw new PublicError(409, 'PAYMENT_NOT_ELIGIBLE', 'An upcoming booking agreement is required.');
-        }
+        let amountMinor: number;
         if (purpose === 'balance') {
-          throw new PublicError(409, 'BALANCE_NOT_DUE', 'Balance collection requires the booking completion workflow.');
+          const report = await tx.bookingCompletion.findUnique({ where: { bookingId } });
+          if (!report || !await paidAdvance(tx, bookingId)) {
+            throw new PublicError(409, 'BALANCE_NOT_DUE', 'Balance collection requires reported completion and a paid advance.');
+          }
+          amountMinor = report.balanceMinor;
+        } else {
+          if (!booking.agreedAt || booking.startsAt <= new Date()) {
+            throw new PublicError(409, 'PAYMENT_NOT_ELIGIBLE', 'An upcoming booking agreement is required.');
+          }
+          const terms = await agreementAmounts(tx, bookingId);
+          amountMinor = purpose === 'advance' ? terms.serviceAdvanceMinor : terms.depositMinor;
         }
-        const agreement = await tx.bookingAgreement.findUniqueOrThrow({ where: { bookingId } });
-        const terms = agreementAmounts.parse(JSON.parse(agreement.artifact));
-        const amountMinor = purpose === 'advance' ? terms.serviceAdvanceMinor : terms.depositMinor;
         if (amountMinor === 0) throw new PublicError(409, 'PAYMENT_NOT_DUE', 'No payment is due for this purpose.');
-        return presentOrder(await tx.paymentOrder.create({ data: { bookingId, purpose, amountMinor, currency: terms.currency } }));
+        return presentOrder(await tx.paymentOrder.create({ data: { bookingId, purpose, amountMinor, currency: 'LKR' } }));
       });
     }
 

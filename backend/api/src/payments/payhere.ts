@@ -6,6 +6,7 @@ import type { Config } from '../../../shared/config.js';
 import { openAccount, postJournal } from '../../../shared/payments/journal.js';
 import { checkoutHash, formatPayHereAmount, notificationStatus, payHereCheckoutUrl, payHereNotification, verifyNotification } from '../../../shared/payments/payhere.js';
 import type { AuthService } from '../auth/service.js';
+import { checkoutExpiry, lockBooking, paidAdvance } from '../bookings/lifecycle.js';
 import { PublicError } from '../auth/errors.js';
 import { parse, paymentAccess, readOrder, schema, uuid } from './orders.js';
 
@@ -55,11 +56,13 @@ export function makePayHereController(auth: AuthService) {
         const config = settings(auth.config);
         const { booking } = await readOrder(tx, orderId, actor.user.id);
         if (booking.customerId !== actor.user.id) throw new PublicError(403, 'PAYMENT_CUSTOMER_REQUIRED', 'Only the booking customer can start checkout.');
+        await lockBooking(tx, booking.id);
         await tx.$queryRaw`SELECT id FROM payment_orders WHERE id=${orderId}::uuid FOR UPDATE`;
         const order = await tx.paymentOrder.findUniqueOrThrow({ where: { id: orderId }, include: { payhereAttempt: true, stripeAttempt: { select: { id: true } } } });
         const now = new Date();
         if (order.stripeAttempt) throw new PublicError(409, 'CHECKOUT_GATEWAY_SELECTED', 'This order already has a Stripe checkout.');
-        if (!booking.agreedAt || booking.startsAt <= now || !['open', 'pending'].includes(order.status)) {
+        const expiresAt = await checkoutExpiry(tx, booking, order.purpose, now, attemptLifetimeMs);
+        if (!expiresAt || !['open', 'pending'].includes(order.status)) {
           throw new PublicError(409, 'CHECKOUT_NOT_ELIGIBLE', 'This order is unavailable for checkout.');
         }
         if (order.payhereAttempt && order.payhereAttempt.expiresAt <= now) {
@@ -67,8 +70,7 @@ export function makePayHereController(auth: AuthService) {
         }
         const attempt = order.payhereAttempt ?? await tx.payHereAttempt.create({
           data: {
-            orderId, createdAt: now,
-            expiresAt: new Date(Math.min(booking.startsAt.getTime(), now.getTime() + attemptLifetimeMs)),
+            orderId, createdAt: now, expiresAt,
           },
         });
         if (order.status === 'open') await tx.paymentOrder.update({ where: { id: orderId }, data: { status: 'pending' } });
@@ -105,8 +107,9 @@ export function makePayHereController(auth: AuthService) {
       }
 
       return db.$transaction(async tx => {
-        const attempt = await tx.payHereAttempt.findUnique({ where: { id: event.order_id } });
+        const attempt = await tx.payHereAttempt.findUnique({ where: { id: event.order_id }, include: { order: { select: { bookingId: true } } } });
         if (!attempt) throw new PublicError(404, 'PAYMENT_ATTEMPT_NOT_FOUND', 'This payment attempt is unavailable.');
+        await lockBooking(tx, attempt.order.bookingId);
         await tx.$queryRaw`SELECT id FROM payment_orders WHERE id=${attempt.orderId}::uuid FOR UPDATE`;
         const order = await tx.paymentOrder.findUniqueOrThrow({ where: { id: attempt.orderId } });
         const receivedAmount = Number(event.payhere_amount.replace('.', ''));
@@ -125,7 +128,8 @@ export function makePayHereController(auth: AuthService) {
         }
 
         const now = new Date();
-        const status = notificationStatus(order.status, event.status_code, attempt.expiresAt <= now);
+        const advanceInReview = order.purpose === 'balance' && event.status_code === '2' && !await paidAdvance(tx, order.bookingId);
+        const status = notificationStatus(order.status, event.status_code, attempt.expiresAt <= now || advanceInReview);
         let journalId: string | undefined;
         if (event.status_code === '2') {
           const fund = { currency: order.currency, purpose: order.purpose === 'deposit' ? 'deposit' as const : 'service' as const };

@@ -1413,6 +1413,102 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/bookings/{id}/journey": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["CompletionController_journey"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bookings/{id}/check-ins": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["CompletionController_recordCheckIn"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bookings/{id}/overtime": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["CompletionController_overtimeHistory"];
+        put?: never;
+        post: operations["CompletionController_propose"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/overtime/{id}/decisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["CompletionController_decide"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bookings/{id}/completion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["CompletionController_report"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/bookings/{id}/completion-verification": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["CompletionController_verify"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/bookings/{id}/payment-orders": {
         parameters: {
             query?: never;
@@ -11171,6 +11267,335 @@ export interface operations {
                         throughId: string;
                         /** Format: uuid */
                         readerId: string;
+                    };
+                };
+            };
+        };
+    };
+    CompletionController_journey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        bookingId: string;
+                        /** Format: date-time */
+                        startsAt: string;
+                        /** Format: date-time */
+                        endsAt: string;
+                        agreed: boolean;
+                        advancePaid: boolean;
+                        checkIn: {
+                            /** Format: uuid */
+                            bookingId: string;
+                            /** Format: uuid */
+                            recordedBy: string;
+                            /** Format: date-time */
+                            recordedAt: string;
+                            /** @enum {string} */
+                            method: "manual";
+                        } | null;
+                        completion: {
+                            /** Format: uuid */
+                            bookingId: string;
+                            /** Format: uuid */
+                            reportedBy: string;
+                            /** Format: date-time */
+                            reportedAt: string;
+                            /** Format: date-time */
+                            verifiedAt: string | null;
+                            originalMinor: number;
+                            advanceMinor: number;
+                            overtimeMinor: number;
+                            overtimeMinutes: number;
+                            balanceMinor: number;
+                            platformFeeMinor: number;
+                            /** @enum {string} */
+                            currency: "LKR";
+                        } | null;
+                        overtimePending: boolean;
+                    };
+                };
+            };
+        };
+    };
+    CompletionController_recordCheckIn: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {boolean} */
+                    confirmed: true;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        bookingId: string;
+                        /** Format: uuid */
+                        recordedBy: string;
+                        /** Format: date-time */
+                        recordedAt: string;
+                        /** @enum {string} */
+                        method: "manual";
+                    };
+                };
+            };
+        };
+    };
+    CompletionController_overtimeHistory: {
+        parameters: {
+            query?: {
+                beforeVersion?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            minutes: number;
+                            amountMinor: number;
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            bookingId: string;
+                            version: number;
+                            /** Format: uuid */
+                            proposedBy: string;
+                            /** Format: date-time */
+                            createdAt: string;
+                            /** @enum {string} */
+                            status: "pending" | "accepted" | "declined";
+                            /** Format: uuid */
+                            decidedBy: string | null;
+                            /** Format: date-time */
+                            decidedAt: string | null;
+                            /** @enum {string} */
+                            currency: "LKR";
+                        }[];
+                        nextVersion: number | null;
+                    };
+                };
+            };
+        };
+    };
+    CompletionController_propose: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    requestKey: string;
+                    minutes: number;
+                    amountMinor: number;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        minutes: number;
+                        amountMinor: number;
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uuid */
+                        bookingId: string;
+                        version: number;
+                        /** Format: uuid */
+                        proposedBy: string;
+                        /** Format: date-time */
+                        createdAt: string;
+                        /** @enum {string} */
+                        status: "pending" | "accepted" | "declined";
+                        /** Format: uuid */
+                        decidedBy: string | null;
+                        /** Format: date-time */
+                        decidedAt: string | null;
+                        /** @enum {string} */
+                        currency: "LKR";
+                    };
+                };
+            };
+        };
+    };
+    CompletionController_decide: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    decision: "accepted" | "declined";
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        minutes: number;
+                        amountMinor: number;
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uuid */
+                        bookingId: string;
+                        version: number;
+                        /** Format: uuid */
+                        proposedBy: string;
+                        /** Format: date-time */
+                        createdAt: string;
+                        /** @enum {string} */
+                        status: "pending" | "accepted" | "declined";
+                        /** Format: uuid */
+                        decidedBy: string | null;
+                        /** Format: date-time */
+                        decidedAt: string | null;
+                        /** @enum {string} */
+                        currency: "LKR";
+                    };
+                };
+            };
+        };
+    };
+    CompletionController_report: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {boolean} */
+                    confirmed: true;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        bookingId: string;
+                        /** Format: uuid */
+                        reportedBy: string;
+                        /** Format: date-time */
+                        reportedAt: string;
+                        /** Format: date-time */
+                        verifiedAt: string | null;
+                        originalMinor: number;
+                        advanceMinor: number;
+                        overtimeMinor: number;
+                        overtimeMinutes: number;
+                        balanceMinor: number;
+                        platformFeeMinor: number;
+                        /** @enum {string} */
+                        currency: "LKR";
+                    };
+                };
+            };
+        };
+    };
+    CompletionController_verify: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        bookingId: string;
+                        /** Format: uuid */
+                        reportedBy: string;
+                        /** Format: date-time */
+                        reportedAt: string;
+                        /** Format: date-time */
+                        verifiedAt: string | null;
+                        originalMinor: number;
+                        advanceMinor: number;
+                        overtimeMinor: number;
+                        overtimeMinutes: number;
+                        balanceMinor: number;
+                        platformFeeMinor: number;
+                        /** @enum {string} */
+                        currency: "LKR";
                     };
                 };
             };
