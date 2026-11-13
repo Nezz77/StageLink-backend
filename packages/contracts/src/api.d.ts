@@ -7441,6 +7441,15 @@ export interface operations {
         parameters: {
             query?: {
                 cursor?: string;
+                q?: string;
+                city?: string;
+                /** @description Maximum advertised base or daily rate in LKR minor units. */
+                maxPriceMinor?: string;
+                lat?: string;
+                lng?: string;
+                /** @description 1–500 km. Requires lat and lng. */
+                radiusKm?: string;
+                genre?: string;
             };
             header?: never;
             path?: never;
@@ -8014,6 +8023,16 @@ export interface operations {
         parameters: {
             query?: {
                 cursor?: string;
+                q?: string;
+                city?: string;
+                /** @description Maximum advertised base or daily rate in LKR minor units. */
+                maxPriceMinor?: string;
+                lat?: string;
+                lng?: string;
+                /** @description 1–500 km. Requires lat and lng. */
+                radiusKm?: string;
+                category?: string;
+                kind?: string;
             };
             header?: never;
             path?: never;

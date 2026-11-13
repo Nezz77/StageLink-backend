@@ -189,6 +189,11 @@ test('renter owns revisions and public browse only shows approved published equi
     assert.equal(listedVenue.venueCapacity, 120);
     assert.equal(listedVenue.hourlyRateMinor, 80000);
     assert.equal(listedVenue.weeklyRateMinor, 2300000);
+    const venues = await call('rentals?kind=venue&q=event&maxPriceMinor=450000');
+    assert.equal(venues.status, 200);
+    assert.ok(venues.data.items.some((item: { id: string }) => item.id === venueDraft.data.id));
+    assert.ok(!venues.data.items.some((item: { id: string }) => item.id === id));
+    assert.equal((await call('rentals?kind=invalid')).status, 400);
 
     const venuePath = `me/rentals/${venueDraft.data.id}`;
     const depositPath = venuePath + '/deposit-policy';

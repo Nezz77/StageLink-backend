@@ -1,5 +1,5 @@
 import { Body, Controller, Get, HttpCode, Param, Patch, Post, Put, Query, Req } from '@nestjs/common';
-import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiParam, ApiQuery, ApiTags, type SchemaObject } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiParam, ApiTags, type SchemaObject } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { z } from 'zod';
 import { Prisma, type RentalListing, type RentalListingVersion } from '../../../generated/prisma/client.js';
@@ -8,6 +8,7 @@ import { PublicError } from '../auth/errors.js';
 import { ProfileService } from '../profiles/service.js';
 import { providerPublic } from '../profiles/schemas.js';
 import { depositPolicy } from './deposit-policy.js';
+import { ApiCatalogQuery, searchPublished } from './search.js';
 
 const uuid = z.string().uuid();
 const revision = z.number().int().positive().max(2_147_483_647);
@@ -60,7 +61,6 @@ const publicListing = listing.omit({ stockQuantity: true }).extend({
 export const rentalSummary = publicListing.omit({ description: true, specs: true, bundleItems: true, depositPolicy: true });
 const publicPage = z.object({ items: z.array(publicListing), nextCursor: uuid.nullable() });
 const schema = (value: z.ZodType) => z.toJSONSchema(value, { target: 'openapi-3.0' }) as SchemaObject;
-const pageSize = 24;
 
 const publishedProfile = { kind: 'renter', approvedRevision: { not: null }, approvedSnapshot: { not: Prisma.DbNull } } as const;
 export const publicRentalFilter = {
@@ -309,15 +309,17 @@ export function makeRentalControllers(auth: AuthService) {
   @Controller('rentals')
   class PublicRentalsController {
     @Get()
-    @ApiQuery({ name: 'cursor', required: false, type: String })
+    @ApiCatalogQuery('rental')
     @ApiOkResponse({ schema: schema(publicPage) })
-    async list(@Query('cursor') cursor?: string) {
-      const records = await db.$transaction(tx => tx.rentalListing.findMany({
-        where: { ...publicRentalFilter, ...(cursor === undefined ? {} : { id: { gt: parse(uuid, cursor) } }) },
-        include: publicRentalInclude, orderBy: { id: 'asc' }, take: pageSize + 1,
-      }), { isolationLevel: 'RepeatableRead' });
-      const items = records.slice(0, pageSize).map(presentPublicRental);
-      return { items, nextCursor: records.length > pageSize ? items.at(-1)!.id : null };
+    async list(@Query() query: unknown) {
+      return db.$transaction(async tx => {
+        const { ids, nextCursor } = await searchPublished(tx, 'rental', query);
+        const records = await tx.rentalListing.findMany({
+          where: { ...publicRentalFilter, id: { in: ids } },
+          include: publicRentalInclude, orderBy: { id: 'asc' },
+        });
+        return { items: records.map(presentPublicRental), nextCursor };
+      }, { isolationLevel: 'RepeatableRead' });
     }
   }
 

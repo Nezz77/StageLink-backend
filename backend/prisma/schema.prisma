@@ -163,6 +163,8 @@ model ProviderProfile {
   reviewReason String? @map("review_reason") @db.VarChar(2000)
   approvedRevision Int? @map("approved_revision")
   approvedSnapshot Json? @map("approved_snapshot")
+  approvedLatitude Decimal? @map("approved_latitude") @db.Decimal(5,2)
+  approvedLongitude Decimal? @map("approved_longitude") @db.Decimal(5,2)
   updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
   user AuthUser @relation(fields:[userId], references:[id], onDelete:Cascade)
   @@id([userId,kind])

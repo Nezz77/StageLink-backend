@@ -115,7 +115,7 @@ export class ProfileService {
       if(p.revision!==input.revision||p.reviewStatus!=='pending')throw conflict();
       const revision=p.revision+1;
       await tx.providerProfile.update({where,data:{revision,reviewStatus:input.approved?'approved':'rejected',reviewReason:input.reason,updatedAt:new Date(),
-        ...(input.approved?{approvedRevision:revision,approvedSnapshot:this.publicCandidate(p,revision)}:{})}});
+        ...(input.approved?{approvedRevision:revision,approvedSnapshot:this.publicCandidate(p,revision),approvedLatitude:p.latitude?.toDecimalPlaces(2)??null,approvedLongitude:p.longitude?.toDecimalPlaces(2)??null}:{})}});
       await this.audit(tx,actor.user.id,userId,kind,input.approved?'approved':'rejected',revision,input.reason);
     });return{message:'Profile review recorded. This does not verify identity or payment eligibility.'};
   }

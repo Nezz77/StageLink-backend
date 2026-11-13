@@ -1,5 +1,5 @@
 import { Body, Controller, Get, HttpCode, Param, Patch, Post, Query, Req } from '@nestjs/common';
-import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiParam, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { z } from 'zod';
 import { Prisma, type ArtistGig, type ArtistGigVersion } from '../../../generated/prisma/client.js';
@@ -8,6 +8,7 @@ import { PublicError } from '../auth/errors.js';
 import { ProfileService } from '../profiles/service.js';
 import { artistDetails, providerPublic } from '../profiles/schemas.js';
 import { gigPackages } from './packages.js';
+import { ApiCatalogQuery, searchPublished } from './search.js';
 
 const uuid = z.string().uuid();
 const revision = z.number().int().positive().max(2_147_483_647);
@@ -41,7 +42,6 @@ export const publicGigInclude = {
   publication: true,
   owner: { select: { providers: { where: publicProfileFilter, select: { approvedSnapshot: true } } } },
 } satisfies Prisma.ArtistGigInclude;
-const pageSize = 24;
 type PublicRow = Prisma.ArtistGigGetPayload<{ include: typeof publicGigInclude }>;
 
 const schema = (value: z.ZodType) => z.toJSONSchema(value, { target: 'openapi-3.0' }) as import('@nestjs/swagger').SchemaObject;
@@ -200,17 +200,17 @@ export function makeGigControllers(auth: AuthService) {
   @Controller('listings')
   class PublicGigsController {
     @Get()
-    @ApiQuery({ name: 'cursor', required: false, type: String })
+    @ApiCatalogQuery('gig')
     @ApiOkResponse({ schema: schema(listingPage) })
-    async list(@Query('cursor') cursor?: string) {
-      const gigs = await db.$transaction(tx => tx.artistGig.findMany({
-        where: { ...publicGigFilter, ...(cursor === undefined ? {} : { id: { gt: parse(uuid, cursor) } }) },
-        include: publicGigInclude,
-        orderBy: { id: 'asc' },
-        take: pageSize + 1,
-      }), { isolationLevel: 'RepeatableRead' });
-      const items = gigs.slice(0, pageSize).map(presentGigSummary);
-      return { items, nextCursor: gigs.length > pageSize ? items.at(-1)!.id : null };
+    async list(@Query() query: unknown) {
+      return db.$transaction(async tx => {
+        const { ids, nextCursor } = await searchPublished(tx, 'gig', query);
+        const records = await tx.artistGig.findMany({
+          where: { ...publicGigFilter, id: { in: ids } },
+          include: publicGigInclude, orderBy: { id: 'asc' },
+        });
+        return { items: records.map(presentGigSummary), nextCursor };
+      }, { isolationLevel: 'RepeatableRead' });
     }
 
     @Get(':id')

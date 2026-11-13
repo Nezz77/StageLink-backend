@@ -64,7 +64,7 @@ test('gig ownership, publication snapshots and concurrent revisions', async () =
 
     const profile = {
       revision: 0, displayName: 'Acoustic fixture', bio: 'Acoustic music for events.', city: 'Colombo',
-      serviceRadiusKm: 45, address: 'Private fixture address', latitude: null, longitude: null,
+      serviceRadiusKm: 45, address: 'Private fixture address', latitude: 6.927111, longitude: 79.861234,
       details: { category: 'Vocalist', genres: ['Jazz'], experienceYears: 5, baseRateMinor: 1500000, currency: 'LKR' },
     };
     assert.equal((await call('me/providers/artist', profile, artist, 'PUT')).status, 200);
@@ -97,6 +97,16 @@ test('gig ownership, publication snapshots and concurrent revisions', async () =
     const summary = await listed();
     assert.equal(summary.title, fields.title);
     assert.equal('packages' in summary, false);
+    const matching = await call('listings?q=acoustic&city=colombo&genre=jazz&lat=6.93&lng=79.86&radiusKm=5&maxPriceMinor=1500000');
+    assert.equal(matching.status, 200);
+    assert.ok(matching.data.items.some((item: { id: string }) => item.id === created.data.id));
+    assert.ok(!JSON.stringify(matching.data).includes('6.927111'));
+    for (const query of ['genre=rock', 'maxPriceMinor=1499999', 'lat=7.3&lng=80.6&radiusKm=5']) {
+      const excluded = await call('listings?' + query);
+      assert.equal(excluded.status, 200);
+      assert.ok(!excluded.data.items.some((item: { id: string }) => item.id === created.data.id));
+    }
+    assert.equal((await call('listings?lat=6.93')).status, 400);
     const afterGig = await call('listings?cursor=' + created.data.id);
     assert.equal(afterGig.status, 200);
     assert.ok(afterGig.data.items.every((item: { id: string }) => item.id > created.data.id));
