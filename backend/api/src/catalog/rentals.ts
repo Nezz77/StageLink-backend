@@ -57,6 +57,7 @@ const ownerListing = listing.extend({ revision, status, publishedVersion: revisi
 const publicListing = listing.omit({ stockQuantity: true }).extend({
   storefront: z.object({ displayName: z.string(), city: z.string() }),
 });
+export const rentalSummary = publicListing.omit({ description: true, specs: true, bundleItems: true, depositPolicy: true });
 const publicPage = z.object({ items: z.array(publicListing), nextCursor: uuid.nullable() });
 const schema = (value: z.ZodType) => z.toJSONSchema(value, { target: 'openapi-3.0' }) as SchemaObject;
 const pageSize = 24;
@@ -70,7 +71,7 @@ export const publicRentalFilter = {
     providers: { some: publishedProfile },
   },
 } satisfies Prisma.RentalListingWhereInput;
-const publicInclude = {
+export const publicRentalInclude = {
   publication: true,
   owner: { select: { providers: { where: publishedProfile, select: { approvedSnapshot: true } } } },
 } satisfies Prisma.RentalListingInclude;
@@ -93,6 +94,20 @@ function ownerView(record: RentalListing, version: RentalListingVersion | undefi
     category: version.category, currency: 'LKR' as const, dailyRateMinor: version.dailyRateMinor,
     stockQuantity: version.stockQuantity, specs: specs.parse(version.specs),
   };
+}
+
+type PublicRentalRow = Prisma.RentalListingGetPayload<{ include: typeof publicRentalInclude }>;
+
+function presentPublicRental(record: PublicRentalRow) {
+  const profile = providerPublic.parse(record.owner.providers[0]?.approvedSnapshot);
+  const { revision: _revision, status: _status, publishedVersion: _publication, stockQuantity: _stock, ...published } =
+    ownerView(record, record.publication ?? undefined);
+  return { ...published, storefront: { displayName: profile.displayName, city: profile.city } };
+}
+
+export function presentRentalSummary(record: PublicRentalRow) {
+  const { description: _description, specs: _specs, bundleItems: _items, depositPolicy: _policy, ...summary } = presentPublicRental(record);
+  return summary;
 }
 
 async function versionDetails(
@@ -299,14 +314,9 @@ export function makeRentalControllers(auth: AuthService) {
     async list(@Query('cursor') cursor?: string) {
       const records = await db.$transaction(tx => tx.rentalListing.findMany({
         where: { ...publicRentalFilter, ...(cursor === undefined ? {} : { id: { gt: parse(uuid, cursor) } }) },
-        include: publicInclude, orderBy: { id: 'asc' }, take: pageSize + 1,
+        include: publicRentalInclude, orderBy: { id: 'asc' }, take: pageSize + 1,
       }), { isolationLevel: 'RepeatableRead' });
-      const items = records.slice(0, pageSize).map(record => {
-        const profile = providerPublic.parse(record.owner.providers[0]?.approvedSnapshot);
-        const { revision: _revision, status: _status, publishedVersion: _publication, stockQuantity: _stock, ...published } = ownerView(record, record.publication ?? undefined);
-        return { ...published,
-          storefront: { displayName: profile.displayName, city: profile.city } };
-      });
+      const items = records.slice(0, pageSize).map(presentPublicRental);
       return { items, nextCursor: records.length > pageSize ? items.at(-1)!.id : null };
     }
   }

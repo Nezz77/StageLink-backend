@@ -26,10 +26,10 @@ const ownerGig = publicGig.extend({
 });
 const artist = z.object({ displayName: z.string(), city: z.string(), category: artistDetails.shape.category });
 const listing = publicGig.extend({ artist });
-const listingSummary = listing.omit({ description: true, packages: true });
-const listingPage = z.object({ items: z.array(listingSummary), nextCursor: uuid.nullable() });
+export const gigSummary = listing.omit({ description: true, packages: true });
+const listingPage = z.object({ items: z.array(gigSummary), nextCursor: uuid.nullable() });
 const publicProfileFilter = { kind: 'artist', approvedRevision: { not: null }, approvedSnapshot: { not: Prisma.DbNull } } as const;
-const publicFilter = {
+export const publicGigFilter = {
   status: 'published',
   publishedVersion: { not: null },
   owner: {
@@ -37,12 +37,12 @@ const publicFilter = {
     providers: { some: publicProfileFilter },
   },
 } satisfies Prisma.ArtistGigWhereInput;
-const publicInclude = {
+export const publicGigInclude = {
   publication: true,
   owner: { select: { providers: { where: publicProfileFilter, select: { approvedSnapshot: true } } } },
 } satisfies Prisma.ArtistGigInclude;
 const pageSize = 24;
-type PublicRow = Prisma.ArtistGigGetPayload<{ include: typeof publicInclude }>;
+type PublicRow = Prisma.ArtistGigGetPayload<{ include: typeof publicGigInclude }>;
 
 const schema = (value: z.ZodType) => z.toJSONSchema(value, { target: 'openapi-3.0' }) as import('@nestjs/swagger').SchemaObject;
 const missing = () => new PublicError(404, 'GIG_NOT_FOUND', 'This gig is not available.');
@@ -69,6 +69,11 @@ function presentPublic(gig: PublicRow) {
     ...present(gig, gig.publication),
     artist: { displayName: profile.displayName, city: profile.city, category: artistDetails.parse(profile.details).category },
   };
+}
+
+export function presentGigSummary(gig: PublicRow) {
+  const { description: _description, packages: _packages, ...summary } = presentPublic(gig);
+  return summary;
 }
 
 export function makeGigControllers(auth: AuthService) {
@@ -199,15 +204,12 @@ export function makeGigControllers(auth: AuthService) {
     @ApiOkResponse({ schema: schema(listingPage) })
     async list(@Query('cursor') cursor?: string) {
       const gigs = await db.$transaction(tx => tx.artistGig.findMany({
-        where: { ...publicFilter, ...(cursor === undefined ? {} : { id: { gt: parse(uuid, cursor) } }) },
-        include: publicInclude,
+        where: { ...publicGigFilter, ...(cursor === undefined ? {} : { id: { gt: parse(uuid, cursor) } }) },
+        include: publicGigInclude,
         orderBy: { id: 'asc' },
         take: pageSize + 1,
       }), { isolationLevel: 'RepeatableRead' });
-      const items = gigs.slice(0, pageSize).map(gig => {
-        const { description: _description, packages: _packages, ...summary } = presentPublic(gig);
-        return summary;
-      });
+      const items = gigs.slice(0, pageSize).map(presentGigSummary);
       return { items, nextCursor: gigs.length > pageSize ? items.at(-1)!.id : null };
     }
 
@@ -216,8 +218,8 @@ export function makeGigControllers(auth: AuthService) {
     @ApiOkResponse({ schema: schema(listing) })
     async detail(@Param('id') id: string) {
       const gig = await db.$transaction(tx => tx.artistGig.findFirst({
-        where: { ...publicFilter, id: parse(uuid, id) },
-        include: publicInclude,
+        where: { ...publicGigFilter, id: parse(uuid, id) },
+        include: publicGigInclude,
       }), { isolationLevel: 'RepeatableRead' });
       if (!gig) throw missing();
       return presentPublic(gig);

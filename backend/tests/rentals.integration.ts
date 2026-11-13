@@ -15,6 +15,7 @@ test('renter owns revisions and public browse only shows approved published equi
   const deps = resources(config);
   const { app } = await createApp(config, deps);
   const ids: string[] = [];
+  const announcements: string[] = [];
   const password = 'A private fixture password 12!';
   type Login = { accessToken: string; csrfToken: string; user: { id: string } };
 
@@ -65,6 +66,24 @@ test('renter owns revisions and public browse only shows approved published equi
       return page.data.items.find((item: { id: string }) => item.id === id);
     }
     assert.equal(await publicItem(), undefined);
+    const beforePublish = await call('public/feed');
+    assert.equal(beforePublish.status, 200);
+    assert.ok(!beforePublish.data.rentals.some((item: { id: string }) => item.id === id));
+    const now = Date.now();
+    const notice = { title: 'Catalog fixture', body: 'A public catalog announcement' };
+    for (const schedule of [
+      { publishedAt: new Date(now - 10000), startsAt: new Date(now - 10000), endsAt: null },
+      { publishedAt: null, startsAt: new Date(now - 10000), endsAt: null },
+      { publishedAt: new Date(now - 10000), startsAt: new Date(now + 86400000), endsAt: null },
+      { publishedAt: new Date(now - 10000), startsAt: new Date(now - 10000), endsAt: new Date(now - 1000) },
+    ]) {
+      const announcement = await deps.db.publicAnnouncement.create({ data: { ...notice, ...schedule } });
+      announcements.push(announcement.id);
+    }
+    const notices = await call('public/announcements');
+    assert.equal(notices.status, 200);
+    assert.deepEqual(notices.data.items.filter((item: { id: string }) => announcements.includes(item.id))
+      .map((item: { id: string }) => item.id), [announcements[0]]);
     assert.equal((await call(path, { ...fields, revision: 1 }, other, 'PATCH')).status, 404);
     assert.equal((await call(path + '/status', { revision: 1, action: 'publish' }, renter)).status, 409);
 
@@ -95,6 +114,15 @@ test('renter owns revisions and public browse only shows approved published equi
     assert.deepEqual((await publicItem()).specs, edit.specs);
     assert.equal((await publicItem()).kind, 'equipment');
     assert.equal((await publicItem()).weeklyRateMinor, null);
+    const feed = await call('public/feed');
+    assert.equal(feed.status, 200);
+    assert.equal(feed.data.totals.rentals, beforePublish.data.totals.rentals + 1);
+    const summary = feed.data.rentals.find((item: { id: string }) => item.id === id);
+    assert.equal(summary.title, fields.title);
+    assert.equal(summary.dailyRateMinor, edit.dailyRateMinor);
+    assert.equal('stockQuantity' in summary, false);
+    assert.equal('specs' in summary, false);
+    assert.ok(feed.data.announcements.some((item: { id: string }) => item.id === announcements[0]));
 
     const asset = await deps.db.asset.create({ data: {
       ownerId: renter.user.id, purpose: 'equipment', filename: 'speaker.png', mime: 'image/png',
@@ -225,6 +253,7 @@ test('renter owns revisions and public browse only shows approved published equi
     assert.equal(await deps.db.rentalListingVersion.count({ where: { listingId: id } }), 2);
   } finally {
     try {
+      await deps.db.publicAnnouncement.deleteMany({ where: { id: { in: announcements } } });
       const owned = { ownerId: { in: ids } };
       await deps.db.rentalListing.updateMany({ where: owned, data: { status: 'archived', publishedVersion: null } });
       await deps.db.inventoryMovement.deleteMany({ where: { unit: owned } });

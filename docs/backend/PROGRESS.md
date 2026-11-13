@@ -51,3 +51,5 @@ BE-032 adds versioned refundable deposit policies through `PUT /api/v1/me/rental
 BE-034 adds a renter-owned serial registry, overdue custody tracking, return inspection, maintenance, quarantine and retirement. Every status change appends a movement in the same transaction. Concurrent dispatch attempts for a single serial serialize under the owner lock and require the current revision. Date-specific reservation capacity and booking-linked dispatch remain in P08 and P14.
 
 BE-065 adds rental gallery endpoints. Renters can link, caption, reorder and detach their reviewed equipment photos and videos. Public galleries require a published listing and current media approval. The response includes the portfolio item ID used by the existing public media access endpoint. Detaching a gallery item leaves its source asset and retention records intact.
+
+BE-011 adds a public feed of approved, published gigs and rentals, live listing counts, and scheduled announcements. The API excludes unpublished, future and expired announcements. Announcement authoring and campaign delivery remain in P17.
