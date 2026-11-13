@@ -136,3 +136,4 @@ Once Railway gives you a public URL:
 | **Koyeb** | Free tier: 1 service, 512 MB RAM, 1 region. No managed Redis/Postgres — need external. |
 
 **Railway is the best fit** for this project because it natively supports PostgreSQL, Redis, and Docker with the least configuration.
+
