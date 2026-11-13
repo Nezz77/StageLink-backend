@@ -585,6 +585,7 @@ model Booking {
   refundRequest RefundRequest?
   payoutOrder PayoutOrder?
   payoutHolds BookingPayoutHold[]
+  documents BookingDocument[]
   cancelledAt DateTime? @map("cancelled_at") @db.Timestamptz(3)
   cancellationReason String? @map("cancellation_reason") @db.VarChar(500)
   providerDecision ProviderDecision? @map("provider_decision")
@@ -947,4 +948,33 @@ model PayoutOrder {
   reservation JournalTransaction @relation(fields: [reservationId], references: [id], onDelete: Restrict)
   @@index([providerId])
   @@map("payout_orders")
+}
+
+enum BookingDocumentKind {
+  invoice
+  receipt
+  settlement
+}
+
+enum BookingDocumentStatus {
+  pending
+  ready
+  failed
+}
+
+model BookingDocument {
+  id String @id @default(uuid()) @db.Uuid
+  bookingId String @map("booking_id") @db.Uuid
+  kind BookingDocumentKind
+  sourceId String @map("source_id") @db.Uuid
+  snapshot Json
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  status BookingDocumentStatus @default(pending)
+  renderId String? @map("render_id") @db.Uuid
+  leaseId String? @map("lease_id") @db.Uuid
+  leaseUntil DateTime? @map("lease_until") @db.Timestamptz(3)
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  @@unique([bookingId, kind, sourceId])
+  @@index([status, createdAt])
+  @@map("booking_documents")
 }

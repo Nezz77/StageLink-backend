@@ -7,6 +7,7 @@ import { consume, dispatchBatch, QUEUE } from '../../shared/outbox.js';
 import { createMailer, deliverAuthMail } from '../../shared/auth-mail.js';
 import { MediaStore } from '../../shared/media-store.js';
 import { processMediaBatch, cleanupMediaBatch } from '../../shared/media-processing.js';
+import { processBookingDocuments } from '../../shared/booking-documents.js';
 import { log } from '../../shared/log.js';
 
 async function main() {
@@ -15,7 +16,7 @@ async function main() {
   const mailer = createMailer(config);
   const mediaStore = new MediaStore(config);
   let mediaRunning=false, mediaStopping=false;
-  async function mediaScan(){if(mediaRunning||mediaStopping)return;mediaRunning=true;try{await processMediaBatch(deps,mediaStore);await cleanupMediaBatch(deps,mediaStore);}catch{log('media.scan_failed',{code:'MEDIA_RETRY'});}finally{mediaRunning=false;}}
+  async function mediaScan(){if(mediaRunning||mediaStopping)return;mediaRunning=true;try{await processMediaBatch(deps,mediaStore);await cleanupMediaBatch(deps,mediaStore);await processBookingDocuments(deps.db,mediaStore);}catch{log('media.scan_failed',{code:'MEDIA_RETRY'});}finally{mediaRunning=false;}}
   const mediaTimer=setInterval(()=>void mediaScan(),1000);
   const publisher = new Redis(config.REDIS_URL, { maxRetriesPerRequest: 1, enableOfflineQueue: false, connectTimeout: 1000, commandTimeout: 2000 });
   const subscriber = new Redis(config.REDIS_URL, { maxRetriesPerRequest: null, connectTimeout: 1000 });

@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOkResponse, ApiParam, ApiTags }
 import type { Request } from 'express';
 import { z } from 'zod';
 import type { Config } from '../../../shared/config.js';
+import { issueDocument } from '../../../shared/booking-documents.js';
 import { openAccount, postJournal } from '../../../shared/payments/journal.js';
 import { checkoutHash, formatPayHereAmount, notificationStatus, payHereCheckoutUrl, payHereNotification, verifyNotification } from '../../../shared/payments/payhere.js';
 import type { AuthService } from '../auth/service.js';
@@ -145,6 +146,11 @@ export function makePayHereController(auth: AuthService) {
             { accountId: clearing.id, amountMinor: -BigInt(order.amountMinor) },
             { accountId: destination.id, amountMinor: BigInt(order.amountMinor) },
           ]);
+          await issueDocument(tx, order.bookingId, journalId, {
+            version: 1, kind: 'receipt', issuedAt: now.toISOString(), orderId: order.id,
+            purpose: order.purpose, amountMinor: order.amountMinor, gateway: 'PayHere',
+            disposition: status === 'paid' ? 'captured' : 'review',
+          });
         }
         await tx.payHereEvent.create({ data: { ...key, reportedPaymentId: event.payment_id, receivedAt: now, journalId } });
         if (status !== order.status) await tx.paymentOrder.update({ where: { id: order.id }, data: { status } });

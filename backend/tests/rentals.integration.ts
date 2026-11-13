@@ -7,6 +7,7 @@ import { hashPassword } from '../api/src/auth/security.js';
 import { readConfig } from '../shared/config.js';
 import { resources } from '../shared/resources.js';
 import { MediaStore, derivativeKey, originalKey } from '../shared/media-store.js';
+import { documentKey, processBookingDocuments } from '../shared/booking-documents.js';
 import { processMediaBatch } from '../shared/media-processing.js';
 
 const merchantId = '1210000';
@@ -27,6 +28,7 @@ test('renter owns revisions and public browse only shows approved published equi
   const { app } = await createApp(config, deps);
   const ids: string[] = [];
   const attachmentAssets: string[] = [];
+  const renderedDocuments: string[] = [];
   const store = new MediaStore(config);
   const announcements: string[] = [];
   const password = 'A private fixture password 12!';
@@ -350,6 +352,29 @@ test('renter owns revisions and public browse only shows approved published equi
     const artifact = await call(artifactPath, undefined, winnerCustomer);
     assert.equal(createHash('sha256').update(artifact.data.artifact).digest('hex'), agreement.data.digest);
     assert.equal(JSON.parse(artifact.data.artifact).serviceAdvanceMinor, 175000);
+    const documentsPath = 'bookings/' + winner.id + '/documents';
+    assert.equal((await call(documentsPath, undefined, other)).status, 404);
+    const documents = await call(documentsPath, undefined, winnerCustomer);
+    assert.equal(documents.data.items.length, 1);
+    const invoice = documents.data.items[0];
+    assert.equal(invoice.snapshot.kind, 'invoice');
+    assert.equal(invoice.snapshot.agreementDigest, agreement.data.digest);
+    const documentPath = 'documents/' + invoice.id;
+    assert.equal((await call(documentPath, undefined, other)).status, 404);
+    assert.equal((await call(documentPath + '/download', undefined, winnerCustomer)).status, 409);
+    await deps.db.bookingDocument.update({ where: { id: invoice.id }, data: { status: 'failed' } });
+    assert.equal((await call(documentPath + '/render-retry', {}, winnerCustomer)).data.status, 'pending');
+    await processBookingDocuments(deps.db, store);
+    const rendered = await deps.db.bookingDocument.findUniqueOrThrow({ where: { id: invoice.id } });
+    assert.ok(rendered.renderId);
+    renderedDocuments.push(documentKey(rendered.id, rendered.renderId));
+    const pdf = await fetch(base + '/api/v1/' + documentPath + '/download', {
+      headers: { Authorization: 'Bearer ' + winnerCustomer.accessToken },
+    });
+    assert.equal(pdf.status, 200);
+    assert.match(pdf.headers.get('Content-Type') ?? '', /^application\/pdf\b/);
+    assert.equal(Buffer.from(await pdf.arrayBuffer()).subarray(0, 5).toString(), '%PDF-');
+
     assert.equal((await call('bookings/' + winner.id, undefined, renter)).data.state, 'agreed');
     const ordersPath = 'bookings/' + winner.id + '/payment-orders';
     const advanceOrders = await Promise.all([
@@ -540,6 +565,8 @@ test('renter owns revisions and public browse only shows approved published equi
       await deps.db.payHereEvent.deleteMany({ where: { attempt: { order: orderFixtures } } });
       await deps.db.payHereAttempt.deleteMany({ where: { order: orderFixtures } });
       await deps.db.paymentOrder.deleteMany({ where: { booking: { customerId: { in: ids } } } });
+      for (const key of renderedDocuments) await store.remove(key);
+      await deps.db.bookingDocument.deleteMany({ where: orderFixtures });
       await deps.db.bookingAgreement.deleteMany({ where: { booking: { customerId: { in: ids } } } });
       await deps.db.bookingQuotation.deleteMany({ where: { booking: { customerId: { in: ids } } } });
       await deps.db.booking.deleteMany({ where: { customerId: { in: ids } } });

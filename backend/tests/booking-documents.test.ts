@@ -1,0 +1,25 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { documentNumber, renderBookingDocument } from '../shared/booking-documents.js';
+
+test('server renders each sandbox booking document from its stable snapshot', () => {
+  const id = '5f6fe928-b401-416b-91d0-9a0af6a11203';
+  const bookingId = 'a018594a-02ce-445f-97c7-6ebc73d5bb14';
+  const issuedAt = '2026-11-13T18:00:00.000Z';
+  const common = { version: 1, issuedAt };
+  const snapshots = [
+    { ...common, kind: 'invoice', totalMinor: 35_011, advanceMinor: 17_506, depositMinor: 0,
+      startsAt: issuedAt, endsAt: '2026-11-13T19:00:00.000Z', agreementDigest: '0'.repeat(64) },
+    { ...common, kind: 'receipt', purpose: 'advance', amountMinor: 17_506, gateway: 'Stripe', orderId: id, disposition: 'review' },
+    { ...common, kind: 'settlement', grossMinor: 35_011, platformFeeMinor: 1_751, netMinor: 33_260, destinationRevision: 2 },
+  ] as const;
+  for (const snapshot of snapshots) {
+    const record = { id, bookingId, kind: snapshot.kind, snapshot };
+    const pdf = renderBookingDocument(record);
+    assert.match(pdf.toString('latin1'), /^%PDF-/);
+    assert.match(pdf.toString('latin1'), /%%EOF$/);
+    assert.deepEqual(renderBookingDocument(record), pdf);
+  }
+  assert.equal(documentNumber('receipt', id), 'RCT-' + id.toUpperCase());
+  assert.throws(() => renderBookingDocument({ id, bookingId, kind: 'receipt', snapshot: snapshots[0] }), /kind mismatch/);
+});

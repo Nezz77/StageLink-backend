@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import type { Request } from 'express';
 import { z } from 'zod';
 import type { Booking, BookingAgreement, BookingQuotation, Prisma } from '../../../generated/prisma/client.js';
+import { issueDocument } from '../../../shared/booking-documents.js';
 import type { AuthService } from '../auth/service.js';
 import { PublicError } from '../auth/errors.js';
 import { ProfileService } from '../profiles/service.js';
@@ -177,9 +178,15 @@ export function makeQuotationsController(auth: AuthService) {
             currency: 'LKR', lines: lines.parse(latest.lines), terms: latest.terms, totalMinor: latest.totalMinor,
             serviceAdvanceMinor: Math.round(latest.totalMinor / 2), depositMinor,
           });
-          evidence = presentAgreement(await tx.bookingAgreement.create({
+          const acceptedAgreement = await tx.bookingAgreement.create({
             data: { bookingId: booking.id, quotationId, artifact: content, digest: createHash('sha256').update(content).digest('hex'), createdAt: now },
-          }));
+          });
+          evidence = presentAgreement(acceptedAgreement);
+          await issueDocument(tx, booking.id, acceptedAgreement.id, {
+            version: 1, kind: 'invoice', issuedAt: now.toISOString(), agreementDigest: acceptedAgreement.digest,
+            totalMinor: latest.totalMinor, advanceMinor: Math.round(latest.totalMinor / 2), depositMinor,
+            startsAt: booking.startsAt.toISOString(), endsAt: booking.endsAt.toISOString(),
+          });
         }
         return { quotation: presentQuote(decided, latest.version, updated, now), bookingRevision: updated.revision, agreement: evidence };
       });

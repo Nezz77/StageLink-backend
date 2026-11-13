@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import type { Request } from 'express';
 import { z } from 'zod';
 import type { Booking, BookingPayoutHold, PayoutOrder, Prisma } from '../../../generated/prisma/client.js';
+import { issueDocument } from '../../../shared/booking-documents.js';
 import { openAccount, postJournal } from '../../../shared/payments/journal.js';
 import { PublicError } from '../auth/errors.js';
 import type { AuthService } from '../auth/service.js';
@@ -255,6 +256,10 @@ export function makePayoutsController(auth: AuthService) {
               id, bookingId: booking.id, providerId: booking.providerId, destinationRevision: destination.revision,
               createdBy: actorId, createdAt: new Date(), grossMinor, platformFeeMinor, netMinor, reservationId,
             },
+          });
+          await issueDocument(tx, booking.id, order.id, {
+            version: 1, kind: 'settlement', issuedAt: order.createdAt.toISOString(),
+            grossMinor, platformFeeMinor, netMinor, destinationRevision: order.destinationRevision,
           });
           return currentPayout(tx, order);
         });

@@ -1573,6 +1573,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/bookings/{id}/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["DocumentsController_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/documents/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["DocumentsController_detail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/documents/{id}/render-retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["DocumentsController_retry"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/documents/{id}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["DocumentsController_download"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/bookings/{id}/payment-orders": {
         parameters: {
             query?: never;
@@ -11982,6 +12046,261 @@ export interface operations {
                             reserved: boolean;
                         }[];
                     };
+                };
+            };
+        };
+    };
+    DocumentsController_list: {
+        parameters: {
+            query?: {
+                cursor?: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            bookingId: string;
+                            number: string;
+                            /** @enum {string} */
+                            status: "pending" | "ready" | "failed";
+                            /** @enum {string} */
+                            currency: "LKR";
+                            /** @enum {string} */
+                            environment: "sandbox";
+                            snapshot: {
+                                /** @enum {number} */
+                                version: 1;
+                                /** @enum {string} */
+                                kind: "invoice";
+                                /** Format: date-time */
+                                issuedAt: string;
+                                totalMinor: number;
+                                advanceMinor: number;
+                                depositMinor: number;
+                                /** Format: date-time */
+                                startsAt: string;
+                                /** Format: date-time */
+                                endsAt: string;
+                                agreementDigest: string;
+                            } | {
+                                /** @enum {number} */
+                                version: 1;
+                                /** @enum {string} */
+                                kind: "receipt";
+                                /** Format: date-time */
+                                issuedAt: string;
+                                /** @enum {string} */
+                                purpose: "advance" | "balance" | "deposit";
+                                amountMinor: number;
+                                /** @enum {string} */
+                                gateway: "PayHere" | "Stripe";
+                                /** Format: uuid */
+                                orderId: string;
+                                /** @enum {string} */
+                                disposition: "captured" | "review";
+                            } | {
+                                /** @enum {number} */
+                                version: 1;
+                                /** @enum {string} */
+                                kind: "settlement";
+                                /** Format: date-time */
+                                issuedAt: string;
+                                grossMinor: number;
+                                platformFeeMinor: number;
+                                netMinor: number;
+                                destinationRevision: number;
+                            };
+                        }[];
+                        /** Format: uuid */
+                        nextCursor: string | null;
+                    };
+                };
+            };
+        };
+    };
+    DocumentsController_detail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uuid */
+                        bookingId: string;
+                        number: string;
+                        /** @enum {string} */
+                        status: "pending" | "ready" | "failed";
+                        /** @enum {string} */
+                        currency: "LKR";
+                        /** @enum {string} */
+                        environment: "sandbox";
+                        snapshot: {
+                            /** @enum {number} */
+                            version: 1;
+                            /** @enum {string} */
+                            kind: "invoice";
+                            /** Format: date-time */
+                            issuedAt: string;
+                            totalMinor: number;
+                            advanceMinor: number;
+                            depositMinor: number;
+                            /** Format: date-time */
+                            startsAt: string;
+                            /** Format: date-time */
+                            endsAt: string;
+                            agreementDigest: string;
+                        } | {
+                            /** @enum {number} */
+                            version: 1;
+                            /** @enum {string} */
+                            kind: "receipt";
+                            /** Format: date-time */
+                            issuedAt: string;
+                            /** @enum {string} */
+                            purpose: "advance" | "balance" | "deposit";
+                            amountMinor: number;
+                            /** @enum {string} */
+                            gateway: "PayHere" | "Stripe";
+                            /** Format: uuid */
+                            orderId: string;
+                            /** @enum {string} */
+                            disposition: "captured" | "review";
+                        } | {
+                            /** @enum {number} */
+                            version: 1;
+                            /** @enum {string} */
+                            kind: "settlement";
+                            /** Format: date-time */
+                            issuedAt: string;
+                            grossMinor: number;
+                            platformFeeMinor: number;
+                            netMinor: number;
+                            destinationRevision: number;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    DocumentsController_retry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uuid */
+                        bookingId: string;
+                        number: string;
+                        /** @enum {string} */
+                        status: "pending" | "ready" | "failed";
+                        /** @enum {string} */
+                        currency: "LKR";
+                        /** @enum {string} */
+                        environment: "sandbox";
+                        snapshot: {
+                            /** @enum {number} */
+                            version: 1;
+                            /** @enum {string} */
+                            kind: "invoice";
+                            /** Format: date-time */
+                            issuedAt: string;
+                            totalMinor: number;
+                            advanceMinor: number;
+                            depositMinor: number;
+                            /** Format: date-time */
+                            startsAt: string;
+                            /** Format: date-time */
+                            endsAt: string;
+                            agreementDigest: string;
+                        } | {
+                            /** @enum {number} */
+                            version: 1;
+                            /** @enum {string} */
+                            kind: "receipt";
+                            /** Format: date-time */
+                            issuedAt: string;
+                            /** @enum {string} */
+                            purpose: "advance" | "balance" | "deposit";
+                            amountMinor: number;
+                            /** @enum {string} */
+                            gateway: "PayHere" | "Stripe";
+                            /** Format: uuid */
+                            orderId: string;
+                            /** @enum {string} */
+                            disposition: "captured" | "review";
+                        } | {
+                            /** @enum {number} */
+                            version: 1;
+                            /** @enum {string} */
+                            kind: "settlement";
+                            /** Format: date-time */
+                            issuedAt: string;
+                            grossMinor: number;
+                            platformFeeMinor: number;
+                            netMinor: number;
+                            destinationRevision: number;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    DocumentsController_download: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": string;
                 };
             };
         };

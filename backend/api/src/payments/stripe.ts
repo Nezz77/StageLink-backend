@@ -4,6 +4,7 @@ import type { Request } from 'express';
 import { z } from 'zod';
 import type { Prisma } from '../../../generated/prisma/client.js';
 import type { Config } from '../../../shared/config.js';
+import { issueDocument } from '../../../shared/booking-documents.js';
 import { openAccount, postJournal } from '../../../shared/payments/journal.js';
 import { createStripeCheckout, stripeEvent, stripeSession, stripeSessionReference, validStripeSignature } from '../../../shared/payments/stripe.js';
 import { checkoutExpiry, lockBooking, paidAdvance, paymentBlocked } from '../bookings/lifecycle.js';
@@ -162,6 +163,11 @@ export function makeStripeController(auth: AuthService) {
             { accountId: clearing.id, amountMinor: -BigInt(order.amountMinor) },
             { accountId: destination.id, amountMinor: BigInt(order.amountMinor) },
           ]);
+          await issueDocument(tx, order.bookingId, journalId, {
+            version: 1, kind: 'receipt', issuedAt: new Date(event.created * 1000).toISOString(), orderId: order.id,
+            purpose: order.purpose, amountMinor: order.amountMinor, gateway: 'Stripe',
+            disposition: status === 'paid' ? 'captured' : 'review',
+          });
         } else if (!journalId && status === 'pending' && event.type === 'checkout.session.expired' && session.status === 'expired') {
           status = 'cancelled';
         } else if (!journalId && status === 'pending' && event.type === 'checkout.session.async_payment_failed') {
