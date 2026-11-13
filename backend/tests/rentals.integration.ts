@@ -74,6 +74,32 @@ test('renter owns revisions and public browse only shows approved published equi
     const noDeposit = { mode: 'none', currency: 'LKR' };
     assert.deepEqual(created.data.depositPolicy, noDeposit);
     const id = created.data.id;
+    const verificationAssets = await Promise.all(['identity.webp', 'business.webp'].map(filename => deps.db.asset.create({
+      data: {
+        ownerId: renter.user.id, purpose: 'verification', status: 'ready', filename,
+        mime: 'image/webp', bytes: 32, sha256: '0'.repeat(64), expiresAt: new Date(Date.now() + 3600_000),
+        variants: { display: { mime: 'image/webp', bytes: 32 } },
+      },
+    })));
+    const verificationInput = {
+      kind: 'renter', requestKey: randomUUID(), subject: 'Storefront verification', body: 'Please review the two evidence images.',
+      assetIds: verificationAssets.map(asset => asset.id),
+    };
+    assert.equal((await call('verification-cases', verificationInput, other)).data.code, 'VERIFICATION_EVIDENCE_UNAVAILABLE');
+    const verification = await call('verification-cases', verificationInput, renter);
+    assert.equal(verification.status, 200);
+    assert.equal((await call('verification-cases', verificationInput, renter)).data.id, verification.data.id);
+    assert.equal((await call('me/verification', undefined, other)).data.items.length, 0);
+    const verificationPhoto = 'assets/' + verificationAssets[0]!.id + '/access';
+    assert.equal((await call(verificationPhoto, { variant: 'display' }, other)).status, 404);
+    assert.equal((await call(verificationPhoto, { variant: 'display' }, admin)).status, 200);
+    const reviewPath = 'admin/verification-cases/' + verification.data.id + '/decisions';
+    const rejection = { status: 'rejected', reason: 'Please provide a clearer photo.', documentsReviewed: true };
+    assert.equal((await call(reviewPath, rejection, admin)).data.status, 'rejected');
+    assert.equal((await call(verificationPhoto, { variant: 'display' }, admin)).status, 404);
+    const resubmitted = await call('verification-cases', { ...verificationInput, requestKey: randomUUID() }, renter);
+    assert.equal(resubmitted.data.version, 2);
+
     const savedPath = 'me/saved-items/rental/' + id;
     assert.equal((await call(savedPath, {}, other, 'PUT')).status, 404);
     const path = 'me/rentals/' + id;
@@ -632,6 +658,8 @@ test('renter owns revisions and public browse only shows approved published equi
         await store.remove(originalKey(assetId));
         await store.remove(derivativeKey(assetId, 'display'));
       }
+      await deps.db.verificationDocument.deleteMany({ where: { case: { providerId: { in: ids } } } });
+      await deps.db.verificationCase.deleteMany({ where: { providerId: { in: ids } } });
       await deps.db.asset.deleteMany({ where: owned });
       const orderFixtures = { booking: { customerId: { in: ids } } };
       await deps.db.stripeEvent.deleteMany({ where: { attempt: { order: orderFixtures } } });

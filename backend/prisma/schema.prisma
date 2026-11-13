@@ -89,6 +89,8 @@ model AuthUser {
   decidedInspections EquipmentInspectionReport[] @relation("InspectionDecider")
   matchingVersions MatchingVersion[]
   promptVersions AiPromptVersion[]
+  verificationCases VerificationCase[] @relation("VerificationProvider")
+  reviewedVerificationCases VerificationCase[] @relation("VerificationReviewer")
   resolvedDamageClaims DamageClaim[]
   decidedRefunds RefundRequest[]
   checkIns BookingCheckIn[]
@@ -276,6 +278,7 @@ model Asset {
   bookingAttachments BookingMessageAttachment[]
   reviewPhotos BookingReviewPhoto[]
   inspectionPhotos EquipmentInspectionPhoto[]
+  verificationDocuments VerificationDocument[]
   @@index([status,availableAt])
   @@index([ownerId,createdAt])
   @@map("assets")
@@ -1215,4 +1218,44 @@ model RecommendationRun {
   weights MatchingVersion @relation(fields: [weightsRevision], references: [revision], onDelete: Restrict)
   @@unique([briefId, requestKey])
   @@map("recommendation_runs")
+}
+
+enum VerificationStatus {
+  pending
+  approved
+  rejected
+}
+
+model VerificationCase {
+  id String @id @default(uuid()) @db.Uuid
+  providerId String @map("provider_id") @db.Uuid
+  kind AuthRole
+  requestKey String @map("request_key") @db.Uuid
+  version Int
+  subject String @db.VarChar(140)
+  body String @db.VarChar(2000)
+  status VerificationStatus @default(pending)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  decidedBy String? @map("decided_by") @db.Uuid
+  decidedAt DateTime? @map("decided_at") @db.Timestamptz(3)
+  reason String? @db.VarChar(2000)
+  provider AuthUser @relation("VerificationProvider", fields: [providerId], references: [id], onDelete: Restrict)
+  reviewer AuthUser? @relation("VerificationReviewer", fields: [decidedBy], references: [id], onDelete: Restrict)
+  documents VerificationDocument[]
+  @@unique([providerId, kind, version])
+  @@unique([providerId, requestKey])
+  @@index([status, id])
+  @@map("verification_cases")
+}
+
+model VerificationDocument {
+  caseId String @map("case_id") @db.Uuid
+  assetId String @map("asset_id") @db.Uuid
+  position Int
+  case VerificationCase @relation(fields: [caseId], references: [id], onDelete: Restrict)
+  asset Asset @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  @@id([caseId, assetId])
+  @@unique([caseId, position])
+  @@index([assetId])
+  @@map("verification_documents")
 }

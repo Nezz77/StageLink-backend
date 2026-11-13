@@ -1850,10 +1850,11 @@
         "Applicable schema/API/auth/UI/reload/failure tests and checkpoint evidence complete"
       ],
       "requires_new_report_ui": false,
-      "status": "not_started",
+      "status": "in_progress",
       "ui_coverage_ids": [
         "UI-042"
-      ]
+      ],
+      "remaining": "Support private PDF verification evidence, confirm policy linkage for verification and payouts, and verify PostgreSQL/S3 and frontend/Figma integration."
     },
     {
       "id": "BE-053",

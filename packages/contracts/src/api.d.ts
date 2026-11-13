@@ -421,6 +421,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/verification-cases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["VerificationController_submit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/verification": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["VerificationController_mine"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/verification-cases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["VerificationController_queue"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/verification-cases/{id}/decisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["VerificationController_decide"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/profile": {
         parameters: {
             query?: never;
@@ -4311,6 +4375,211 @@ export interface operations {
             };
         };
     };
+    VerificationController_submit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    kind: "artist" | "renter";
+                    /** Format: uuid */
+                    requestKey: string;
+                    subject: string;
+                    body: string;
+                    assetIds: string[];
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uuid */
+                        providerId: string;
+                        /** @enum {string} */
+                        kind: "artist" | "renter";
+                        version: number;
+                        /** @enum {string} */
+                        status: "pending" | "approved" | "rejected";
+                        subject: string;
+                        body: string;
+                        /** Format: date-time */
+                        createdAt: string;
+                        /** Format: date-time */
+                        decidedAt: string | null;
+                        reason: string | null;
+                        documents: {
+                            /** Format: uuid */
+                            assetId: string;
+                            filename: string;
+                            mime: string;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    VerificationController_mine: {
+        parameters: {
+            query?: {
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            providerId: string;
+                            /** @enum {string} */
+                            kind: "artist" | "renter";
+                            version: number;
+                            /** @enum {string} */
+                            status: "pending" | "approved" | "rejected";
+                            subject: string;
+                            body: string;
+                            /** Format: date-time */
+                            createdAt: string;
+                            /** Format: date-time */
+                            decidedAt: string | null;
+                            reason: string | null;
+                            documents: {
+                                /** Format: uuid */
+                                assetId: string;
+                                filename: string;
+                                mime: string;
+                            }[];
+                        }[];
+                        /** Format: uuid */
+                        nextCursor: string | null;
+                    };
+                };
+            };
+        };
+    };
+    VerificationController_queue: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                status?: "pending" | "approved" | "rejected";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            providerId: string;
+                            /** @enum {string} */
+                            kind: "artist" | "renter";
+                            version: number;
+                            /** @enum {string} */
+                            status: "pending" | "approved" | "rejected";
+                            subject: string;
+                            body: string;
+                            /** Format: date-time */
+                            createdAt: string;
+                            /** Format: date-time */
+                            decidedAt: string | null;
+                            reason: string | null;
+                            documents: {
+                                /** Format: uuid */
+                                assetId: string;
+                                filename: string;
+                                mime: string;
+                            }[];
+                        }[];
+                        /** Format: uuid */
+                        nextCursor: string | null;
+                    };
+                };
+            };
+        };
+    };
+    VerificationController_decide: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    status: "approved" | "rejected";
+                    reason: string;
+                    /** @enum {boolean} */
+                    documentsReviewed: true;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uuid */
+                        providerId: string;
+                        /** @enum {string} */
+                        kind: "artist" | "renter";
+                        version: number;
+                        /** @enum {string} */
+                        status: "pending" | "approved" | "rejected";
+                        subject: string;
+                        body: string;
+                        /** Format: date-time */
+                        createdAt: string;
+                        /** Format: date-time */
+                        decidedAt: string | null;
+                        reason: string | null;
+                        documents: {
+                            /** Format: uuid */
+                            assetId: string;
+                            filename: string;
+                            mime: string;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
     ProfilesController_profile: {
         parameters: {
             query?: never;
@@ -6483,7 +6752,7 @@ export interface operations {
                             /** Format: uuid */
                             id: string;
                             /** @enum {string} */
-                            purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review" | "inspection";
+                            purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review" | "inspection" | "verification";
                             /** @enum {string} */
                             status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                             filename: string;
@@ -6626,7 +6895,7 @@ export interface operations {
             content: {
                 "application/json": {
                     /** @enum {string} */
-                    purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review" | "inspection";
+                    purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review" | "inspection" | "verification";
                     filename: string;
                     /** @enum {string} */
                     mime: "image/jpeg" | "image/png" | "image/webp" | "audio/mpeg" | "audio/wav" | "video/mp4" | "video/webm";
@@ -6645,7 +6914,7 @@ export interface operations {
                         /** Format: uuid */
                         id: string;
                         /** @enum {string} */
-                        purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review" | "inspection";
+                        purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review" | "inspection" | "verification";
                         /** @enum {string} */
                         status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                         filename: string;
@@ -7485,7 +7754,7 @@ export interface operations {
                                 /** Format: uuid */
                                 id: string;
                                 /** @enum {string} */
-                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review" | "inspection";
+                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review" | "inspection" | "verification";
                                 /** @enum {string} */
                                 status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                                 filename: string;
@@ -7664,7 +7933,7 @@ export interface operations {
                                 /** Format: uuid */
                                 id: string;
                                 /** @enum {string} */
-                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review" | "inspection";
+                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review" | "inspection" | "verification";
                                 /** @enum {string} */
                                 status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                                 filename: string;
@@ -7846,7 +8115,7 @@ export interface operations {
                                 /** Format: uuid */
                                 id: string;
                                 /** @enum {string} */
-                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review" | "inspection";
+                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review" | "inspection" | "verification";
                                 /** @enum {string} */
                                 status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                                 filename: string;
@@ -8020,7 +8289,7 @@ export interface operations {
                                 /** Format: uuid */
                                 id: string;
                                 /** @enum {string} */
-                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review" | "inspection";
+                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review" | "inspection" | "verification";
                                 /** @enum {string} */
                                 status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                                 filename: string;
@@ -8194,7 +8463,7 @@ export interface operations {
                                 /** Format: uuid */
                                 id: string;
                                 /** @enum {string} */
-                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review" | "inspection";
+                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review" | "inspection" | "verification";
                                 /** @enum {string} */
                                 status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                                 filename: string;
@@ -8360,7 +8629,7 @@ export interface operations {
                                 /** Format: uuid */
                                 id: string;
                                 /** @enum {string} */
-                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review" | "inspection";
+                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review" | "inspection" | "verification";
                                 /** @enum {string} */
                                 status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                                 filename: string;
@@ -8667,7 +8936,7 @@ export interface operations {
                                 /** Format: uuid */
                                 id: string;
                                 /** @enum {string} */
-                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review" | "inspection";
+                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review" | "inspection" | "verification";
                                 /** @enum {string} */
                                 status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                                 filename: string;
