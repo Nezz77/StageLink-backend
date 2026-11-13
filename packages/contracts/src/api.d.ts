@@ -1093,6 +1093,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/inquiries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["InquiriesController_open"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/conversations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["InquiriesController_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inquiries/{id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["InquiriesController_history"];
+        put?: never;
+        post: operations["InquiriesController_reply"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -9210,6 +9258,181 @@ export interface operations {
                     "application/json": {
                         /** @enum {boolean} */
                         deleted: true;
+                    };
+                };
+            };
+        };
+    };
+    InquiriesController_open: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    requestKey: string;
+                    message: string;
+                    draft?: {
+                        /** Format: uuid */
+                        id: string;
+                        revision: number;
+                        key: string;
+                    };
+                    /** @enum {string} */
+                    targetKind: "gig" | "rental";
+                    /** Format: uuid */
+                    targetId: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uuid */
+                        customerId: string;
+                        /** Format: uuid */
+                        providerId: string;
+                        /** @enum {string} */
+                        targetKind: "gig" | "rental";
+                        /** Format: uuid */
+                        targetId: string;
+                        targetVersion: number;
+                        title: string;
+                        /** Format: date-time */
+                        createdAt: string;
+                        firstMessage: {
+                            id: string;
+                            /** Format: uuid */
+                            authorId: string;
+                            body: string;
+                            /** Format: date-time */
+                            createdAt: string;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    InquiriesController_list: {
+        parameters: {
+            query?: {
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            customerId: string;
+                            /** Format: uuid */
+                            providerId: string;
+                            /** @enum {string} */
+                            targetKind: "gig" | "rental";
+                            /** Format: uuid */
+                            targetId: string;
+                            targetVersion: number;
+                            title: string;
+                            /** Format: date-time */
+                            createdAt: string;
+                        }[];
+                        /** Format: uuid */
+                        nextCursor: string | null;
+                    };
+                };
+            };
+        };
+    };
+    InquiriesController_history: {
+        parameters: {
+            query?: {
+                cursor?: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            id: string;
+                            /** Format: uuid */
+                            authorId: string;
+                            body: string;
+                            /** Format: date-time */
+                            createdAt: string;
+                        }[];
+                        nextCursor: string | null;
+                    };
+                };
+            };
+        };
+    };
+    InquiriesController_reply: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    requestKey: string;
+                    message: string;
+                    draft?: {
+                        /** Format: uuid */
+                        id: string;
+                        revision: number;
+                        key: string;
+                    };
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        id: string;
+                        /** Format: uuid */
+                        authorId: string;
+                        body: string;
+                        /** Format: date-time */
+                        createdAt: string;
                     };
                 };
             };

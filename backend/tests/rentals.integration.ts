@@ -33,7 +33,7 @@ test('renter owns revisions and public browse only shows approved published equi
       return { status: response.status, data: await response.json() };
     }
 
-    async function fixture(role: 'renter' | 'admin'): Promise<Login> {
+    async function fixture(role: 'renter' | 'admin' | 'customer'): Promise<Login> {
       const user = await deps.db.authUser.create({ data: {
         email: randomUUID() + '@stagelink.test', displayName: 'Equipment fixture', roles: [role],
         passwordHash: await hashPassword(password), emailVerifiedAt: new Date(),
@@ -160,6 +160,20 @@ test('renter owns revisions and public browse only shows approved published equi
     assert.equal((await call(linkPath, { revision: 2 }, renter, 'DELETE')).status, 200);
     assert.ok(await deps.db.asset.findUnique({ where: { id: asset.id } }));
 
+    const customer = await fixture('customer');
+    const firstRequest = { requestKey: randomUUID(), targetKind: 'rental', targetId: id, message: 'Is a pair available?' };
+    const opened = await Promise.all([call('inquiries', firstRequest, customer), call('inquiries', firstRequest, customer)]);
+    assert.deepEqual(opened.map(result => result.status), [200, 200]);
+    assert.equal(opened[0]?.data.id, opened[1]?.data.id);
+    const messages = 'inquiries/' + opened[0]?.data.id + '/messages';
+    assert.equal((await call(messages, undefined, other)).status, 404);
+    assert.equal((await call('me/conversations', undefined, renter)).data.items[0].targetId, id);
+    const reply = { requestKey: randomUUID(), message: 'Yes, two units are listed.' };
+    assert.equal((await call(messages, reply, renter)).status, 200);
+    assert.equal((await call(messages, { ...reply, message: 'Changed reply' }, renter)).status, 409);
+    assert.deepEqual((await call(messages, undefined, customer)).data.items.map((message: { body: string }) => message.body),
+      [reply.message, firstRequest.message]);
+
     const units = 'me/inventory-units';
     const unit = await call(units, { listingId: id, serial: ' sn-01 ' }, renter);
     assert.equal(unit.status, 200);
@@ -263,6 +277,7 @@ test('renter owns revisions and public browse only shows approved published equi
     assert.equal((await call(`me/rentals/${staleBundle.data.id}/status`, { revision: 1, action: 'publish' }, renter)).status, 409);
     assert.equal((await call(path + '/status', { revision: 5, action: 'archive' }, renter)).status, 200);
     const savedAfterArchive = (await call('me/saved-items', undefined, other)).data.items[0];
+    assert.equal((await call(messages, undefined, customer)).data.items.length, 2);
     assert.equal(savedAfterArchive.available, false);
     assert.equal(savedAfterArchive.title, null);
     assert.equal((await call(savedPath, {}, other, 'DELETE')).status, 200);
@@ -281,6 +296,7 @@ test('renter owns revisions and public browse only shows approved published equi
       await deps.db.profileAudit.deleteMany({ where: { targetUserId: { in: ids } } });
       await deps.db.portfolioItem.deleteMany({ where: owned });
       await deps.db.asset.deleteMany({ where: owned });
+      await deps.db.inquiry.deleteMany({ where: { customerId: { in: ids } } });
       await deps.db.authUser.deleteMany({ where: { id: { in: ids } } });
       let cursor = '0';
       do {

@@ -63,3 +63,5 @@ BE-063 adds featured package previews derived from published gig versions with c
 BE-020 adds an owner-scoped archive for saved artists, gigs and rentals, with category filters and cursor pagination. Repeated saves deduplicate. An unpublished or archived target remains removable without exposing its private title or details.
 
 BE-021 adds private, revision-checked drafts for event briefs and message text. The API accepts typed fields and caps draft count per account. Event brief submission can consume the exact draft in the same database transaction. Message-draft consumption follows with inquiry and chat submission.
+
+BE-040 persists member-only inquiries and text replies with idempotent request keys and optional message-draft consumption. A thread records its published listing version at creation and remains readable to its members after a listing is archived. Linking the inquiry to a booking follows with booking submission.

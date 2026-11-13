@@ -74,6 +74,9 @@ model AuthUser {
   eventBriefs EventBrief[]
   savedItems SavedItem[]
   privateDrafts PrivateDraft[]
+  customerInquiries Inquiry[] @relation("InquiryCustomer")
+  providerInquiries Inquiry[] @relation("InquiryProvider")
+  inquiryMessages InquiryMessage[]
   @@map("auth_users")
 }
 model AuthSession {
@@ -490,4 +493,37 @@ model PrivateDraft {
   owner AuthUser @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   @@unique([ownerId, key])
   @@map("private_drafts")
+}
+
+model Inquiry {
+  id String @id @default(uuid()) @db.Uuid
+  customerId String @map("customer_id") @db.Uuid
+  providerId String @map("provider_id") @db.Uuid
+  targetKind SavedItemKind @map("target_kind")
+  targetId String @map("target_id") @db.Uuid
+  targetVersion Int @map("target_version")
+  title String @db.VarChar(120)
+  requestKey String @map("request_key") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  customer AuthUser @relation("InquiryCustomer", fields: [customerId], references: [id], onDelete: Restrict)
+  provider AuthUser @relation("InquiryProvider", fields: [providerId], references: [id], onDelete: Restrict)
+  messages InquiryMessage[]
+  @@unique([customerId, requestKey])
+  @@index([customerId, id])
+  @@index([providerId, id])
+  @@map("inquiries")
+}
+
+model InquiryMessage {
+  id BigInt @id @default(autoincrement())
+  inquiryId String @map("inquiry_id") @db.Uuid
+  authorId String @map("author_id") @db.Uuid
+  requestKey String @map("request_key") @db.Uuid
+  body String @db.VarChar(4000)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  inquiry Inquiry @relation(fields: [inquiryId], references: [id], onDelete: Cascade)
+  author AuthUser @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  @@unique([inquiryId, authorId, requestKey])
+  @@index([inquiryId, id])
+  @@map("inquiry_messages")
 }
