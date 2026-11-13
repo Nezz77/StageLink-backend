@@ -1267,10 +1267,11 @@
         "Applicable schema/API/auth/UI/reload/failure tests and checkpoint evidence complete"
       ],
       "requires_new_report_ui": false,
-      "status": "not_started",
+      "status": "implemented_pending_verification",
       "ui_coverage_ids": [
         "UI-025"
-      ]
+      ],
+      "remaining": "Verify concurrent serial allocation, authenticated photo access and custody transitions with PostgreSQL and object storage. Connect the frontend and Figma flow, and assess automated image comparison against the report."
     },
     {
       "id": "BE-036",

@@ -1717,6 +1717,166 @@ export interface paths {
         patch: operations["ReviewsController_moderate"];
         trace?: never;
     };
+    "/api/v1/bookings/{id}/inspections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["InspectionsController_read"];
+        put?: never;
+        post: operations["InspectionsController_start"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inspections/{id}/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["InspectionsController_history"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inspections/{id}/comparison": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["InspectionsController_comparison"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inspections/{id}/draft": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["InspectionsController_draft"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inspections/{id}/submit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["InspectionsController_submit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inspections/{id}/acknowledge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["InspectionsController_acknowledge"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inspections/{id}/corrections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["InspectionsController_correct"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inspections/{id}/abandon": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["InspectionsController_abandon"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inspections/{id}/return": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["InspectionsController_returnEquipment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/inspections/{id}/clearance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["InspectionsController_openClearance"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/bookings/{id}/payment-orders": {
         parameters: {
             query?: never;
@@ -5598,7 +5758,7 @@ export interface operations {
                             /** Format: uuid */
                             id: string;
                             /** @enum {string} */
-                            purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review";
+                            purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review" | "inspection";
                             /** @enum {string} */
                             status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                             filename: string;
@@ -5741,7 +5901,7 @@ export interface operations {
             content: {
                 "application/json": {
                     /** @enum {string} */
-                    purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review";
+                    purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review" | "inspection";
                     filename: string;
                     /** @enum {string} */
                     mime: "image/jpeg" | "image/png" | "image/webp" | "audio/mpeg" | "audio/wav" | "video/mp4" | "video/webm";
@@ -5760,7 +5920,7 @@ export interface operations {
                         /** Format: uuid */
                         id: string;
                         /** @enum {string} */
-                        purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review";
+                        purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review" | "inspection";
                         /** @enum {string} */
                         status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                         filename: string;
@@ -6600,7 +6760,7 @@ export interface operations {
                                 /** Format: uuid */
                                 id: string;
                                 /** @enum {string} */
-                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review";
+                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review" | "inspection";
                                 /** @enum {string} */
                                 status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                                 filename: string;
@@ -6779,7 +6939,7 @@ export interface operations {
                                 /** Format: uuid */
                                 id: string;
                                 /** @enum {string} */
-                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review";
+                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review" | "inspection";
                                 /** @enum {string} */
                                 status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                                 filename: string;
@@ -6961,7 +7121,7 @@ export interface operations {
                                 /** Format: uuid */
                                 id: string;
                                 /** @enum {string} */
-                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review";
+                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review" | "inspection";
                                 /** @enum {string} */
                                 status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                                 filename: string;
@@ -7135,7 +7295,7 @@ export interface operations {
                                 /** Format: uuid */
                                 id: string;
                                 /** @enum {string} */
-                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review";
+                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review" | "inspection";
                                 /** @enum {string} */
                                 status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                                 filename: string;
@@ -7309,7 +7469,7 @@ export interface operations {
                                 /** Format: uuid */
                                 id: string;
                                 /** @enum {string} */
-                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review";
+                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review" | "inspection";
                                 /** @enum {string} */
                                 status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                                 filename: string;
@@ -7475,7 +7635,7 @@ export interface operations {
                                 /** Format: uuid */
                                 id: string;
                                 /** @enum {string} */
-                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review";
+                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review" | "inspection";
                                 /** @enum {string} */
                                 status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                                 filename: string;
@@ -7782,7 +7942,7 @@ export interface operations {
                                 /** Format: uuid */
                                 id: string;
                                 /** @enum {string} */
-                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review";
+                                purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review" | "inspection";
                                 /** @enum {string} */
                                 status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                                 filename: string;
@@ -12622,6 +12782,940 @@ export interface operations {
                         revision: number;
                         /** @enum {string} */
                         status: "pending" | "published" | "hidden";
+                    };
+                };
+            };
+        };
+    };
+    InspectionsController_read: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        inspection: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            bookingId: string;
+                            revision: number;
+                            /** @enum {string} */
+                            stage: "dispatch_draft" | "dispatch_ack" | "out" | "return_draft" | "return_ack" | "quarantined" | "clearance_draft" | "cleared" | "abandoned";
+                            /** Format: date-time */
+                            createdAt: string;
+                            units: {
+                                /** Format: uuid */
+                                id: string;
+                                serial: string;
+                                /** Format: uuid */
+                                listingId: string;
+                            }[];
+                            accessories: string[];
+                            draft: {
+                                units: {
+                                    /** Format: uuid */
+                                    unitId: string;
+                                    /** @enum {string} */
+                                    condition: "good" | "worn" | "damaged" | "missing";
+                                    notes: string;
+                                }[];
+                                accessories: boolean[];
+                                photoIds: string[];
+                                notes: string;
+                            } | null;
+                            reports: {
+                                revision: number;
+                                /** @enum {string} */
+                                phase: "dispatch" | "return" | "clearance";
+                                evidence: {
+                                    units: {
+                                        /** Format: uuid */
+                                        unitId: string;
+                                        /** @enum {string} */
+                                        condition: "good" | "worn" | "damaged" | "missing";
+                                        notes: string;
+                                    }[];
+                                    accessories: boolean[];
+                                    photoIds: string[];
+                                    notes: string;
+                                };
+                                /** Format: uuid */
+                                submittedBy: string;
+                                /** Format: date-time */
+                                submittedAt: string;
+                                /** Format: uuid */
+                                decidedBy: string | null;
+                                /** Format: date-time */
+                                decidedAt: string | null;
+                                /** @enum {string|null} */
+                                decision: "acknowledged" | "correction" | null;
+                                correctionReason: string | null;
+                            }[];
+                        } | null;
+                    };
+                };
+            };
+        };
+    };
+    InspectionsController_start: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    accessories: string[];
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uuid */
+                        bookingId: string;
+                        revision: number;
+                        /** @enum {string} */
+                        stage: "dispatch_draft" | "dispatch_ack" | "out" | "return_draft" | "return_ack" | "quarantined" | "clearance_draft" | "cleared" | "abandoned";
+                        /** Format: date-time */
+                        createdAt: string;
+                        units: {
+                            /** Format: uuid */
+                            id: string;
+                            serial: string;
+                            /** Format: uuid */
+                            listingId: string;
+                        }[];
+                        accessories: string[];
+                        draft: {
+                            units: {
+                                /** Format: uuid */
+                                unitId: string;
+                                /** @enum {string} */
+                                condition: "good" | "worn" | "damaged" | "missing";
+                                notes: string;
+                            }[];
+                            accessories: boolean[];
+                            photoIds: string[];
+                            notes: string;
+                        } | null;
+                        reports: {
+                            revision: number;
+                            /** @enum {string} */
+                            phase: "dispatch" | "return" | "clearance";
+                            evidence: {
+                                units: {
+                                    /** Format: uuid */
+                                    unitId: string;
+                                    /** @enum {string} */
+                                    condition: "good" | "worn" | "damaged" | "missing";
+                                    notes: string;
+                                }[];
+                                accessories: boolean[];
+                                photoIds: string[];
+                                notes: string;
+                            };
+                            /** Format: uuid */
+                            submittedBy: string;
+                            /** Format: date-time */
+                            submittedAt: string;
+                            /** Format: uuid */
+                            decidedBy: string | null;
+                            /** Format: date-time */
+                            decidedAt: string | null;
+                            /** @enum {string|null} */
+                            decision: "acknowledged" | "correction" | null;
+                            correctionReason: string | null;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    InspectionsController_history: {
+        parameters: {
+            query?: {
+                beforeRevision?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            revision: number;
+                            /** @enum {string} */
+                            phase: "dispatch" | "return" | "clearance";
+                            evidence: {
+                                units: {
+                                    /** Format: uuid */
+                                    unitId: string;
+                                    /** @enum {string} */
+                                    condition: "good" | "worn" | "damaged" | "missing";
+                                    notes: string;
+                                }[];
+                                accessories: boolean[];
+                                photoIds: string[];
+                                notes: string;
+                            };
+                            /** Format: uuid */
+                            submittedBy: string;
+                            /** Format: date-time */
+                            submittedAt: string;
+                            /** Format: uuid */
+                            decidedBy: string | null;
+                            /** Format: date-time */
+                            decidedAt: string | null;
+                            /** @enum {string|null} */
+                            decision: "acknowledged" | "correction" | null;
+                            correctionReason: string | null;
+                        }[];
+                        nextRevision: number | null;
+                    };
+                };
+            };
+        };
+    };
+    InspectionsController_comparison: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        dispatch: {
+                            revision: number;
+                            /** @enum {string} */
+                            phase: "dispatch" | "return" | "clearance";
+                            evidence: {
+                                units: {
+                                    /** Format: uuid */
+                                    unitId: string;
+                                    /** @enum {string} */
+                                    condition: "good" | "worn" | "damaged" | "missing";
+                                    notes: string;
+                                }[];
+                                accessories: boolean[];
+                                photoIds: string[];
+                                notes: string;
+                            };
+                            /** Format: uuid */
+                            submittedBy: string;
+                            /** Format: date-time */
+                            submittedAt: string;
+                            /** Format: uuid */
+                            decidedBy: string | null;
+                            /** Format: date-time */
+                            decidedAt: string | null;
+                            /** @enum {string|null} */
+                            decision: "acknowledged" | "correction" | null;
+                            correctionReason: string | null;
+                        };
+                        returned: {
+                            revision: number;
+                            /** @enum {string} */
+                            phase: "dispatch" | "return" | "clearance";
+                            evidence: {
+                                units: {
+                                    /** Format: uuid */
+                                    unitId: string;
+                                    /** @enum {string} */
+                                    condition: "good" | "worn" | "damaged" | "missing";
+                                    notes: string;
+                                }[];
+                                accessories: boolean[];
+                                photoIds: string[];
+                                notes: string;
+                            };
+                            /** Format: uuid */
+                            submittedBy: string;
+                            /** Format: date-time */
+                            submittedAt: string;
+                            /** Format: uuid */
+                            decidedBy: string | null;
+                            /** Format: date-time */
+                            decidedAt: string | null;
+                            /** @enum {string|null} */
+                            decision: "acknowledged" | "correction" | null;
+                            correctionReason: string | null;
+                        };
+                        units: {
+                            /** Format: uuid */
+                            unitId: string;
+                            /** @enum {string} */
+                            dispatch: "good" | "worn" | "damaged" | "missing";
+                            /** @enum {string} */
+                            returned: "good" | "worn" | "damaged" | "missing";
+                        }[];
+                        accessories: {
+                            name: string;
+                            dispatch: boolean;
+                            returned: boolean;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    InspectionsController_draft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    revision: number;
+                    evidence: {
+                        units: {
+                            /** Format: uuid */
+                            unitId: string;
+                            /** @enum {string} */
+                            condition: "good" | "worn" | "damaged" | "missing";
+                            notes: string;
+                        }[];
+                        accessories: boolean[];
+                        photoIds: string[];
+                        notes: string;
+                    };
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uuid */
+                        bookingId: string;
+                        revision: number;
+                        /** @enum {string} */
+                        stage: "dispatch_draft" | "dispatch_ack" | "out" | "return_draft" | "return_ack" | "quarantined" | "clearance_draft" | "cleared" | "abandoned";
+                        /** Format: date-time */
+                        createdAt: string;
+                        units: {
+                            /** Format: uuid */
+                            id: string;
+                            serial: string;
+                            /** Format: uuid */
+                            listingId: string;
+                        }[];
+                        accessories: string[];
+                        draft: {
+                            units: {
+                                /** Format: uuid */
+                                unitId: string;
+                                /** @enum {string} */
+                                condition: "good" | "worn" | "damaged" | "missing";
+                                notes: string;
+                            }[];
+                            accessories: boolean[];
+                            photoIds: string[];
+                            notes: string;
+                        } | null;
+                        reports: {
+                            revision: number;
+                            /** @enum {string} */
+                            phase: "dispatch" | "return" | "clearance";
+                            evidence: {
+                                units: {
+                                    /** Format: uuid */
+                                    unitId: string;
+                                    /** @enum {string} */
+                                    condition: "good" | "worn" | "damaged" | "missing";
+                                    notes: string;
+                                }[];
+                                accessories: boolean[];
+                                photoIds: string[];
+                                notes: string;
+                            };
+                            /** Format: uuid */
+                            submittedBy: string;
+                            /** Format: date-time */
+                            submittedAt: string;
+                            /** Format: uuid */
+                            decidedBy: string | null;
+                            /** Format: date-time */
+                            decidedAt: string | null;
+                            /** @enum {string|null} */
+                            decision: "acknowledged" | "correction" | null;
+                            correctionReason: string | null;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    InspectionsController_submit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    revision: number;
+                    evidence: {
+                        units: {
+                            /** Format: uuid */
+                            unitId: string;
+                            /** @enum {string} */
+                            condition: "good" | "worn" | "damaged" | "missing";
+                            notes: string;
+                        }[];
+                        accessories: boolean[];
+                        photoIds: string[];
+                        notes: string;
+                    };
+                    /** @enum {boolean} */
+                    confirmed: true;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uuid */
+                        bookingId: string;
+                        revision: number;
+                        /** @enum {string} */
+                        stage: "dispatch_draft" | "dispatch_ack" | "out" | "return_draft" | "return_ack" | "quarantined" | "clearance_draft" | "cleared" | "abandoned";
+                        /** Format: date-time */
+                        createdAt: string;
+                        units: {
+                            /** Format: uuid */
+                            id: string;
+                            serial: string;
+                            /** Format: uuid */
+                            listingId: string;
+                        }[];
+                        accessories: string[];
+                        draft: {
+                            units: {
+                                /** Format: uuid */
+                                unitId: string;
+                                /** @enum {string} */
+                                condition: "good" | "worn" | "damaged" | "missing";
+                                notes: string;
+                            }[];
+                            accessories: boolean[];
+                            photoIds: string[];
+                            notes: string;
+                        } | null;
+                        reports: {
+                            revision: number;
+                            /** @enum {string} */
+                            phase: "dispatch" | "return" | "clearance";
+                            evidence: {
+                                units: {
+                                    /** Format: uuid */
+                                    unitId: string;
+                                    /** @enum {string} */
+                                    condition: "good" | "worn" | "damaged" | "missing";
+                                    notes: string;
+                                }[];
+                                accessories: boolean[];
+                                photoIds: string[];
+                                notes: string;
+                            };
+                            /** Format: uuid */
+                            submittedBy: string;
+                            /** Format: date-time */
+                            submittedAt: string;
+                            /** Format: uuid */
+                            decidedBy: string | null;
+                            /** Format: date-time */
+                            decidedAt: string | null;
+                            /** @enum {string|null} */
+                            decision: "acknowledged" | "correction" | null;
+                            correctionReason: string | null;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    InspectionsController_acknowledge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    revision: number;
+                    /** @enum {boolean} */
+                    confirmed: true;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uuid */
+                        bookingId: string;
+                        revision: number;
+                        /** @enum {string} */
+                        stage: "dispatch_draft" | "dispatch_ack" | "out" | "return_draft" | "return_ack" | "quarantined" | "clearance_draft" | "cleared" | "abandoned";
+                        /** Format: date-time */
+                        createdAt: string;
+                        units: {
+                            /** Format: uuid */
+                            id: string;
+                            serial: string;
+                            /** Format: uuid */
+                            listingId: string;
+                        }[];
+                        accessories: string[];
+                        draft: {
+                            units: {
+                                /** Format: uuid */
+                                unitId: string;
+                                /** @enum {string} */
+                                condition: "good" | "worn" | "damaged" | "missing";
+                                notes: string;
+                            }[];
+                            accessories: boolean[];
+                            photoIds: string[];
+                            notes: string;
+                        } | null;
+                        reports: {
+                            revision: number;
+                            /** @enum {string} */
+                            phase: "dispatch" | "return" | "clearance";
+                            evidence: {
+                                units: {
+                                    /** Format: uuid */
+                                    unitId: string;
+                                    /** @enum {string} */
+                                    condition: "good" | "worn" | "damaged" | "missing";
+                                    notes: string;
+                                }[];
+                                accessories: boolean[];
+                                photoIds: string[];
+                                notes: string;
+                            };
+                            /** Format: uuid */
+                            submittedBy: string;
+                            /** Format: date-time */
+                            submittedAt: string;
+                            /** Format: uuid */
+                            decidedBy: string | null;
+                            /** Format: date-time */
+                            decidedAt: string | null;
+                            /** @enum {string|null} */
+                            decision: "acknowledged" | "correction" | null;
+                            correctionReason: string | null;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    InspectionsController_correct: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    revision: number;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uuid */
+                        bookingId: string;
+                        revision: number;
+                        /** @enum {string} */
+                        stage: "dispatch_draft" | "dispatch_ack" | "out" | "return_draft" | "return_ack" | "quarantined" | "clearance_draft" | "cleared" | "abandoned";
+                        /** Format: date-time */
+                        createdAt: string;
+                        units: {
+                            /** Format: uuid */
+                            id: string;
+                            serial: string;
+                            /** Format: uuid */
+                            listingId: string;
+                        }[];
+                        accessories: string[];
+                        draft: {
+                            units: {
+                                /** Format: uuid */
+                                unitId: string;
+                                /** @enum {string} */
+                                condition: "good" | "worn" | "damaged" | "missing";
+                                notes: string;
+                            }[];
+                            accessories: boolean[];
+                            photoIds: string[];
+                            notes: string;
+                        } | null;
+                        reports: {
+                            revision: number;
+                            /** @enum {string} */
+                            phase: "dispatch" | "return" | "clearance";
+                            evidence: {
+                                units: {
+                                    /** Format: uuid */
+                                    unitId: string;
+                                    /** @enum {string} */
+                                    condition: "good" | "worn" | "damaged" | "missing";
+                                    notes: string;
+                                }[];
+                                accessories: boolean[];
+                                photoIds: string[];
+                                notes: string;
+                            };
+                            /** Format: uuid */
+                            submittedBy: string;
+                            /** Format: date-time */
+                            submittedAt: string;
+                            /** Format: uuid */
+                            decidedBy: string | null;
+                            /** Format: date-time */
+                            decidedAt: string | null;
+                            /** @enum {string|null} */
+                            decision: "acknowledged" | "correction" | null;
+                            correctionReason: string | null;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    InspectionsController_abandon: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    revision: number;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uuid */
+                        bookingId: string;
+                        revision: number;
+                        /** @enum {string} */
+                        stage: "dispatch_draft" | "dispatch_ack" | "out" | "return_draft" | "return_ack" | "quarantined" | "clearance_draft" | "cleared" | "abandoned";
+                        /** Format: date-time */
+                        createdAt: string;
+                        units: {
+                            /** Format: uuid */
+                            id: string;
+                            serial: string;
+                            /** Format: uuid */
+                            listingId: string;
+                        }[];
+                        accessories: string[];
+                        draft: {
+                            units: {
+                                /** Format: uuid */
+                                unitId: string;
+                                /** @enum {string} */
+                                condition: "good" | "worn" | "damaged" | "missing";
+                                notes: string;
+                            }[];
+                            accessories: boolean[];
+                            photoIds: string[];
+                            notes: string;
+                        } | null;
+                        reports: {
+                            revision: number;
+                            /** @enum {string} */
+                            phase: "dispatch" | "return" | "clearance";
+                            evidence: {
+                                units: {
+                                    /** Format: uuid */
+                                    unitId: string;
+                                    /** @enum {string} */
+                                    condition: "good" | "worn" | "damaged" | "missing";
+                                    notes: string;
+                                }[];
+                                accessories: boolean[];
+                                photoIds: string[];
+                                notes: string;
+                            };
+                            /** Format: uuid */
+                            submittedBy: string;
+                            /** Format: date-time */
+                            submittedAt: string;
+                            /** Format: uuid */
+                            decidedBy: string | null;
+                            /** Format: date-time */
+                            decidedAt: string | null;
+                            /** @enum {string|null} */
+                            decision: "acknowledged" | "correction" | null;
+                            correctionReason: string | null;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    InspectionsController_returnEquipment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    revision: number;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uuid */
+                        bookingId: string;
+                        revision: number;
+                        /** @enum {string} */
+                        stage: "dispatch_draft" | "dispatch_ack" | "out" | "return_draft" | "return_ack" | "quarantined" | "clearance_draft" | "cleared" | "abandoned";
+                        /** Format: date-time */
+                        createdAt: string;
+                        units: {
+                            /** Format: uuid */
+                            id: string;
+                            serial: string;
+                            /** Format: uuid */
+                            listingId: string;
+                        }[];
+                        accessories: string[];
+                        draft: {
+                            units: {
+                                /** Format: uuid */
+                                unitId: string;
+                                /** @enum {string} */
+                                condition: "good" | "worn" | "damaged" | "missing";
+                                notes: string;
+                            }[];
+                            accessories: boolean[];
+                            photoIds: string[];
+                            notes: string;
+                        } | null;
+                        reports: {
+                            revision: number;
+                            /** @enum {string} */
+                            phase: "dispatch" | "return" | "clearance";
+                            evidence: {
+                                units: {
+                                    /** Format: uuid */
+                                    unitId: string;
+                                    /** @enum {string} */
+                                    condition: "good" | "worn" | "damaged" | "missing";
+                                    notes: string;
+                                }[];
+                                accessories: boolean[];
+                                photoIds: string[];
+                                notes: string;
+                            };
+                            /** Format: uuid */
+                            submittedBy: string;
+                            /** Format: date-time */
+                            submittedAt: string;
+                            /** Format: uuid */
+                            decidedBy: string | null;
+                            /** Format: date-time */
+                            decidedAt: string | null;
+                            /** @enum {string|null} */
+                            decision: "acknowledged" | "correction" | null;
+                            correctionReason: string | null;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    InspectionsController_openClearance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    revision: number;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uuid */
+                        bookingId: string;
+                        revision: number;
+                        /** @enum {string} */
+                        stage: "dispatch_draft" | "dispatch_ack" | "out" | "return_draft" | "return_ack" | "quarantined" | "clearance_draft" | "cleared" | "abandoned";
+                        /** Format: date-time */
+                        createdAt: string;
+                        units: {
+                            /** Format: uuid */
+                            id: string;
+                            serial: string;
+                            /** Format: uuid */
+                            listingId: string;
+                        }[];
+                        accessories: string[];
+                        draft: {
+                            units: {
+                                /** Format: uuid */
+                                unitId: string;
+                                /** @enum {string} */
+                                condition: "good" | "worn" | "damaged" | "missing";
+                                notes: string;
+                            }[];
+                            accessories: boolean[];
+                            photoIds: string[];
+                            notes: string;
+                        } | null;
+                        reports: {
+                            revision: number;
+                            /** @enum {string} */
+                            phase: "dispatch" | "return" | "clearance";
+                            evidence: {
+                                units: {
+                                    /** Format: uuid */
+                                    unitId: string;
+                                    /** @enum {string} */
+                                    condition: "good" | "worn" | "damaged" | "missing";
+                                    notes: string;
+                                }[];
+                                accessories: boolean[];
+                                photoIds: string[];
+                                notes: string;
+                            };
+                            /** Format: uuid */
+                            submittedBy: string;
+                            /** Format: date-time */
+                            submittedAt: string;
+                            /** Format: uuid */
+                            decidedBy: string | null;
+                            /** Format: date-time */
+                            decidedAt: string | null;
+                            /** @enum {string|null} */
+                            decision: "acknowledged" | "correction" | null;
+                            correctionReason: string | null;
+                        }[];
                     };
                 };
             };

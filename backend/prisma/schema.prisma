@@ -85,6 +85,8 @@ model AuthUser {
   createdPayouts PayoutOrder[]
   payoutHoldEvents BookingPayoutHold[]
   reviewModerations BookingReviewModeration[]
+  submittedInspections EquipmentInspectionReport[] @relation("InspectionSubmitter")
+  decidedInspections EquipmentInspectionReport[] @relation("InspectionDecider")
   decidedRefunds RefundRequest[]
   checkIns BookingCheckIn[]
   proposedOvertime OvertimeProposal[] @relation("OvertimeAuthor")
@@ -270,6 +272,7 @@ model Asset {
   holds AssetHold[]
   bookingAttachments BookingMessageAttachment[]
   reviewPhotos BookingReviewPhoto[]
+  inspectionPhotos EquipmentInspectionPhoto[]
   @@index([status,availableAt])
   @@index([ownerId,createdAt])
   @@map("assets")
@@ -420,6 +423,7 @@ model InventoryUnit {
   updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
   listing RentalListing @relation(fields: [listingId, ownerId], references: [id, ownerId], onDelete: Restrict)
   movements InventoryMovement[]
+  inspectionUnits EquipmentInspectionUnit[]
   @@unique([ownerId, serial])
   @@index([ownerId, id])
   @@index([listingId, status])
@@ -589,6 +593,7 @@ model Booking {
   payoutHolds BookingPayoutHold[]
   documents BookingDocument[]
   review BookingReview?
+  inspection EquipmentInspection?
   cancelledAt DateTime? @map("cancelled_at") @db.Timestamptz(3)
   cancellationReason String? @map("cancellation_reason") @db.VarChar(500)
   providerDecision ProviderDecision? @map("provider_decision")
@@ -1029,4 +1034,76 @@ model BookingReviewModeration {
   actor AuthUser @relation(fields: [actorId], references: [id], onDelete: Restrict)
   @@id([reviewId, revision])
   @@map("booking_review_moderations")
+}
+
+enum InspectionPhase {
+  dispatch
+  return
+  clearance
+}
+
+enum InspectionStage {
+  dispatch_draft
+  dispatch_ack
+  out
+  return_draft
+  return_ack
+  quarantined
+  clearance_draft
+  cleared
+  abandoned
+}
+
+model EquipmentInspection {
+  id String @id @default(uuid()) @db.Uuid
+  bookingId String @unique @map("booking_id") @db.Uuid
+  stage InspectionStage @default(dispatch_draft)
+  revision Int @default(1)
+  accessories Json
+  draft Json?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  units EquipmentInspectionUnit[]
+  reports EquipmentInspectionReport[]
+  @@map("equipment_inspections")
+}
+
+model EquipmentInspectionUnit {
+  inspectionId String @map("inspection_id") @db.Uuid
+  unitId String @map("unit_id") @db.Uuid
+  releasedAt DateTime? @map("released_at") @db.Timestamptz(3)
+  inspection EquipmentInspection @relation(fields: [inspectionId], references: [id], onDelete: Restrict)
+  unit InventoryUnit @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  @@id([inspectionId, unitId])
+  @@map("equipment_inspection_units")
+}
+
+model EquipmentInspectionReport {
+  inspectionId String @map("inspection_id") @db.Uuid
+  revision Int
+  phase InspectionPhase
+  evidence Json
+  submittedBy String @map("submitted_by") @db.Uuid
+  submittedAt DateTime @default(now()) @map("submitted_at") @db.Timestamptz(3)
+  decidedBy String? @map("decided_by") @db.Uuid
+  decidedAt DateTime? @map("decided_at") @db.Timestamptz(3)
+  decision String? @db.VarChar(12)
+  correctionReason String? @map("correction_reason") @db.VarChar(500)
+  inspection EquipmentInspection @relation(fields: [inspectionId], references: [id], onDelete: Restrict)
+  submitter AuthUser @relation("InspectionSubmitter", fields: [submittedBy], references: [id], onDelete: Restrict)
+  decider AuthUser? @relation("InspectionDecider", fields: [decidedBy], references: [id], onDelete: Restrict)
+  photos EquipmentInspectionPhoto[]
+  @@id([inspectionId, revision])
+  @@map("equipment_inspection_reports")
+}
+
+model EquipmentInspectionPhoto {
+  inspectionId String @map("inspection_id") @db.Uuid
+  reportRevision Int @map("report_revision")
+  assetId String @map("asset_id") @db.Uuid
+  report EquipmentInspectionReport @relation(fields: [inspectionId, reportRevision], references: [inspectionId, revision], onDelete: Restrict)
+  asset Asset @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  @@id([inspectionId, reportRevision, assetId])
+  @@index([assetId])
+  @@map("equipment_inspection_photos")
 }

@@ -25,7 +25,7 @@ export class MediaService {
   try{await this.store.ready();}catch{throw storageError();}
   const a=await this.db.$transaction(async tx=>{
    const actor=await this.profiles.actor(tx,i);this.profiles.verified(actor);
-   if(['portfolio','equipment'].includes(input.purpose))this.profiles.providerRole(actor,input.purpose==='equipment'?'renter':undefined);
+   if(['portfolio','equipment','inspection'].includes(input.purpose))this.profiles.providerRole(actor,input.purpose==='portfolio'?undefined:'renter');
    const aggregate=await tx.asset.aggregate({where:{ownerId:i.user.id,status:{not:'purged'}},_count:true,_sum:{bytes:true}});
    if(aggregate._count>=100||(aggregate._sum.bytes??0)+input.bytes>500*1024*1024)throw new PublicError(409,'MEDIA_QUOTA_REACHED','Your media library is full. Remove unused files and allow cleanup to finish.');
    return tx.asset.create({data:{ownerId:i.user.id,...input,expiresAt:new Date(Date.now()+3600000)}});
@@ -53,7 +53,7 @@ export class MediaService {
  async finalize(i:Identity,id:string,csrf:string|undefined){this.profiles.checkCsrf(i,csrf);await this.db.$transaction(async tx=>{await this.profiles.actor(tx,i);await tx.$queryRaw`SELECT id FROM assets WHERE id=${id}::uuid FOR UPDATE`;const a=await tx.asset.findUnique({where:{id}});if(!a||a.ownerId!==i.user.id)throw missing();if(!['staged','uploaded','processing','ready'].includes(a.status))throw conflict();if(a.status==='staged'){if(a.expiresAt<new Date())throw conflict();await tx.$executeRaw`UPDATE assets SET status='uploaded', available_at=now() WHERE id=${id}::uuid`;}});return{message:'Validation is queued. This file stays private until it is ready.'};}
  async remove(i:Identity,id:string,csrf:string|undefined){this.profiles.checkCsrf(i,csrf);await this.db.$transaction(async tx=>{
   await this.profiles.actor(tx,i);await tx.$queryRaw`SELECT id FROM assets WHERE id=${id}::uuid FOR UPDATE`;const a=await tx.asset.findUnique({where:{id}});if(!a||a.ownerId!==i.user.id)throw missing();
-  if(['uploading','uploaded','processing'].includes(a.status)||await tx.avatarBinding.count({where:{assetId:id}})||await tx.portfolioItem.count({where:{assetId:id}})||await tx.bookingMessageAttachment.count({where:{assetId:id}})||await tx.bookingReviewPhoto.count({where:{assetId:id}})||await tx.assetHold.count({where:{assetId:id,until:{gt:new Date()}}}))throw conflict();
+  if(['uploading','uploaded','processing'].includes(a.status)||await tx.avatarBinding.count({where:{assetId:id}})||await tx.portfolioItem.count({where:{assetId:id}})||await tx.bookingMessageAttachment.count({where:{assetId:id}})||await tx.equipmentInspectionPhoto.count({where:{assetId:id}})||await tx.bookingReviewPhoto.count({where:{assetId:id}})||await tx.assetHold.count({where:{assetId:id,until:{gt:new Date()}}}))throw conflict();
   if(!['deleted','purged'].includes(a.status))await tx.asset.update({where:{id},data:{status:'deleted',deleteAfter:new Date(Date.now()+86400000)}});
  });return{message:'File removed. Unreferenced stored bytes are scheduled for cleanup in 24 hours.'};}
  async avatar(i:Identity,assetId:string|null,csrf:string|undefined){this.profiles.checkCsrf(i,csrf);await this.db.$transaction(async tx=>{await this.profiles.actor(tx,i);if(!assetId){await tx.avatarBinding.deleteMany({where:{ownerId:i.user.id}});return;}await this.readyAsset(tx,i.user.id,assetId,['avatar']);await tx.avatarBinding.upsert({where:{ownerId:i.user.id},create:{ownerId:i.user.id,assetId},update:{assetId}});});return{message:assetId?'Profile photo saved.':'Profile photo removed.'};}
@@ -105,6 +105,12 @@ export class MediaService {
    return Boolean(await this.db.bookingMessageAttachment.findFirst({
     where:{assetId:a.id,message:{authorId:a.ownerId,booking:{OR:[{customerId:userId},{providerId:userId}]}}},
     select:{messageId:true},
+   }));
+  }
+  if(a.purpose==='inspection'){
+   return Boolean(await this.db.equipmentInspectionPhoto.findFirst({
+    where:{assetId:a.id,report:{inspection:{booking:{OR:[{customerId:i.user.id},{providerId:i.user.id}]}}}},
+    select:{assetId:true},
    }));
   }
   if(a.purpose==='review'){

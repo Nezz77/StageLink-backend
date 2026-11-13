@@ -137,6 +137,9 @@ export function makeRefundsController(auth: AuthService) {
           return { bookingId: booking.id, cancelledAt: booking.cancelledAt.toISOString(), reason: booking.cancellationReason };
         }
         const now = new Date();
+        if (await tx.equipmentInspection.count({
+          where: { bookingId: booking.id, stage: { in: ['out', 'return_draft', 'return_ack', 'quarantined', 'clearance_draft'] } },
+        })) throw new PublicError(409, 'EQUIPMENT_IN_CUSTODY', 'Complete the equipment return before cancellation.');
         if (booking.startsAt <= now || booking.providerDecision === 'rejected') {
           throw new PublicError(409, 'CANCELLATION_NOT_ELIGIBLE', 'Only upcoming bookings can be cancelled here.');
         }
@@ -145,6 +148,9 @@ export function makeRefundsController(auth: AuthService) {
         await tx.booking.update({
           where: { id: booking.id },
           data: { cancelledAt: now, cancellationReason: input.reason, revision: { increment: 1 } },
+        });
+        await tx.equipmentInspectionUnit.updateMany({
+          where: { releasedAt: null, inspection: { bookingId: booking.id } }, data: { releasedAt: now },
         });
         await tx.paymentOrder.updateMany({
           where: { bookingId: booking.id, status: { in: ['open', 'pending'] } }, data: { status: 'cancelled' },
@@ -167,7 +173,9 @@ export function makeRefundsController(auth: AuthService) {
           return present(existing);
         }
         const now = new Date();
-        if (!booking.agreedAt || booking.cancelledAt || booking.startsAt <= now) unavailable();
+        if (!booking.agreedAt || booking.cancelledAt || booking.startsAt <= now || await tx.equipmentInspection.count({
+          where: { bookingId: booking.id, stage: { notIn: ['dispatch_draft', 'dispatch_ack', 'abandoned'] } },
+        })) unavailable();
         const orders = await capturedOrders(tx, booking.id);
         return present(await tx.refundRequest.create({
           data: {

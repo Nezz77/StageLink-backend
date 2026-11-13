@@ -463,6 +463,31 @@ test('renter owns revisions and public browse only shows approved published equi
     assert.equal((await stripeNotify(stripeEvent)).status, 200);
     assert.equal(await deps.db.stripeEvent.count({ where: { attemptId: stripeAttempt.id } }), 1);
     assert.equal((await deps.db.paymentOrder.findUniqueOrThrow({ where: { id: stripeOrder.id } })).status, 'cancelled');
+    const inspectionPath = 'bookings/' + winner.id + '/inspections';
+    const manifest = { accessories: ['Power cable'] };
+    assert.equal((await call(inspectionPath, manifest, renter)).status, 409);
+    const inspectionNow = Date.now();
+    await deps.db.booking.update({
+      where: { id: winner.id }, data: {
+        startsAt: new Date(inspectionNow - 60_000), endsAt: new Date(inspectionNow + 180_000),
+        holdExpiresAt: new Date(inspectionNow - 60_000),
+      },
+    });
+    await deps.db.paymentOrder.update({ where: { id: advanceOrder.id }, data: { status: 'paid' } });
+    assert.equal((await call(inspectionPath, manifest, winnerCustomer)).status, 403);
+    const inspection = await call(inspectionPath, manifest, renter);
+    assert.equal(inspection.status, 200);
+    assert.equal(inspection.data.stage, 'dispatch_draft');
+    assert.equal(inspection.data.units.length, 2);
+    assert.equal((await call(inspectionPath, manifest, renter)).data.id, inspection.data.id);
+    assert.equal((await call(inspectionPath, undefined, other)).status, 404);
+    assert.equal((await call(unitPath, { revision: 6, status: 'maintenance', reason: 'Manual update' }, renter, 'PATCH')).data.code, 'INVENTORY_INSPECTION_ACTIVE');
+    const incomplete = { units: [], accessories: [false], photoIds: [], notes: 'Awaiting evidence.' };
+    const inspect = 'inspections/' + inspection.data.id;
+    assert.equal((await call(inspect + '/submit', { revision: 1, confirmed: true, evidence: incomplete }, renter)).data.code, 'INSPECTION_EVIDENCE_INVALID');
+    const draft = await call(inspect + '/draft', { revision: 1, evidence: incomplete }, renter, 'PUT');
+    assert.equal(draft.data.revision, 2);
+    assert.equal((await call(inspectionPath, undefined, winnerCustomer)).data.inspection.draft, null);
     const chat = 'conversations/' + winner.id;
     assert.equal((await call(chat + '/messages', undefined, other)).status, 404);
     const message = { requestKey: randomUUID(), body: 'Please confirm the pickup time.' };
@@ -555,6 +580,9 @@ test('renter owns revisions and public browse only shows approved published equi
       await deps.db.publicAnnouncement.deleteMany({ where: { id: { in: announcements } } });
       const owned = { ownerId: { in: ids } };
       await deps.db.rentalListing.updateMany({ where: owned, data: { status: 'archived', publishedVersion: null } });
+      const inspections = { booking: { providerId: { in: ids } } };
+      await deps.db.equipmentInspectionUnit.deleteMany({ where: { inspection: inspections } });
+      await deps.db.equipmentInspection.deleteMany({ where: inspections });
       await deps.db.inventoryMovement.deleteMany({ where: { unit: owned } });
       await deps.db.inventoryUnit.deleteMany({ where: owned });
       await deps.db.rentalListingVersion.deleteMany({ where: { listing: owned } });

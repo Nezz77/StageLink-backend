@@ -247,6 +247,10 @@ export function makeCompletionController(auth: AuthService) {
           throw new PublicError(409, 'COMPLETION_NOT_ELIGIBLE', 'A check-in and the end of the scheduled booking are required.');
         }
         await requireAdvance(tx, booking);
+        const equipment = await tx.bookingReservationLine.count({ where: { bookingId: booking.id, resource: 'equipment' } });
+        if (equipment && !await tx.equipmentInspection.count({
+          where: { bookingId: booking.id, stage: { in: ['cleared', 'quarantined', 'clearance_draft'] } },
+        })) throw new PublicError(409, 'EQUIPMENT_RETURN_REQUIRED', 'Record and acknowledge the equipment return before completion.');
         const pending = await tx.overtimeProposal.findFirst({ where: { bookingId: booking.id, decision: null } });
         if (pending) throw new PublicError(409, 'OVERTIME_PENDING', 'Resolve the pending overtime proposal first.');
         const approved = await tx.overtimeProposal.aggregate({

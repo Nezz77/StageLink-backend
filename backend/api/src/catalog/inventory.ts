@@ -133,6 +133,9 @@ export function makeInventoryController(auth: AuthService) {
           where: { id: unitId, ownerId: current.user.id }, include: { listing: { select: { status: true } } },
         });
         if (!record) throw new PublicError(404, 'INVENTORY_UNIT_NOT_FOUND', 'This equipment unit is unavailable.');
+        if (await tx.equipmentInspectionUnit.count({ where: { unitId, releasedAt: null } })) {
+          throw new PublicError(409, 'INVENTORY_INSPECTION_ACTIVE', 'Use the booking inspection to move this allocated unit.');
+        }
         if (record.revision !== input.revision) throw new PublicError(409, 'REVISION_CONFLICT', 'Reload the equipment unit before changing its status.');
         if (!canMoveUnit(record.status, input.status) || (input.status === 'out' && record.listing.status !== 'published')) {
           throw new PublicError(409, 'INVALID_INVENTORY_TRANSITION', 'This equipment unit cannot move to that status.');

@@ -39,7 +39,8 @@ A checked box marks implemented backend code. PostgreSQL integration, client wir
 - [ ] P12 Gateway refund and payout execution, reconciliation, and recovery of blocked reservations.
 - [x] P13 Sandbox invoice, per-capture receipt and payout reservation statement with private server-rendered PDFs.
 - [x] P13 Verified customer reviews, moderated event photos and public rating aggregates.
-- [ ] P13–P14 Production document issuance, inspections and deposit settlement.
+- [x] P14 Serialized equipment allocation, private dispatch and return reports, correction history, comparison and stock clearance.
+- [ ] P13–P14 Production document issuance and damage claim/deposit settlement.
 - [ ] P15–P17 AI, KYC, support, disputes, reminders and system controls.
 - [ ] P18 analytics, security, accessibility, backup and rollback, and end-to-end release verification.
 
