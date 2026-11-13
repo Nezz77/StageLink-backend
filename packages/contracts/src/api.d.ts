@@ -1605,6 +1605,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/earnings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["PayoutsController_earnings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["PayoutsController_payments"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/payouts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["PayoutsController_read"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/bookings/{id}/holds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["PayoutsController_hold"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payouts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["PayoutsController_reserve"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/payment-orders/{id}/sessions": {
         parameters: {
             query?: never;
@@ -12015,6 +12095,253 @@ export interface operations {
                         status: "open" | "pending" | "failed" | "cancelled" | "paid" | "review";
                         /** Format: date-time */
                         createdAt: string;
+                    };
+                };
+            };
+        };
+    };
+    PayoutsController_earnings: {
+        parameters: {
+            query?: {
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** Format: uuid */
+                            bookingId: string;
+                            cancelled: boolean;
+                            completionVerified: boolean;
+                            held: boolean;
+                            holdRevision: number;
+                            /** @enum {string|null} */
+                            refundStatus: "requested" | "approved" | "declined" | null;
+                            payments: {
+                                /** Format: uuid */
+                                id: string;
+                                /** @enum {string} */
+                                purpose: "advance" | "balance" | "deposit";
+                                amountMinor: number;
+                                /** @enum {string} */
+                                status: "open" | "pending" | "failed" | "cancelled" | "paid" | "review";
+                            }[];
+                            payout: {
+                                /** Format: uuid */
+                                id: string;
+                                /** Format: uuid */
+                                bookingId: string;
+                                /** Format: uuid */
+                                providerId: string;
+                                destinationRevision: number;
+                                /** Format: date-time */
+                                createdAt: string;
+                                grossMinor: number;
+                                platformFeeMinor: number;
+                                netMinor: number;
+                                /** @enum {string} */
+                                currency: "LKR";
+                                /** @enum {string} */
+                                status: "reserved" | "review_required";
+                            } | null;
+                            /** @enum {string} */
+                            currency: "LKR";
+                        }[];
+                        /** Format: uuid */
+                        nextCursor: string | null;
+                    };
+                };
+            };
+        };
+    };
+    PayoutsController_payments: {
+        parameters: {
+            query?: {
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** Format: uuid */
+                            bookingId: string;
+                            /** Format: uuid */
+                            providerId: string;
+                            cancelled: boolean;
+                            completionVerified: boolean;
+                            held: boolean;
+                            holdRevision: number;
+                            /** @enum {string|null} */
+                            refundStatus: "requested" | "approved" | "declined" | null;
+                            payments: {
+                                /** Format: uuid */
+                                id: string;
+                                /** @enum {string} */
+                                purpose: "advance" | "balance" | "deposit";
+                                amountMinor: number;
+                                /** @enum {string} */
+                                status: "open" | "pending" | "failed" | "cancelled" | "paid" | "review";
+                            }[];
+                            payout: {
+                                /** Format: uuid */
+                                id: string;
+                                /** Format: uuid */
+                                bookingId: string;
+                                /** Format: uuid */
+                                providerId: string;
+                                destinationRevision: number;
+                                /** Format: date-time */
+                                createdAt: string;
+                                grossMinor: number;
+                                platformFeeMinor: number;
+                                netMinor: number;
+                                /** @enum {string} */
+                                currency: "LKR";
+                                /** @enum {string} */
+                                status: "reserved" | "review_required";
+                            } | null;
+                            /** @enum {string} */
+                            currency: "LKR";
+                        }[];
+                        /** Format: uuid */
+                        nextCursor: string | null;
+                    };
+                };
+            };
+        };
+    };
+    PayoutsController_read: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uuid */
+                        bookingId: string;
+                        /** Format: uuid */
+                        providerId: string;
+                        destinationRevision: number;
+                        /** Format: date-time */
+                        createdAt: string;
+                        grossMinor: number;
+                        platformFeeMinor: number;
+                        netMinor: number;
+                        /** @enum {string} */
+                        currency: "LKR";
+                        /** @enum {string} */
+                        status: "reserved" | "review_required";
+                    };
+                };
+            };
+        };
+    };
+    PayoutsController_hold: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    expectedRevision: number;
+                    held: boolean;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        bookingId: string;
+                        revision: number;
+                        held: boolean;
+                        reason: string;
+                        /** Format: date-time */
+                        createdAt: string;
+                    };
+                };
+            };
+        };
+    };
+    PayoutsController_reserve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    bookingId: string;
+                    destinationRevision: number;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uuid */
+                        bookingId: string;
+                        /** Format: uuid */
+                        providerId: string;
+                        destinationRevision: number;
+                        /** Format: date-time */
+                        createdAt: string;
+                        grossMinor: number;
+                        platformFeeMinor: number;
+                        netMinor: number;
+                        /** @enum {string} */
+                        currency: "LKR";
+                        /** @enum {string} */
+                        status: "reserved" | "review_required";
                     };
                 };
             };

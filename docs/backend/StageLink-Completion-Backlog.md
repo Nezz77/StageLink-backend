@@ -35,7 +35,9 @@ A checked box marks implemented backend code. PostgreSQL integration, client wir
 - [x] P12 provider check-in, counterparty overtime decisions, completion reporting and admin verification.
 - [x] P12 final balance from the accepted agreement and approved overtime, with sandbox checkout after reported completion.
 - [x] P12 cancellation, refund request review and atomic refund fund reservation.
-- [ ] P12–P14 Gateway refund submission and reconciliation, settlements, documents, verified reviews, inspections and deposit settlement.
+- [x] P12 provider earnings and admin payment views, audited payout holds, and atomic payout reservations against reviewed destinations.
+- [ ] P12 Gateway refund and payout execution, reconciliation, and recovery of blocked reservations.
+- [ ] P13–P14 Documents, verified reviews, inspections and deposit settlement.
 - [ ] P15–P17 AI, KYC, support, disputes, reminders and system controls.
 - [ ] P18 analytics, security, accessibility, backup and rollback, and end-to-end release verification.
 

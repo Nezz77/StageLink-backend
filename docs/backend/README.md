@@ -114,3 +114,9 @@ After the completion report, the customer can open a balance payment order for t
 ## Cancellations and refund review
 
 The customer can cancel an unpaid upcoming booking using `POST /api/v1/bookings/:id/cancellations` or request a refund review for captured funds using `POST /api/v1/bookings/:id/refund-requests`. Both take a reason. Administrators review pending requests at `GET /api/v1/admin/refund-requests` and submit a decision and reason to `POST /api/v1/admin/refund-requests/:id/decisions`. Approval reserves sandbox funds by payment and remains pending gateway execution. A gateway-confirmed refund is required to close a paid booking through this flow.
+
+## Payout reservations
+
+Providers can read `GET /api/v1/me/earnings`. Administrators can read `GET /api/v1/admin/payments` and submit `{expectedRevision, held, reason}` to `POST /api/v1/admin/bookings/:id/holds`. Use hold revision `0` for a booking without a prior hold.
+
+`POST /api/v1/admin/payouts` takes `{bookingId, destinationRevision}` and reserves the sandbox service funds once. It requires administrator-verified completion, paid service orders and the current approved destination. `GET /api/v1/payouts/:id` is scoped to the provider and administrators. A reservation status of `review_required` signals a hold, destination change or payment review. Provider submission and reconciliation remain pending.
