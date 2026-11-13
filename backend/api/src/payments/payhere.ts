@@ -6,7 +6,7 @@ import type { Config } from '../../../shared/config.js';
 import { openAccount, postJournal } from '../../../shared/payments/journal.js';
 import { checkoutHash, formatPayHereAmount, notificationStatus, payHereCheckoutUrl, payHereNotification, verifyNotification } from '../../../shared/payments/payhere.js';
 import type { AuthService } from '../auth/service.js';
-import { checkoutExpiry, lockBooking, paidAdvance } from '../bookings/lifecycle.js';
+import { checkoutExpiry, lockBooking, paidAdvance, paymentBlocked } from '../bookings/lifecycle.js';
 import { PublicError } from '../auth/errors.js';
 import { parse, paymentAccess, readOrder, schema, uuid } from './orders.js';
 
@@ -128,8 +128,11 @@ export function makePayHereController(auth: AuthService) {
         }
 
         const now = new Date();
-        const advanceInReview = order.purpose === 'balance' && event.status_code === '2' && !await paidAdvance(tx, order.bookingId);
-        const status = notificationStatus(order.status, event.status_code, attempt.expiresAt <= now || advanceInReview);
+        const captureNeedsReview = event.status_code === '2' && (
+          await paymentBlocked(tx, order.bookingId) ||
+          (order.purpose === 'balance' && !await paidAdvance(tx, order.bookingId))
+        );
+        const status = notificationStatus(order.status, event.status_code, attempt.expiresAt <= now || captureNeedsReview);
         let journalId: string | undefined;
         if (event.status_code === '2') {
           const fund = { currency: order.currency, purpose: order.purpose === 'deposit' ? 'deposit' as const : 'service' as const };

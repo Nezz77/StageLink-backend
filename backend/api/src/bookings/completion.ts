@@ -7,7 +7,7 @@ import { PublicError } from '../auth/errors.js';
 import type { AuthService } from '../auth/service.js';
 import { ProfileService } from '../profiles/service.js';
 import { parse, schema, uuid } from '../payments/orders.js';
-import { agreementAmounts, completionAmounts, lockBooking, maxMinor, paidAdvance } from './lifecycle.js';
+import { agreementAmounts, completionAmounts, lockBooking, maxMinor, paidAdvance, paymentBlocked } from './lifecycle.js';
 import { member } from './requests.js';
 
 const timestamp = z.iso.datetime();
@@ -33,7 +33,7 @@ const overtime = proposed.omit({ requestKey: true }).extend({
 });
 const history = z.object({ items: z.array(overtime), nextVersion: revision.nullable() });
 const journey = z.object({
-  bookingId: uuid, startsAt: timestamp, endsAt: timestamp, agreed: z.boolean(), advancePaid: z.boolean(),
+  bookingId: uuid, startsAt: timestamp, endsAt: timestamp, agreed: z.boolean(), cancelledAt: timestamp.nullable(), advancePaid: z.boolean(),
   checkIn: checkIn.nullable(), completion: completion.nullable(), overtimePending: z.boolean(),
 });
 const pageSize = 30;
@@ -60,7 +60,7 @@ function providerOnly(booking: Booking, actorId: string) {
 }
 
 async function requireAdvance(tx: Prisma.TransactionClient, booking: Booking) {
-  if (!booking.agreedAt || !await paidAdvance(tx, booking.id)) {
+  if (!booking.agreedAt || await paymentBlocked(tx, booking.id) || !await paidAdvance(tx, booking.id)) {
     throw new PublicError(409, 'ADVANCE_REQUIRED', 'An agreed booking and paid advance are required.');
   }
 }
@@ -123,7 +123,7 @@ export function makeCompletionController(auth: AuthService) {
         ]);
         return {
           bookingId: booking.id, startsAt: booking.startsAt.toISOString(), endsAt: booking.endsAt.toISOString(),
-          agreed: Boolean(booking.agreedAt), advancePaid, checkIn: arrival && presentCheckIn(arrival),
+          agreed: Boolean(booking.agreedAt), cancelledAt: booking.cancelledAt?.toISOString() ?? null, advancePaid, checkIn: arrival && presentCheckIn(arrival),
           completion: report && presentCompletion(report), overtimePending: Boolean(pending),
         };
       }, { isolationLevel: 'RepeatableRead' });
@@ -272,6 +272,7 @@ export function makeCompletionController(auth: AuthService) {
       const { reason } = parse(verification, body);
       return write(req, parse(uuid, id), async (tx, booking, actorId) => {
         const report = await tx.bookingCompletion.findUnique({ where: { bookingId: booking.id } });
+        if (await paymentBlocked(tx, booking.id)) throw new PublicError(409, 'BOOKING_PAYMENT_BLOCKED', 'This booking is cancelled or under refund review.');
         if (!report) throw new PublicError(409, 'COMPLETION_NOT_REPORTED', 'The provider must report completion first.');
         if (report.verifiedAt) return presentCompletion(report);
         return presentCompletion(await tx.bookingCompletion.update({

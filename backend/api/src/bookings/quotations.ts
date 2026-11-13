@@ -25,7 +25,7 @@ const decision = z.object({ revision, decision: outcome }).strict();
 const quotation = offer.omit({ revision: true }).extend({
   id: uuid, bookingId: uuid, version: revision, authorId: uuid, totalMinor: revision, currency: z.literal('LKR'),
   createdAt: timestamp, decidedAt: timestamp.nullable(), decidedBy: uuid.nullable(), decision: outcome.nullable(),
-  status: z.enum(['pending', 'superseded', 'accepted', 'declined', 'expired']),
+  status: z.enum(['pending', 'superseded', 'accepted', 'declined', 'expired', 'cancelled']),
 });
 const agreement = z.object({
   id: uuid, bookingId: uuid, quotationId: uuid, digest: z.string().regex(/^[a-f0-9]{64}$/),
@@ -45,7 +45,7 @@ function parse<T>(type: z.ZodType<T>, value: unknown): T {
 
 function requireOpen(booking: Booking, expected: number, now: Date) {
   if (booking.revision !== expected) throw new PublicError(409, 'BOOKING_CHANGED', 'Reload the booking before negotiating.');
-  if (booking.providerDecision !== 'accepted' || booking.agreedAt || booking.holdExpiresAt <= now) {
+  if (booking.cancelledAt || booking.providerDecision !== 'accepted' || booking.agreedAt || booking.holdExpiresAt <= now) {
     throw new PublicError(409, 'NEGOTIATION_CLOSED', 'The booking needs a live, accepted hold for negotiation.');
   }
 }
@@ -56,7 +56,7 @@ function presentQuote(record: BookingQuotation, latest: number, booking: Booking
     lines: lines.parse(record.lines), terms: record.terms, totalMinor: record.totalMinor, currency: 'LKR',
     createdAt: record.createdAt.toISOString(), decidedAt: record.decidedAt?.toISOString() ?? null,
     decidedBy: record.decidedBy, decision: record.decision,
-    status: record.decision ?? (record.version < latest ? 'superseded' : booking.holdExpiresAt <= now ? 'expired' : 'pending'),
+    status: record.decision ?? (record.version < latest ? 'superseded' : booking.cancelledAt ? 'cancelled' : booking.holdExpiresAt <= now ? 'expired' : 'pending'),
   };
 }
 

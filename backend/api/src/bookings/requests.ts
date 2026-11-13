@@ -15,13 +15,14 @@ const timestamp = z.iso.datetime({ offset: true });
 const request = selection.extend({
   requestKey: uuid, startsAt: timestamp, endsAt: timestamp, inquiryId: uuid.optional(),
 });
-const states = z.enum(['held', 'expired', 'accepted', 'rejected', 'agreed']);
+const states = z.enum(['held', 'expired', 'accepted', 'rejected', 'agreed', 'cancelled']);
 const booking = z.object({
   id: uuid, customerId: uuid, providerId: uuid, inquiryId: uuid.nullable(),
   targetKind: z.enum(['gig', 'rental']), targetId: uuid, targetVersion: z.number().int(),
   startsAt: timestamp, endsAt: timestamp, holdExpiresAt: timestamp, createdAt: timestamp,
   state: states, snapshot, revision: z.number().int(),
   providerDecision: z.enum(['accepted', 'rejected']).nullable(),
+  cancelledAt: timestamp.nullable(), cancellationReason: z.string().nullable(),
   decidedAt: timestamp.nullable(), agreedAt: timestamp.nullable(), decisionReason: z.string().nullable(),
 });
 const page = z.object({ items: z.array(booking), nextCursor: uuid.nullable() });
@@ -60,8 +61,9 @@ function present(record: Booking, now: Date) {
   const { requestKey: _key, requestDigest: _digest, ...fields } = record;
   return {
     ...fields, snapshot: snapshot.parse(record.snapshot),
-    state: record.agreedAt ? 'agreed' : record.providerDecision === 'rejected' ? 'rejected'
+    state: record.cancelledAt ? 'cancelled' : record.agreedAt ? 'agreed' : record.providerDecision === 'rejected' ? 'rejected'
       : record.holdExpiresAt <= now ? 'expired' : record.providerDecision ?? 'held',
+    cancelledAt: record.cancelledAt?.toISOString() ?? null,
     decidedAt: record.decidedAt?.toISOString() ?? null, agreedAt: record.agreedAt?.toISOString() ?? null,
     startsAt: record.startsAt.toISOString(), endsAt: record.endsAt.toISOString(),
     holdExpiresAt: record.holdExpiresAt.toISOString(), createdAt: record.createdAt.toISOString(),
@@ -234,8 +236,9 @@ export function makeBookingRequestsController(auth: AuthService) {
         accepted: { agreedAt: null, providerDecision: 'accepted', holdExpiresAt: { gt: now } },
         rejected: { providerDecision: 'rejected' },
         expired: { agreedAt: null, AND: [{ OR: [{ providerDecision: null }, { providerDecision: 'accepted' }] }, { holdExpiresAt: { lte: now } }] },
-      } satisfies Record<z.infer<typeof states>, Prisma.BookingWhereInput>;
-      const state = query.status ? stateFilters[query.status] : {};
+      } satisfies Record<Exclude<z.infer<typeof states>, 'cancelled'>, Prisma.BookingWhereInput>;
+      const state = query.status === 'cancelled' ? { cancelledAt: { not: null } }
+        : query.status ? { cancelledAt: null, ...stateFilters[query.status] } : {};
       return bookingPage(db, {
         OR: [{ customerId: user.id }, { providerId: user.id }], ...state,
         ...(query.from ? { endsAt: { gt: new Date(query.from) } } : {}),
@@ -254,7 +257,7 @@ export function makeBookingRequestsController(auth: AuthService) {
       const query = parse(calendarQuery, raw);
       const now = new Date();
       return bookingPage(db, {
-        providerId: actor.user.id, providerDecision: 'accepted',
+        providerId: actor.user.id, providerDecision: 'accepted', cancelledAt: null,
         OR: [{ agreedAt: { not: null } }, { holdExpiresAt: { gt: now } }],
         endsAt: { gt: new Date(query.from) }, startsAt: { lt: new Date(query.to) },
       }, query.cursor, now);
@@ -272,7 +275,7 @@ export function makeBookingRequestsController(auth: AuthService) {
         const record = await member(tx, bookingId, actor.user.id);
         if (record.providerId !== actor.user.id) throw new PublicError(403, 'ROLE_FORBIDDEN', 'Only the assigned provider can decide this request.');
         profiles.providerRole(actor, record.targetKind === 'gig' ? 'artist' : 'renter');
-        if (record.revision !== input.revision || record.providerDecision) {
+        if (record.cancelledAt || record.revision !== input.revision || record.providerDecision) {
           throw new PublicError(409, 'BOOKING_CHANGED', 'Reload the booking before deciding this request.');
         }
         const now = new Date();
@@ -315,6 +318,7 @@ export function makeBookingRequestsController(auth: AuthService) {
           throw new PublicError(409, 'HOLD_CHANGED', 'Reload the booking before renewing its hold.');
         }
         const now = new Date();
+        if (record.cancelledAt) throw new PublicError(409, 'BOOKING_CANCELLED', 'This booking is cancelled.');
         if (record.agreedAt) return present(record, now);
         if (record.providerDecision === 'rejected') throw new PublicError(409, 'BOOKING_REJECTED', 'This booking was rejected.');
         if (record.providerDecision === 'accepted' && record.holdExpiresAt > now) return present(record, now);

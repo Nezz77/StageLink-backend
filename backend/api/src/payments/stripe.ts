@@ -6,7 +6,7 @@ import type { Prisma } from '../../../generated/prisma/client.js';
 import type { Config } from '../../../shared/config.js';
 import { openAccount, postJournal } from '../../../shared/payments/journal.js';
 import { createStripeCheckout, stripeEvent, stripeSession, stripeSessionReference, validStripeSignature } from '../../../shared/payments/stripe.js';
-import { checkoutExpiry, lockBooking, paidAdvance } from '../bookings/lifecycle.js';
+import { checkoutExpiry, lockBooking, paidAdvance, paymentBlocked } from '../bookings/lifecycle.js';
 import { PublicError } from '../auth/errors.js';
 import type { AuthService } from '../auth/service.js';
 import { parse, paymentAccess, readOrder, schema, uuid } from './orders.js';
@@ -96,7 +96,7 @@ export function makeStripeController(auth: AuthService) {
           throw new PublicError(409, 'STRIPE_SESSION_MISMATCH', 'This checkout needs reconciliation.');
         }
         const available = current.order.status === 'pending' && session.status === 'open' &&
-          current.expiresAt > new Date() &&
+          current.expiresAt > new Date() && !await paymentBlocked(tx, bookingId) &&
           (current.order.purpose !== 'balance' || await paidAdvance(tx, bookingId));
         const url = available ? session.url : null;
         if (current.sessionId !== session.id || current.checkoutUrl !== url) {
@@ -149,8 +149,9 @@ export function makeStripeController(auth: AuthService) {
         let status = order.status;
         let journalId = current.journalId;
         if (captured && !journalId) {
-          const advanceInReview = order.purpose === 'balance' && !await paidAdvance(tx, order.bookingId);
-          status = event.created * 1000 >= current.expiresAt.getTime() || order.status !== 'pending' || advanceInReview ? 'review' : 'paid';
+          const captureNeedsReview = await paymentBlocked(tx, order.bookingId) ||
+            (order.purpose === 'balance' && !await paidAdvance(tx, order.bookingId));
+          status = event.created * 1000 >= current.expiresAt.getTime() || order.status !== 'pending' || captureNeedsReview ? 'review' : 'paid';
           const fund = { currency: order.currency, purpose: order.purpose === 'deposit' ? 'deposit' as const : 'service' as const };
           const clearing = await openAccount(tx, { ...fund, scope: 'gateway:stripe:test', kind: 'clearing' });
           const destination = await openAccount(tx, {

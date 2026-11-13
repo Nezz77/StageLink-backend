@@ -1509,6 +1509,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/bookings/{id}/cancellations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["RefundsController_cancel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/bookings/{id}/refund-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["RefundsController_read"];
+        put?: never;
+        post: operations["RefundsController_request"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/refund-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["RefundsController_queue"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/refund-requests/{id}/decisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["RefundsController_decide"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/bookings/{id}/payment-orders": {
         parameters: {
             query?: never;
@@ -10182,7 +10246,7 @@ export interface operations {
                         /** Format: date-time */
                         createdAt: string;
                         /** @enum {string} */
-                        state: "held" | "expired" | "accepted" | "rejected" | "agreed";
+                        state: "held" | "expired" | "accepted" | "rejected" | "agreed" | "cancelled";
                         snapshot: {
                             title: string;
                             /** @enum {string} */
@@ -10245,6 +10309,9 @@ export interface operations {
                         /** @enum {string|null} */
                         providerDecision: "accepted" | "rejected" | null;
                         /** Format: date-time */
+                        cancelledAt: string | null;
+                        cancellationReason: string | null;
+                        /** Format: date-time */
                         decidedAt: string | null;
                         /** Format: date-time */
                         agreedAt: string | null;
@@ -10293,7 +10360,7 @@ export interface operations {
             query?: {
                 to?: string;
                 from?: string;
-                status?: "held" | "expired" | "accepted" | "rejected" | "agreed";
+                status?: "held" | "expired" | "accepted" | "rejected" | "agreed" | "cancelled";
                 cursor?: string;
             };
             header?: never;
@@ -10331,7 +10398,7 @@ export interface operations {
                             /** Format: date-time */
                             createdAt: string;
                             /** @enum {string} */
-                            state: "held" | "expired" | "accepted" | "rejected" | "agreed";
+                            state: "held" | "expired" | "accepted" | "rejected" | "agreed" | "cancelled";
                             snapshot: {
                                 title: string;
                                 /** @enum {string} */
@@ -10393,6 +10460,9 @@ export interface operations {
                             revision: number;
                             /** @enum {string|null} */
                             providerDecision: "accepted" | "rejected" | null;
+                            /** Format: date-time */
+                            cancelledAt: string | null;
+                            cancellationReason: string | null;
                             /** Format: date-time */
                             decidedAt: string | null;
                             /** Format: date-time */
@@ -10448,7 +10518,7 @@ export interface operations {
                             /** Format: date-time */
                             createdAt: string;
                             /** @enum {string} */
-                            state: "held" | "expired" | "accepted" | "rejected" | "agreed";
+                            state: "held" | "expired" | "accepted" | "rejected" | "agreed" | "cancelled";
                             snapshot: {
                                 title: string;
                                 /** @enum {string} */
@@ -10510,6 +10580,9 @@ export interface operations {
                             revision: number;
                             /** @enum {string|null} */
                             providerDecision: "accepted" | "rejected" | null;
+                            /** Format: date-time */
+                            cancelledAt: string | null;
+                            cancellationReason: string | null;
                             /** Format: date-time */
                             decidedAt: string | null;
                             /** Format: date-time */
@@ -10572,7 +10645,7 @@ export interface operations {
                         /** Format: date-time */
                         createdAt: string;
                         /** @enum {string} */
-                        state: "held" | "expired" | "accepted" | "rejected" | "agreed";
+                        state: "held" | "expired" | "accepted" | "rejected" | "agreed" | "cancelled";
                         snapshot: {
                             title: string;
                             /** @enum {string} */
@@ -10634,6 +10707,9 @@ export interface operations {
                         revision: number;
                         /** @enum {string|null} */
                         providerDecision: "accepted" | "rejected" | null;
+                        /** Format: date-time */
+                        cancelledAt: string | null;
+                        cancellationReason: string | null;
                         /** Format: date-time */
                         decidedAt: string | null;
                         /** Format: date-time */
@@ -10683,7 +10759,7 @@ export interface operations {
                         /** Format: date-time */
                         createdAt: string;
                         /** @enum {string} */
-                        state: "held" | "expired" | "accepted" | "rejected" | "agreed";
+                        state: "held" | "expired" | "accepted" | "rejected" | "agreed" | "cancelled";
                         snapshot: {
                             title: string;
                             /** @enum {string} */
@@ -10745,6 +10821,9 @@ export interface operations {
                         revision: number;
                         /** @enum {string|null} */
                         providerDecision: "accepted" | "rejected" | null;
+                        /** Format: date-time */
+                        cancelledAt: string | null;
+                        cancellationReason: string | null;
                         /** Format: date-time */
                         decidedAt: string | null;
                         /** Format: date-time */
@@ -10801,7 +10880,7 @@ export interface operations {
                         /** Format: date-time */
                         createdAt: string;
                         /** @enum {string} */
-                        state: "held" | "expired" | "accepted" | "rejected" | "agreed";
+                        state: "held" | "expired" | "accepted" | "rejected" | "agreed" | "cancelled";
                         snapshot: {
                             title: string;
                             /** @enum {string} */
@@ -10864,6 +10943,9 @@ export interface operations {
                         /** @enum {string|null} */
                         providerDecision: "accepted" | "rejected" | null;
                         /** Format: date-time */
+                        cancelledAt: string | null;
+                        cancellationReason: string | null;
+                        /** Format: date-time */
                         decidedAt: string | null;
                         /** Format: date-time */
                         agreedAt: string | null;
@@ -10918,7 +11000,7 @@ export interface operations {
                             /** @enum {string|null} */
                             decision: "accepted" | "declined" | null;
                             /** @enum {string} */
-                            status: "pending" | "superseded" | "accepted" | "declined" | "expired";
+                            status: "pending" | "superseded" | "accepted" | "declined" | "expired" | "cancelled";
                         }[];
                         bookingRevision: number;
                         nextVersion: number | null;
@@ -10982,7 +11064,7 @@ export interface operations {
                             /** @enum {string|null} */
                             decision: "accepted" | "declined" | null;
                             /** @enum {string} */
-                            status: "pending" | "superseded" | "accepted" | "declined" | "expired";
+                            status: "pending" | "superseded" | "accepted" | "declined" | "expired" | "cancelled";
                         };
                         bookingRevision: number;
                         agreement: {
@@ -11054,7 +11136,7 @@ export interface operations {
                             /** @enum {string|null} */
                             decision: "accepted" | "declined" | null;
                             /** @enum {string} */
-                            status: "pending" | "superseded" | "accepted" | "declined" | "expired";
+                            status: "pending" | "superseded" | "accepted" | "declined" | "expired" | "cancelled";
                         };
                         bookingRevision: number;
                         agreement: {
@@ -11296,6 +11378,8 @@ export interface operations {
                         /** Format: date-time */
                         endsAt: string;
                         agreed: boolean;
+                        /** Format: date-time */
+                        cancelledAt: string | null;
                         advancePaid: boolean;
                         checkIn: {
                             /** Format: uuid */
@@ -11596,6 +11680,227 @@ export interface operations {
                         platformFeeMinor: number;
                         /** @enum {string} */
                         currency: "LKR";
+                    };
+                };
+            };
+        };
+    };
+    RefundsController_cancel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        bookingId: string;
+                        /** Format: date-time */
+                        cancelledAt: string;
+                        reason: string;
+                    };
+                };
+            };
+        };
+    };
+    RefundsController_read: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        request: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            bookingId: string;
+                            reason: string;
+                            /** Format: date-time */
+                            createdAt: string;
+                            /** @enum {string} */
+                            status: "requested" | "declined" | "approved";
+                            /** Format: date-time */
+                            decidedAt: string | null;
+                            decisionReason: string | null;
+                            /** @enum {string} */
+                            currency: "LKR";
+                            items: {
+                                /** Format: uuid */
+                                orderId: string;
+                                amountMinor: number;
+                                reserved: boolean;
+                            }[];
+                        } | null;
+                    };
+                };
+            };
+        };
+    };
+    RefundsController_request: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uuid */
+                        bookingId: string;
+                        reason: string;
+                        /** Format: date-time */
+                        createdAt: string;
+                        /** @enum {string} */
+                        status: "requested" | "declined" | "approved";
+                        /** Format: date-time */
+                        decidedAt: string | null;
+                        decisionReason: string | null;
+                        /** @enum {string} */
+                        currency: "LKR";
+                        items: {
+                            /** Format: uuid */
+                            orderId: string;
+                            amountMinor: number;
+                            reserved: boolean;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    RefundsController_queue: {
+        parameters: {
+            query?: {
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            bookingId: string;
+                            reason: string;
+                            /** Format: date-time */
+                            createdAt: string;
+                            /** @enum {string} */
+                            status: "requested" | "declined" | "approved";
+                            /** Format: date-time */
+                            decidedAt: string | null;
+                            decisionReason: string | null;
+                            /** @enum {string} */
+                            currency: "LKR";
+                            items: {
+                                /** Format: uuid */
+                                orderId: string;
+                                amountMinor: number;
+                                reserved: boolean;
+                            }[];
+                        }[];
+                        /** Format: uuid */
+                        nextCursor: string | null;
+                    };
+                };
+            };
+        };
+    };
+    RefundsController_decide: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    decision: "approved" | "declined";
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uuid */
+                        bookingId: string;
+                        reason: string;
+                        /** Format: date-time */
+                        createdAt: string;
+                        /** @enum {string} */
+                        status: "requested" | "declined" | "approved";
+                        /** Format: date-time */
+                        decidedAt: string | null;
+                        decisionReason: string | null;
+                        /** @enum {string} */
+                        currency: "LKR";
+                        items: {
+                            /** Format: uuid */
+                            orderId: string;
+                            amountMinor: number;
+                            reserved: boolean;
+                        }[];
                     };
                 };
             };

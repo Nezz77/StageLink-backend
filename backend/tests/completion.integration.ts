@@ -20,6 +20,7 @@ test('completion requires a paid advance, provider check-in and resolved overtim
   const { app } = await createApp(config, deps);
   const users: string[] = [];
   let bookingId: string | undefined;
+  let cancelledBookingId: string | undefined;
   const password = 'A private fixture password 12!';
   type Login = { accessToken: string; csrfToken: string; user: { id: string } };
   try {
@@ -128,6 +129,25 @@ test('completion requires a paid advance, provider check-in and resolved overtim
     assert.equal(journey.data.completion.verifiedAt, verified.data.verifiedAt);
     assert.equal(journey.data.completion.verificationReason, undefined);
     assert.equal(journey.data.overtimePending, false);
+
+    const futureStart = new Date(Date.now() + 86_400_000);
+    const cancellation = await deps.db.booking.create({ data: {
+      providerId: provider.user.id, customerId: customer.user.id, requestKey: randomUUID(), requestDigest: '0'.repeat(64),
+      targetKind: 'gig', targetId: randomUUID(), targetVersion: 1, startsAt: futureStart,
+      endsAt: new Date(futureStart.getTime() + 3_600_000), holdExpiresAt: new Date(Date.now() + 60_000), snapshot: {},
+    } });
+    cancelledBookingId = cancellation.id;
+    const cancellationPath = 'bookings/' + cancellation.id;
+    const cancelBody = { reason: 'The customer changed the event date.' };
+    assert.equal((await call(cancellationPath + '/cancellations', cancelBody, provider)).status, 403);
+    assert.equal((await call(cancellationPath + '/cancellations', cancelBody, outsider)).status, 404);
+    const cancelled = await call(cancellationPath + '/cancellations', cancelBody, customer);
+    assert.equal(cancelled.status, 200);
+    assert.deepEqual((await call(cancellationPath + '/cancellations', cancelBody, customer)).data, cancelled.data);
+    assert.equal((await call(cancellationPath, undefined, provider)).data.state, 'cancelled');
+    assert.equal((await call(cancellationPath + '/provider-decisions', { revision: 2, decision: 'accepted' }, provider)).status, 409);
+    assert.equal((await call(cancellationPath + '/payment-orders', { purpose: 'advance' }, customer)).data.code, 'BOOKING_PAYMENT_BLOCKED');
+    assert.equal((await call(cancellationPath + '/refund-requests', cancelBody, customer)).status, 409);
   } finally {
     try {
       if (bookingId) {
@@ -140,6 +160,7 @@ test('completion requires a paid advance, provider check-in and resolved overtim
         await deps.db.bookingQuotation.deleteMany({ where: { bookingId } });
         await deps.db.booking.deleteMany({ where: { id: bookingId } });
       }
+      if (cancelledBookingId) await deps.db.booking.delete({ where: { id: cancelledBookingId } });
       await deps.db.authUser.deleteMany({ where: { id: { in: users } } });
     } finally {
       await app.close();

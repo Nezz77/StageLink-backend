@@ -5,7 +5,7 @@ import { z } from 'zod';
 import type { PaymentOrder, Prisma } from '../../../generated/prisma/client.js';
 import type { AuthService, Identity } from '../auth/service.js';
 import { PublicError } from '../auth/errors.js';
-import { agreementAmounts, lockBooking, paidAdvance } from '../bookings/lifecycle.js';
+import { agreementAmounts, lockBooking, paidAdvance, paymentBlocked } from '../bookings/lifecycle.js';
 import { member } from '../bookings/requests.js';
 import { ProfileService } from '../profiles/service.js';
 
@@ -83,6 +83,9 @@ export function makePaymentOrdersController(auth: AuthService) {
         const where = { bookingId_purpose: { bookingId, purpose } };
         const existing = await tx.paymentOrder.findUnique({ where });
         if (existing) return presentOrder(existing);
+        if (await paymentBlocked(tx, bookingId)) {
+          throw new PublicError(409, 'BOOKING_PAYMENT_BLOCKED', 'This booking is cancelled or under refund review.');
+        }
         let amountMinor: number;
         if (purpose === 'balance') {
           const report = await tx.bookingCompletion.findUnique({ where: { bookingId } });
