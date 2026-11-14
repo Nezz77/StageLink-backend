@@ -1,3 +1,4 @@
+import { notifyUsers } from '../../../shared/notifications.js';
 import { Body, Controller, Get, HttpCode, Param, Post, Query, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
@@ -140,7 +141,9 @@ export function makeSupportController(auth: AuthService) {
         return existing;
       }
       if (kind === 'reply' && row.status === 'resolved') throw new PublicError(409, 'SUPPORT_CASE_RESOLVED', 'Reopen this case before replying.');
-      return tx.supportEntry.create({ data: { ...key, kind, staff, body: input.body } });
+      const entry = await tx.supportEntry.create({ data: { ...key, kind, staff, body: input.body } });
+      if (staff && kind === 'reply') await notifyUsers(tx, [row.ownerId], 'support', row.id, String(entry.id));
+      return entry;
     });
   }
 

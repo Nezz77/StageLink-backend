@@ -1,3 +1,4 @@
+import { notifyUsers } from '../../../shared/notifications.js';
 import { Body, Controller, HttpCode, Param, Post, Req, type RawBodyRequest } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOkResponse, ApiParam, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
@@ -174,7 +175,13 @@ export function makeStripeController(auth: AuthService) {
           status = 'failed';
         }
         await tx.stripeAttempt.update({ where: { id: attempt.id }, data: { sessionId: session.id, journalId } });
-        if (status !== order.status) await tx.paymentOrder.update({ where: { id: order.id }, data: { status } });
+        if (status !== order.status) {
+          const orderBooking = await tx.booking.findUniqueOrThrow({
+            where: { id: order.bookingId }, select: { customerId: true, providerId: true },
+          });
+          await tx.paymentOrder.update({ where: { id: order.id }, data: { status } });
+          await notifyUsers(tx, [orderBooking.customerId, orderBooking.providerId], 'payment', order.bookingId, order.id + ':' + status);
+        }
         return { received: true };
       });
     }

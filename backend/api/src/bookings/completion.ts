@@ -1,3 +1,4 @@
+import { notifyUsers } from '../../../shared/notifications.js';
 import { Body, Controller, Get, HttpCode, Param, Post, Query, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
@@ -261,9 +262,11 @@ export function makeCompletionController(auth: AuthService) {
           throw new PublicError(409, 'COMPLETION_NOT_ELIGIBLE', 'Wait until the approved overtime has ended.');
         }
         const totals = completionAmounts(await agreementAmounts(tx, booking.id), approved._sum.amountMinor ?? 0);
-        return presentCompletion(await tx.bookingCompletion.create({
+        const record = await tx.bookingCompletion.create({
           data: { ...totals, overtimeMinutes, bookingId: booking.id, reportedBy: actorId, reportedAt: now },
-        }));
+        });
+        await notifyUsers(tx, [booking.customerId], 'completion', booking.id, booking.id);
+        return presentCompletion(record);
       });
     }
 

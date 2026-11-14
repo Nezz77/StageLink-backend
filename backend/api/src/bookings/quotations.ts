@@ -1,3 +1,4 @@
+import { notifyUsers } from '../../../shared/notifications.js';
 import { Body, Controller, Get, HttpCode, Param, Post, Query, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiParam, ApiQuery, ApiTags, type SchemaObject } from '@nestjs/swagger';
 import { createHash } from 'node:crypto';
@@ -181,6 +182,7 @@ export function makeQuotationsController(auth: AuthService) {
           const acceptedAgreement = await tx.bookingAgreement.create({
             data: { bookingId: booking.id, quotationId, artifact: content, digest: createHash('sha256').update(content).digest('hex'), createdAt: now },
           });
+          await notifyUsers(tx, [booking.customerId, booking.providerId].filter(id => id !== actorId), 'agreement', booking.id, acceptedAgreement.id);
           evidence = presentAgreement(acceptedAgreement);
           await issueDocument(tx, booking.id, acceptedAgreement.id, {
             version: 1, kind: 'invoice', issuedAt: now.toISOString(), agreementDigest: acceptedAgreement.digest,

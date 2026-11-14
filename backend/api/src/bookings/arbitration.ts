@@ -1,3 +1,4 @@
+import { notifyUsers } from '../../../shared/notifications.js';
 import { Body, Controller, Get, HttpCode, Param, Post, Query, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { randomUUID } from 'node:crypto';
@@ -309,12 +310,14 @@ export function makeArbitrationController(auth: AuthService) {
             return { orderId: order.id, capturedMinor: order.amountMinor, refundMinor };
           });
           const reservationId = await postJournal(tx, { ...fund, source: 'arbitration.sandbox.reserve', reference: disputeId }, entries);
-          return presentDecision(await tx.arbitrationDecision.create({
+          const decision = await tx.arbitrationDecision.create({
             data: {
               id: decisionId, disputeId, decidedBy: actorId, providerId: booking.providerId, destinationRevision,
               mode: input.mode, ...amounts, reason: input.reason, reservationId, sources: { create: sources },
             },
-          }));
+          });
+          await notifyUsers(tx, [booking.customerId, booking.providerId], 'arbitration', booking.id, decision.id);
+          return presentDecision(decision);
         });
       } catch (error) {
         const failure = error as { code?: string; meta?: { code?: string } };

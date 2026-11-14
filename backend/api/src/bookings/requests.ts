@@ -1,3 +1,4 @@
+import { notifyUsers } from '../../../shared/notifications.js';
 import { Body, Controller, Get, HttpCode, Param, Post, Query, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiParam, ApiQuery, ApiTags, type SchemaObject } from '@nestjs/swagger';
 import { createHash } from 'node:crypto';
@@ -291,6 +292,7 @@ export function makeBookingRequestsController(auth: AuthService) {
             ...(input.decision === 'accepted' ? { holdExpiresAt: new Date(Math.min(record.startsAt.getTime(), now.getTime() + negotiationHoldMs)) } : {}),
           },
         });
+        await notifyUsers(tx, [record.customerId], 'provider_decision', record.id, record.id);
         return present(updated, now);
       }, 'provider');
     }

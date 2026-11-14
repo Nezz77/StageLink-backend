@@ -671,6 +671,12 @@ test('renter owns revisions and public browse only shows approved published equi
       await deps.db.bookingDocument.deleteMany({ where: orderFixtures });
       await deps.db.bookingAgreement.deleteMany({ where: { booking: { customerId: { in: ids } } } });
       await deps.db.bookingQuotation.deleteMany({ where: { booking: { customerId: { in: ids } } } });
+      const bookings = await deps.db.booking.findMany({ where: { customerId: { in: ids } }, select: { id: true } });
+      if (bookings.length) {
+        await deps.db.outboxEvent.deleteMany({
+          where: { topic: 'notification.create.v1', OR: bookings.map(({ id }) => ({ payload: { path: ['sourceId'], equals: id } })) },
+        });
+      }
       await deps.db.booking.deleteMany({ where: { customerId: { in: ids } } });
       await deps.db.inquiry.deleteMany({ where: { customerId: { in: ids } } });
       await deps.db.authUser.deleteMany({ where: { id: { in: ids } } });

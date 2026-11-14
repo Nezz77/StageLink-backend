@@ -50,7 +50,10 @@ export async function processBookingReminders(db: PrismaClient, config: Config, 
   const candidate = await db.bookingReminder.findFirst({
     where: {
       status: 'queued', dueAt: { lte: new Date() }, attempts: { lt: 3 },
-      recipient: { disabledAt: null, emailVerifiedAt: { not: null } },
+      recipient: {
+        disabledAt: null, emailVerifiedAt: { not: null },
+        OR: [{ notificationPreferences: null }, { notificationPreferences: { bookingReminderEmail: true } }],
+      },
       booking: { AND: [
         { OR: [{ dispute: null }, { dispute: { dismissedAt: { not: null } } }] },
         { OR: [{ refundRequest: null }, { refundRequest: { status: 'declined' } }] },
@@ -69,7 +72,10 @@ export async function processBookingReminders(db: PrismaClient, config: Config, 
     const current = await tx.bookingReminder.findUnique({
       where: { id: candidate.id }, include: {
         booking: { select: { startsAt: true, agreedAt: true, cancelledAt: true } },
-        recipient: { select: { email: true, emailVerifiedAt: true, disabledAt: true } },
+        recipient: { select: {
+          email: true, emailVerifiedAt: true, disabledAt: true,
+          notificationPreferences: { select: { bookingReminderEmail: true } },
+        } },
       },
     });
     if (!current || current.status !== 'queued' || current.attempts >= 3) return null;
@@ -80,7 +86,8 @@ export async function processBookingReminders(db: PrismaClient, config: Config, 
       return null;
     }
     if (await paymentBlocked(tx, current.bookingId) || !await paidAdvance(tx, current.bookingId) ||
-      current.recipient.disabledAt || !current.recipient.emailVerifiedAt) return null;
+      current.recipient.disabledAt || !current.recipient.emailVerifiedAt ||
+      current.recipient.notificationPreferences?.bookingReminderEmail === false) return null;
     await tx.bookingReminder.update({
       where: { id: current.id }, data: { status: 'sending', sendingAt: started, attempts: { increment: 1 }, lastCode: null },
     });

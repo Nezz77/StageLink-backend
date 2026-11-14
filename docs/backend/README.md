@@ -166,3 +166,5 @@ Booking participants can open a dispute at `POST /api/v1/bookings/:id/disputes` 
 ## Booking reminders
 
 Set `BOOKING_EMAIL_REMINDERS=true` to have the worker queue and send email reminders for eligible bookings. Development Compose uses Mailpit. Administrators can inspect and manage rows at `/api/v1/admin/reminders`. SMTP acceptance means the receiving server accepted the message. An unknown send outcome requires reconciliation before any resend.
+
+Members list notifications at `GET /api/v1/me/notifications` and mark a notification read with `PUT /api/v1/me/notifications/:id/read`. The worker materializes notifications from booking and support outbox events. `PATCH /api/v1/me/notification-preferences` updates the booking reminder email preference using the revision returned by the corresponding GET.

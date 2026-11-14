@@ -1,3 +1,4 @@
+import { notifyUsers } from '../../../shared/notifications.js';
 import { Body, Controller, HttpCode, Param, Post, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOkResponse, ApiParam, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
@@ -124,6 +125,10 @@ export function makePayHereController(auth: AuthService) {
           // PayHere's checksum omits payment_id. A changed ID cannot justify a second credit.
           if (event.status_code === '2' && existing.reportedPaymentId !== event.payment_id && order.status !== 'review') {
             await tx.paymentOrder.update({ where: { id: order.id }, data: { status: 'review' } });
+            const booking = await tx.booking.findUniqueOrThrow({
+              where: { id: order.bookingId }, select: { customerId: true, providerId: true },
+            });
+            await notifyUsers(tx, [booking.customerId, booking.providerId], 'payment', order.bookingId, order.id + ':review');
           }
           return { received: true };
         }
@@ -153,7 +158,13 @@ export function makePayHereController(auth: AuthService) {
           });
         }
         await tx.payHereEvent.create({ data: { ...key, reportedPaymentId: event.payment_id, receivedAt: now, journalId } });
-        if (status !== order.status) await tx.paymentOrder.update({ where: { id: order.id }, data: { status } });
+        if (status !== order.status) {
+          const orderBooking = await tx.booking.findUniqueOrThrow({
+            where: { id: order.bookingId }, select: { customerId: true, providerId: true },
+          });
+          await tx.paymentOrder.update({ where: { id: order.id }, data: { status } });
+          await notifyUsers(tx, [orderBooking.customerId, orderBooking.providerId], 'payment', order.bookingId, order.id + ':' + status);
+        }
         return { received: true };
       });
     }

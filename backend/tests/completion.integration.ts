@@ -1,3 +1,4 @@
+import { consume } from '../shared/outbox.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
@@ -28,7 +29,8 @@ test('completion requires a paid advance, provider check-in and resolved overtim
     const base = await app.getUrl();
     async function call(path: string, body?: unknown, login?: Login) {
       const response = await fetch(base + '/api/v1/' + path, {
-        method: path.endsWith('/moderation') ? 'PATCH' : body === undefined ? 'GET' : 'POST',
+        method: body === undefined ? 'GET' : path.endsWith('/moderation') || path === 'me/notification-preferences' ? 'PATCH'
+          : path.endsWith('/read') ? 'PUT' : 'POST',
         headers: {
           'Content-Type': 'application/json', Origin: config.WEB_ORIGIN,
           ...(login ? { Authorization: 'Bearer ' + login.accessToken, 'X-CSRF-Token': login.csrfToken } : {}),
@@ -168,6 +170,25 @@ test('completion requires a paid advance, provider check-in and resolved overtim
     assert.equal((await call('admin/' + casePath + '/status', { expectedRevision: 2, status: 'open', reason: 'Reopened to follow up.' }, admin)).data.status, 'open');
     assert.equal((await call(casePath + '/replies', publicReply, customer)).status, 200);
 
+    const messages = await deps.db.outboxEvent.findMany({
+      where: { topic: 'notification.create.v1', payload: { path: ['sourceId'], equals: ticket.data.id } },
+      select: { id: true },
+    });
+    assert.equal(messages.length, 1);
+    await consume(deps.db, messages[0]!.id);
+    await consume(deps.db, messages[0]!.id);
+    const memberNotifications = await call('me/notifications', undefined, customer);
+    const supportNotifications = memberNotifications.data.items.filter((item: { kind: string }) => item.kind === 'support');
+    assert.equal(supportNotifications.length, 1);
+    const readNotification = 'me/notifications/' + supportNotifications[0].id + '/read';
+    assert.equal((await call(readNotification, {}, outsider)).status, 404);
+    const read = await call(readNotification, {}, customer);
+    assert.ok(read.data.readAt);
+    assert.equal((await call(readNotification, {}, customer)).data.readAt, read.data.readAt);
+    assert.equal((await call('me/notifications', undefined, customer)).data.unread, memberNotifications.data.unread - 1);
+    const preferences = await call('me/notification-preferences', { bookingReminderEmail: false, revision: 0 }, customer);
+    assert.deepEqual(preferences.data, { bookingReminderEmail: false, revision: 1 });
+
     const holdPath = 'admin/' + path + '/holds';
     const hold = { expectedRevision: 0, held: true, reason: 'Review payment evidence.' };
     assert.equal((await call(holdPath, hold, provider)).status, 403);
@@ -219,6 +240,13 @@ test('completion requires a paid advance, provider check-in and resolved overtim
         await deps.db.payHereAttempt.deleteMany({ where: { order: { bookingId } } });
         await deps.db.paymentOrder.deleteMany({ where: { bookingId } });
         await deps.db.bookingDispute.deleteMany({ where: { bookingId } });
+        await deps.db.outboxEvent.deleteMany({
+          where: { topic: 'notification.create.v1', OR: [
+            { payload: { path: ['sourceId'], equals: bookingId } },
+            ...((await deps.db.supportCase.findMany({ where: { bookingId }, select: { id: true } })).map(({ id }) =>
+              ({ payload: { path: ['sourceId'], equals: id } }))),
+          ] },
+        });
         await deps.db.supportCase.deleteMany({ where: { bookingId } });
         await deps.db.bookingReview.deleteMany({ where: { bookingId } });
         await deps.db.bookingPayoutHold.deleteMany({ where: { bookingId } });
