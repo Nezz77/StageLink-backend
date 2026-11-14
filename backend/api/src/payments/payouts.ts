@@ -48,6 +48,7 @@ const overviewInclude = {
   completion: { select: { verifiedAt: true } },
   payoutHolds: activeHold,
   refundRequest: { select: { status: true } },
+  dispute: { select: { dismissedAt: true } },
   provider: {
     select: { disabledAt: true, emailVerifiedAt: true, payout: { select: { revision: true, status: true } } },
   },
@@ -66,7 +67,7 @@ function presentPayout(row: PayoutOrder, booking: BookingFinance) {
   const destination = booking.provider.payout;
   const refund = booking.refundRequest?.status;
   const paymentReview = booking.paymentOrders.some(order => order.purpose !== 'deposit' && order.status !== 'paid');
-  const needsReview = booking.cancelledAt || refund === 'requested' || refund === 'approved' || booking.payoutHolds[0]?.held ||
+  const needsReview = booking.cancelledAt || booking.dispute?.dismissedAt === null || refund === 'requested' || refund === 'approved' || booking.payoutHolds[0]?.held ||
     paymentReview || destination?.revision !== row.destinationRevision || destination.status !== 'approved' ||
     booking.provider.disabledAt || !booking.provider.emailVerifiedAt;
   const { reservationId: _reservation, createdBy: _creator, ...details } = row;

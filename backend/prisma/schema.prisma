@@ -87,6 +87,10 @@ model AuthUser {
   reviewModerations BookingReviewModeration[]
   submittedInspections EquipmentInspectionReport[] @relation("InspectionSubmitter")
   decidedInspections EquipmentInspectionReport[] @relation("InspectionDecider")
+  openedDisputes BookingDispute[] @relation("DisputeOpener")
+  dismissedDisputes BookingDispute[] @relation("DisputeDismisser")
+  arbitrationDecisions ArbitrationDecision[] @relation("ArbitrationReviewer")
+  arbitrationAllocations ArbitrationDecision[] @relation("ArbitrationProvider")
   ownedSupportCases SupportCase[] @relation("SupportOwner")
   assignedSupportCases SupportCase[] @relation("SupportAssignee")
   supportEntries SupportEntry[] @relation("SupportActor")
@@ -252,6 +256,7 @@ model PayoutDestinationVersion {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   user AuthUser @relation(fields:[userId], references:[id], onDelete:Cascade)
   payoutOrders PayoutOrder[]
+  arbitrationDecisions ArbitrationDecision[]
   @@id([userId,revision])
   @@map("payout_destination_versions")
 }
@@ -284,6 +289,7 @@ model Asset {
   inspectionPhotos EquipmentInspectionPhoto[]
   verificationDocuments VerificationDocument[]
   supportAttachments SupportAttachment[]
+  disputeAttachments BookingDisputeAttachment[]
   @@index([status,availableAt])
   @@index([ownerId,createdAt])
   @@map("assets")
@@ -608,6 +614,7 @@ model Booking {
   inspection EquipmentInspection?
   damageClaim DamageClaim?
   supportCases SupportCase[]
+  dispute BookingDispute?
   cancelledAt DateTime? @map("cancelled_at") @db.Timestamptz(3)
   cancellationReason String? @map("cancellation_reason") @db.VarChar(500)
   providerDecision ProviderDecision? @map("provider_decision")
@@ -761,6 +768,7 @@ model JournalTransaction {
   refundReservation RefundItem?
   payoutReservation PayoutOrder?
   depositReservation DamageClaim?
+  arbitrationReservation ArbitrationDecision?
   @@unique([source, reference])
   @@unique([id, currency, purpose])
   @@map("journal_transactions")
@@ -806,6 +814,7 @@ model PaymentOrder {
   payhereAttempt PayHereAttempt?
   stripeAttempt StripeAttempt?
   refundItems RefundItem[]
+  arbitrationSource ArbitrationSource?
   damageClaim DamageClaim?
   @@unique([bookingId, purpose])
   @@map("payment_orders")
@@ -1331,4 +1340,74 @@ model SupportAttachment {
   @@unique([caseId, position])
   @@index([assetId])
   @@map("support_attachments")
+}
+
+enum ArbitrationMode {
+  refund
+  provider
+  split
+}
+
+model BookingDispute {
+  id String @id @default(uuid()) @db.Uuid
+  bookingId String @unique @map("booking_id") @db.Uuid
+  openedBy String @map("opened_by") @db.Uuid
+  subject String @db.VarChar(140)
+  body String @db.VarChar(2000)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  dismissedAt DateTime? @map("dismissed_at") @db.Timestamptz(3)
+  dismissedBy String? @map("dismissed_by") @db.Uuid
+  dismissalReason String? @map("dismissal_reason") @db.VarChar(2000)
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  opener AuthUser @relation("DisputeOpener", fields: [openedBy], references: [id], onDelete: Restrict)
+  dismisser AuthUser? @relation("DisputeDismisser", fields: [dismissedBy], references: [id], onDelete: Restrict)
+  attachments BookingDisputeAttachment[]
+  decision ArbitrationDecision?
+  @@map("booking_disputes")
+}
+
+model BookingDisputeAttachment {
+  disputeId String @map("dispute_id") @db.Uuid
+  assetId String @map("asset_id") @db.Uuid
+  position Int
+  dispute BookingDispute @relation(fields: [disputeId], references: [id], onDelete: Restrict)
+  asset Asset @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  @@id([disputeId, assetId])
+  @@unique([disputeId, position])
+  @@index([assetId])
+  @@map("booking_dispute_attachments")
+}
+
+model ArbitrationDecision {
+  id String @id @default(uuid()) @db.Uuid
+  disputeId String @unique @map("dispute_id") @db.Uuid
+  decidedBy String @map("decided_by") @db.Uuid
+  providerId String @map("provider_id") @db.Uuid
+  destinationRevision Int? @map("destination_revision")
+  mode ArbitrationMode
+  heldMinor Int @map("held_minor")
+  refundMinor Int @map("refund_minor")
+  feeMinor Int @map("fee_minor")
+  payoutMinor Int @map("payout_minor")
+  reason String @db.VarChar(2000)
+  reservationId String @unique @map("reservation_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  dispute BookingDispute @relation(fields: [disputeId], references: [id], onDelete: Restrict)
+  reviewer AuthUser @relation("ArbitrationReviewer", fields: [decidedBy], references: [id], onDelete: Restrict)
+  provider AuthUser @relation("ArbitrationProvider", fields: [providerId], references: [id], onDelete: Restrict)
+  destination PayoutDestinationVersion? @relation(fields: [providerId, destinationRevision], references: [userId, revision], onDelete: Restrict, map: "arbitration_decisions_destination_fkey")
+  reservation JournalTransaction @relation(fields: [reservationId], references: [id], onDelete: Restrict)
+  sources ArbitrationSource[]
+  @@map("arbitration_decisions")
+}
+
+model ArbitrationSource {
+  decisionId String @map("decision_id") @db.Uuid
+  orderId String @unique @map("order_id") @db.Uuid
+  capturedMinor Int @map("captured_minor")
+  refundMinor Int @map("refund_minor")
+  decision ArbitrationDecision @relation(fields: [decisionId], references: [id], onDelete: Restrict)
+  order PaymentOrder @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  @@id([decisionId, orderId])
+  @@map("arbitration_sources")
 }

@@ -136,6 +136,9 @@ export function makeRefundsController(auth: AuthService) {
         if (booking.cancelledAt) {
           return { bookingId: booking.id, cancelledAt: booking.cancelledAt.toISOString(), reason: booking.cancellationReason };
         }
+        if (await tx.bookingDispute.count({ where: { bookingId: booking.id, dismissedAt: null } })) {
+          throw new PublicError(409, 'BOOKING_DISPUTED', 'The booking needs an arbitration review.');
+        }
         const now = new Date();
         if (await tx.equipmentInspection.count({
           where: { bookingId: booking.id, stage: { in: ['out', 'return_draft', 'return_ack', 'quarantined', 'clearance_draft'] } },
@@ -171,6 +174,9 @@ export function makeRefundsController(auth: AuthService) {
         if (existing) {
           if (existing.reason !== input.reason) throw new PublicError(409, 'REFUND_ALREADY_REQUESTED', 'This booking already has a refund request.');
           return present(existing);
+        }
+        if (await tx.bookingDispute.count({ where: { bookingId: booking.id, dismissedAt: null } })) {
+          throw new PublicError(409, 'BOOKING_DISPUTED', 'The booking needs an arbitration review.');
         }
         const now = new Date();
         if (!booking.agreedAt || booking.cancelledAt || booking.startsAt <= now || await tx.equipmentInspection.count({

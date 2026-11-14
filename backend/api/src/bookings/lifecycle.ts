@@ -35,11 +35,12 @@ export async function paidAdvance(tx: Prisma.TransactionClient, bookingId: strin
   }))?.status === 'paid';
 }
 
-export async function paymentBlocked(tx: Prisma.TransactionClient, bookingId: string) {
+export async function paymentBlocked(tx: Prisma.TransactionClient, bookingId: string, includeDispute = true) {
   const booking = await tx.booking.findUniqueOrThrow({
-    where: { id: bookingId }, select: { cancelledAt: true, refundRequest: { select: { status: true } } },
+    where: { id: bookingId }, select: { cancelledAt: true, dispute: { select: { dismissedAt: true } }, refundRequest: { select: { status: true } } },
   });
-  return Boolean(booking.cancelledAt || booking.refundRequest?.status === 'requested' || booking.refundRequest?.status === 'approved');
+  return Boolean(booking.cancelledAt || (includeDispute && booking.dispute?.dismissedAt === null) ||
+    booking.refundRequest?.status === 'requested' || booking.refundRequest?.status === 'approved');
 }
 
 export async function checkoutExpiry(

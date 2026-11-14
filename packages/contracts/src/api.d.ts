@@ -645,6 +645,102 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/bookings/{id}/disputes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ArbitrationController_read"];
+        put?: never;
+        post: operations["ArbitrationController_open"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/disputes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ArbitrationController_queue"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/disputes/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ArbitrationController_detail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/disputes/{id}/dismissals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ArbitrationController_dismiss"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/disputes/{id}/decisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ArbitrationController_decide"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/arbitrations/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ArbitrationController_allocation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/profile": {
         parameters: {
             query?: never;
@@ -5184,6 +5280,394 @@ export interface operations {
                         ownerId: string;
                         /** Format: uuid */
                         assigneeId: string | null;
+                    };
+                };
+            };
+        };
+    };
+    ArbitrationController_read: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        dispute: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            bookingId: string;
+                            /** Format: uuid */
+                            openedBy: string;
+                            subject: string;
+                            body: string;
+                            assetIds: string[];
+                            /** Format: date-time */
+                            createdAt: string;
+                            /** Format: date-time */
+                            dismissedAt: string | null;
+                            dismissalReason: string | null;
+                            decision: {
+                                /** Format: uuid */
+                                id: string;
+                                /** Format: uuid */
+                                disputeId: string;
+                                /** @enum {string} */
+                                mode: "refund" | "provider" | "split";
+                                heldMinor: number;
+                                refundMinor: number;
+                                feeMinor: number;
+                                payoutMinor: number;
+                                reason: string;
+                                /** Format: date-time */
+                                createdAt: string;
+                                /** @enum {string} */
+                                currency: "LKR";
+                                /** @enum {string} */
+                                execution: "awaiting_gateway";
+                            } | null;
+                        } | null;
+                    };
+                };
+            };
+        };
+    };
+    ArbitrationController_open: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    subject: string;
+                    body: string;
+                    assetIds?: string[];
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uuid */
+                        bookingId: string;
+                        /** Format: uuid */
+                        openedBy: string;
+                        subject: string;
+                        body: string;
+                        assetIds: string[];
+                        /** Format: date-time */
+                        createdAt: string;
+                        /** Format: date-time */
+                        dismissedAt: string | null;
+                        dismissalReason: string | null;
+                        decision: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            disputeId: string;
+                            /** @enum {string} */
+                            mode: "refund" | "provider" | "split";
+                            heldMinor: number;
+                            refundMinor: number;
+                            feeMinor: number;
+                            payoutMinor: number;
+                            reason: string;
+                            /** Format: date-time */
+                            createdAt: string;
+                            /** @enum {string} */
+                            currency: "LKR";
+                            /** @enum {string} */
+                            execution: "awaiting_gateway";
+                        } | null;
+                    };
+                };
+            };
+        };
+    };
+    ArbitrationController_queue: {
+        parameters: {
+            query?: {
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            bookingId: string;
+                            /** Format: uuid */
+                            openedBy: string;
+                            subject: string;
+                            body: string;
+                            assetIds: string[];
+                            /** Format: date-time */
+                            createdAt: string;
+                            /** Format: date-time */
+                            dismissedAt: string | null;
+                            dismissalReason: string | null;
+                            decision: {
+                                /** Format: uuid */
+                                id: string;
+                                /** Format: uuid */
+                                disputeId: string;
+                                /** @enum {string} */
+                                mode: "refund" | "provider" | "split";
+                                heldMinor: number;
+                                refundMinor: number;
+                                feeMinor: number;
+                                payoutMinor: number;
+                                reason: string;
+                                /** Format: date-time */
+                                createdAt: string;
+                                /** @enum {string} */
+                                currency: "LKR";
+                                /** @enum {string} */
+                                execution: "awaiting_gateway";
+                            } | null;
+                            eligibleHeldMinor: number | null;
+                        }[];
+                        /** Format: uuid */
+                        nextCursor: string | null;
+                    };
+                };
+            };
+        };
+    };
+    ArbitrationController_detail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uuid */
+                        bookingId: string;
+                        /** Format: uuid */
+                        openedBy: string;
+                        subject: string;
+                        body: string;
+                        assetIds: string[];
+                        /** Format: date-time */
+                        createdAt: string;
+                        /** Format: date-time */
+                        dismissedAt: string | null;
+                        dismissalReason: string | null;
+                        decision: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            disputeId: string;
+                            /** @enum {string} */
+                            mode: "refund" | "provider" | "split";
+                            heldMinor: number;
+                            refundMinor: number;
+                            feeMinor: number;
+                            payoutMinor: number;
+                            reason: string;
+                            /** Format: date-time */
+                            createdAt: string;
+                            /** @enum {string} */
+                            currency: "LKR";
+                            /** @enum {string} */
+                            execution: "awaiting_gateway";
+                        } | null;
+                        eligibleHeldMinor: number | null;
+                    };
+                };
+            };
+        };
+    };
+    ArbitrationController_dismiss: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uuid */
+                        bookingId: string;
+                        /** Format: uuid */
+                        openedBy: string;
+                        subject: string;
+                        body: string;
+                        assetIds: string[];
+                        /** Format: date-time */
+                        createdAt: string;
+                        /** Format: date-time */
+                        dismissedAt: string | null;
+                        dismissalReason: string | null;
+                        decision: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            disputeId: string;
+                            /** @enum {string} */
+                            mode: "refund" | "provider" | "split";
+                            heldMinor: number;
+                            refundMinor: number;
+                            feeMinor: number;
+                            payoutMinor: number;
+                            reason: string;
+                            /** Format: date-time */
+                            createdAt: string;
+                            /** @enum {string} */
+                            currency: "LKR";
+                            /** @enum {string} */
+                            execution: "awaiting_gateway";
+                        } | null;
+                    };
+                };
+            };
+        };
+    };
+    ArbitrationController_decide: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    mode: "refund" | "provider" | "split";
+                    expectedHeldMinor: number;
+                    refundMinor: number;
+                    reason: string;
+                    /** @enum {boolean} */
+                    evidenceReviewed: true;
+                    destinationRevision: number | null;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uuid */
+                        disputeId: string;
+                        /** @enum {string} */
+                        mode: "refund" | "provider" | "split";
+                        heldMinor: number;
+                        refundMinor: number;
+                        feeMinor: number;
+                        payoutMinor: number;
+                        reason: string;
+                        /** Format: date-time */
+                        createdAt: string;
+                        /** @enum {string} */
+                        currency: "LKR";
+                        /** @enum {string} */
+                        execution: "awaiting_gateway";
+                    };
+                };
+            };
+        };
+    };
+    ArbitrationController_allocation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uuid */
+                        disputeId: string;
+                        /** @enum {string} */
+                        mode: "refund" | "provider" | "split";
+                        heldMinor: number;
+                        refundMinor: number;
+                        feeMinor: number;
+                        payoutMinor: number;
+                        reason: string;
+                        /** Format: date-time */
+                        createdAt: string;
+                        /** @enum {string} */
+                        currency: "LKR";
+                        /** @enum {string} */
+                        execution: "awaiting_gateway";
                     };
                 };
             };

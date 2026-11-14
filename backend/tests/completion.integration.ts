@@ -182,6 +182,19 @@ test('completion requires a paid advance, provider check-in and resolved overtim
     assert.equal(earnings.data.items[0].payout, null);
     assert.equal((await call('admin/payments', undefined, admin)).data.items.some((item: { bookingId: string }) => item.bookingId === bookingId), true);
 
+    const disputeInput = { subject: 'Service disagreement', body: 'Please review the work performed at this booking.' };
+    assert.equal((await call(path + '/disputes', disputeInput, outsider)).status, 404);
+    const dispute = await call(path + '/disputes', disputeInput, customer);
+    assert.equal(dispute.status, 200);
+    assert.equal((await call(path + '/disputes', disputeInput, customer)).data.id, dispute.data.id);
+    assert.equal((await call(path + '/disputes', undefined, provider)).data.dispute.id, dispute.data.id);
+    assert.equal((await call(path + '/refund-requests', { reason: 'Request a refund for this booking.' }, customer)).data.code, 'BOOKING_DISPUTED');
+    const adminDispute = 'admin/disputes/' + dispute.data.id;
+    const resolution = { reason: 'There is no actionable payment issue.' };
+    assert.equal((await call(adminDispute + '/dismissals', resolution, provider)).status, 403);
+    assert.ok((await call(adminDispute + '/dismissals', resolution, admin)).data.dismissedAt);
+    assert.equal((await call(path + '/disputes', undefined, customer)).data.dispute.dismissalReason, resolution.reason);
+
     const futureStart = new Date(Date.now() + 86_400_000);
     const cancellation = await deps.db.booking.create({ data: {
       providerId: provider.user.id, customerId: customer.user.id, requestKey: randomUUID(), requestDigest: '0'.repeat(64),
@@ -205,6 +218,7 @@ test('completion requires a paid advance, provider check-in and resolved overtim
       if (bookingId) {
         await deps.db.payHereAttempt.deleteMany({ where: { order: { bookingId } } });
         await deps.db.paymentOrder.deleteMany({ where: { bookingId } });
+        await deps.db.bookingDispute.deleteMany({ where: { bookingId } });
         await deps.db.supportCase.deleteMany({ where: { bookingId } });
         await deps.db.bookingReview.deleteMany({ where: { bookingId } });
         await deps.db.bookingPayoutHold.deleteMany({ where: { bookingId } });

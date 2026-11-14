@@ -127,7 +127,7 @@ export function makeDamageClaimsController(auth: AuthService) {
           }
           return present(existing);
         }
-        if (!booking.agreedAt || await paymentBlocked(tx, booking.id)) unavailable();
+        if (!booking.agreedAt || await paymentBlocked(tx, booking.id, false)) unavailable();
         const returned = await tx.equipmentInspectionReport.findFirst({
           where: { inspection: { bookingId: booking.id }, phase: 'return', decision: 'acknowledged' },
           orderBy: { revision: 'desc' }, include: { photos: { take: 1 } },
@@ -206,7 +206,7 @@ export function makeDamageClaimsController(auth: AuthService) {
           const claim = await tx.damageClaim.findUniqueOrThrow({ where: { id: claimId } });
           const deductionMinor = input.approveDeduction ? claim.proposedMinor : 0;
           if (claim.resolvedAt && claim.deductionMinor === deductionMinor && claim.resolutionReason === input.reason) return present(claim);
-          if (!claim.response || claim.resolvedAt || await paymentBlocked(tx, booking.id)) unavailable();
+          if (!claim.response || claim.resolvedAt || await paymentBlocked(tx, booking.id, false)) unavailable();
           const deposit = await collectedDeposit(tx, booking.id, claim.depositMinor);
           if ((deposit?.id ?? null) !== claim.depositOrderId) unavailable();
           const refundMinor = claim.depositMinor - deductionMinor;
