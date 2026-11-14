@@ -6641,6 +6641,14 @@ export interface operations {
                             cancelledAt: string | null;
                             cancellationReason: string | null;
                             recipientCount: number;
+                            deliveryCounts: {
+                                queued: number;
+                                sending: number;
+                                accepted: number;
+                                failed: number;
+                                unknown: number;
+                                skipped: number;
+                            };
                         }[];
                         /** Format: uuid */
                         nextCursor: string | null;
@@ -6689,6 +6697,14 @@ export interface operations {
                         cancelledAt: string | null;
                         cancellationReason: string | null;
                         recipientCount: number;
+                        deliveryCounts: {
+                            queued: number;
+                            sending: number;
+                            accepted: number;
+                            failed: number;
+                            unknown: number;
+                            skipped: number;
+                        };
                     };
                 };
             };
@@ -6726,6 +6742,14 @@ export interface operations {
                         cancelledAt: string | null;
                         cancellationReason: string | null;
                         recipientCount: number;
+                        deliveryCounts: {
+                            queued: number;
+                            sending: number;
+                            accepted: number;
+                            failed: number;
+                            unknown: number;
+                            skipped: number;
+                        };
                     };
                 };
             };
@@ -6800,6 +6824,14 @@ export interface operations {
                         cancelledAt: string | null;
                         cancellationReason: string | null;
                         recipientCount: number;
+                        deliveryCounts: {
+                            queued: number;
+                            sending: number;
+                            accepted: number;
+                            failed: number;
+                            unknown: number;
+                            skipped: number;
+                        };
                     };
                 };
             };
@@ -6843,6 +6875,14 @@ export interface operations {
                         cancelledAt: string | null;
                         cancellationReason: string | null;
                         recipientCount: number;
+                        deliveryCounts: {
+                            queued: number;
+                            sending: number;
+                            accepted: number;
+                            failed: number;
+                            unknown: number;
+                            skipped: number;
+                        };
                     };
                 };
             };

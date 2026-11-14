@@ -2166,7 +2166,7 @@
       "ui_coverage_ids": [
         "UI-051"
       ],
-      "remaining": "Add the campaign delivery worker with consent rechecks, aggregate rate and cost limits, unsubscribe handling and reconciled attempt records. Add SMS consent and delivery, then verify frontend and Figma integration."
+      "remaining": "Verify the opt-in email worker against SMTP. Add direct unsubscribe, provider delivery reconciliation, any provider-specific spend controls, and SMS consent and delivery. Verify frontend and Figma integration."
     },
     {
       "id": "BE-062",

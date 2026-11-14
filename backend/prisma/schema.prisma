@@ -1563,13 +1563,28 @@ model PromotionalCampaign {
   @@map("promotional_campaigns")
 }
 
+enum CampaignDeliveryStatus {
+  queued
+  sending
+  accepted
+  failed
+  unknown
+  skipped
+}
+
 model PromotionalCampaignRecipient {
   campaignId String @map("campaign_id") @db.Uuid
   userId String @map("user_id") @db.Uuid
   consentRevision Int @map("consent_revision")
+  deliveryStatus CampaignDeliveryStatus @default(queued) @map("delivery_status")
+  claimedAt DateTime? @map("claimed_at") @db.Timestamptz(3)
+  resolvedAt DateTime? @map("resolved_at") @db.Timestamptz(3)
+  deliveryCode String? @map("delivery_code") @db.VarChar(48)
   campaign PromotionalCampaign @relation(fields: [campaignId], references: [id], onDelete: Restrict)
   user AuthUser @relation(fields: [userId], references: [id], onDelete: Cascade)
   @@id([campaignId, userId])
   @@index([userId])
+  @@index([deliveryStatus, campaignId], map: "campaign_recipient_delivery_idx")
+  @@index([claimedAt], map: "campaign_recipient_claim_idx")
   @@map("promotional_campaign_recipients")
 }

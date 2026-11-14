@@ -9864,6 +9864,50 @@
                       "type": "integer",
                       "minimum": 0,
                       "maximum": 9007199254740991
+                    },
+                    "deliveryCounts": {
+                      "type": "object",
+                      "properties": {
+                        "queued": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "sending": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "accepted": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "failed": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "unknown": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "skipped": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "queued",
+                        "sending",
+                        "accepted",
+                        "failed",
+                        "unknown",
+                        "skipped"
+                      ],
+                      "additionalProperties": false
                     }
                   },
                   "required": [
@@ -9876,7 +9920,8 @@
                     "createdAt",
                     "cancelledAt",
                     "cancellationReason",
-                    "recipientCount"
+                    "recipientCount",
+                    "deliveryCounts"
                   ],
                   "additionalProperties": false
                 }
@@ -9972,6 +10017,50 @@
                             "type": "integer",
                             "minimum": 0,
                             "maximum": 9007199254740991
+                          },
+                          "deliveryCounts": {
+                            "type": "object",
+                            "properties": {
+                              "queued": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "sending": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "accepted": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "failed": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "unknown": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "skipped": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": [
+                              "queued",
+                              "sending",
+                              "accepted",
+                              "failed",
+                              "unknown",
+                              "skipped"
+                            ],
+                            "additionalProperties": false
                           }
                         },
                         "required": [
@@ -9984,7 +10073,8 @@
                           "createdAt",
                           "cancelledAt",
                           "cancellationReason",
-                          "recipientCount"
+                          "recipientCount",
+                          "deliveryCounts"
                         ],
                         "additionalProperties": false
                       }
@@ -10092,6 +10182,50 @@
                       "type": "integer",
                       "minimum": 0,
                       "maximum": 9007199254740991
+                    },
+                    "deliveryCounts": {
+                      "type": "object",
+                      "properties": {
+                        "queued": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "sending": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "accepted": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "failed": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "unknown": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "skipped": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "queued",
+                        "sending",
+                        "accepted",
+                        "failed",
+                        "unknown",
+                        "skipped"
+                      ],
+                      "additionalProperties": false
                     }
                   },
                   "required": [
@@ -10104,7 +10238,8 @@
                     "createdAt",
                     "cancelledAt",
                     "cancellationReason",
-                    "recipientCount"
+                    "recipientCount",
+                    "deliveryCounts"
                   ],
                   "additionalProperties": false
                 }
@@ -10294,6 +10429,50 @@
                       "type": "integer",
                       "minimum": 0,
                       "maximum": 9007199254740991
+                    },
+                    "deliveryCounts": {
+                      "type": "object",
+                      "properties": {
+                        "queued": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "sending": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "accepted": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "failed": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "unknown": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "skipped": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "queued",
+                        "sending",
+                        "accepted",
+                        "failed",
+                        "unknown",
+                        "skipped"
+                      ],
+                      "additionalProperties": false
                     }
                   },
                   "required": [
@@ -10306,7 +10485,8 @@
                     "createdAt",
                     "cancelledAt",
                     "cancellationReason",
-                    "recipientCount"
+                    "recipientCount",
+                    "deliveryCounts"
                   ],
                   "additionalProperties": false
                 }
@@ -10421,6 +10601,50 @@
                       "type": "integer",
                       "minimum": 0,
                       "maximum": 9007199254740991
+                    },
+                    "deliveryCounts": {
+                      "type": "object",
+                      "properties": {
+                        "queued": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "sending": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "accepted": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "failed": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "unknown": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "skipped": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "queued",
+                        "sending",
+                        "accepted",
+                        "failed",
+                        "unknown",
+                        "skipped"
+                      ],
+                      "additionalProperties": false
                     }
                   },
                   "required": [
@@ -10433,7 +10657,8 @@
                     "createdAt",
                     "cancelledAt",
                     "cancellationReason",
-                    "recipientCount"
+                    "recipientCount",
+                    "deliveryCounts"
                   ],
                   "additionalProperties": false
                 }

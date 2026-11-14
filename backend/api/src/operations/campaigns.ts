@@ -24,10 +24,11 @@ const cancel = z.object({ reason: z.string().trim().min(10).max(500) }).strict()
 const empty = z.object({}).strict();
 const count = z.number().int().nonnegative();
 const state = z.enum(['draft', 'scheduled', 'cancelled']);
+const deliveryCounts = z.object({ queued: count, sending: count, accepted: count, failed: count, unknown: count, skipped: count });
 const campaign = campaignInput.extend({
   state, scheduledFor: z.iso.datetime().nullable(), createdAt: z.iso.datetime(),
   cancelledAt: z.iso.datetime().nullable(), cancellationReason: z.string().nullable(),
-  recipientCount: count,
+  recipientCount: count, deliveryCounts,
 });
 const preview = z.object({ recipientCount: count, recipientLimit: count, audienceFingerprint: fingerprint });
 
@@ -48,11 +49,23 @@ async function eligible(tx: Prisma.TransactionClient, limit: number) {
     ORDER BY p.user_id LIMIT ${limit}`;
 }
 
-function present(campaign: PromotionalCampaign, recipientCount: number) {
+async function summarizeDelivery(tx: Prisma.TransactionClient, ids: string[]) {
+  const counts = new Map<string, z.infer<typeof deliveryCounts>>();
+  for (const id of ids) counts.set(id, { queued: 0, sending: 0, accepted: 0, failed: 0, unknown: 0, skipped: 0 });
+  if (!ids.length) return counts;
+  const groups = await tx.promotionalCampaignRecipient.groupBy({
+    by: ['campaignId', 'deliveryStatus'], where: { campaignId: { in: ids } }, _count: { _all: true },
+  });
+  for (const group of groups) counts.get(group.campaignId)![group.deliveryStatus] = group._count._all;
+  return counts;
+}
+
+function present(campaign: PromotionalCampaign, counts: z.infer<typeof deliveryCounts>) {
   const { id, subject, body, recipientLimit, state, scheduledFor, createdAt, cancelledAt, cancellationReason } = campaign;
   return {
     id, subject, body, recipientLimit, state, createdAt: createdAt.toISOString(), scheduledFor: scheduledFor?.toISOString() ?? null,
-    cancelledAt: cancelledAt?.toISOString() ?? null, cancellationReason, recipientCount,
+    cancelledAt: cancelledAt?.toISOString() ?? null, cancellationReason,
+    recipientCount: Object.values(counts).reduce((total, value) => total + value, 0), deliveryCounts: counts,
   };
 }
 
@@ -82,10 +95,14 @@ export function makeCampaignControllers(auth: AuthService) {
 
   async function getCampaign(tx: Prisma.TransactionClient, id: string) {
     const row = await tx.promotionalCampaign.findUnique({
-      where: { id }, include: { _count: { select: { recipients: true } } },
+      where: { id },
     });
     if (!row) throw new PublicError(404, 'CAMPAIGN_NOT_FOUND', 'This campaign is unavailable.');
     return row;
+  }
+
+  async function presentOne(tx: Prisma.TransactionClient, row: PromotionalCampaign) {
+    return present(row, (await summarizeDelivery(tx, [row.id])).get(row.id)!);
   }
 
   async function lockCampaign(tx: Prisma.TransactionClient, id: string) {
@@ -144,7 +161,7 @@ export function makeCampaignControllers(auth: AuthService) {
         const row = await getCampaign(tx, id);
         if (row.createdBy !== actor.user.id || row.subject !== input.subject || row.body !== input.body ||
           row.recipientLimit !== input.recipientLimit) throw new PublicError(409, 'CAMPAIGN_ID_REUSED', 'Use a new ID for another campaign.');
-        return present(row, row._count.recipients);
+        return presentOne(tx, row);
       });
     }
 
@@ -156,9 +173,10 @@ export function makeCampaignControllers(auth: AuthService) {
       const after = raw === undefined ? undefined : parse(uuid, raw);
       const rows = await db.promotionalCampaign.findMany({
         where: after ? { id: { gt: after } } : {}, orderBy: { id: 'asc' }, take: 31,
-        include: { _count: { select: { recipients: true } } },
       });
-      const items = rows.slice(0, 30).map(row => present(row, row._count.recipients));
+      const page = rows.slice(0, 30);
+      const counts = await summarizeDelivery(db, page.map(row => row.id));
+      const items = page.map(row => present(row, counts.get(row.id)!));
       return { items, nextCursor: rows.length > 30 ? items[29]!.id : null };
     }
 
@@ -168,7 +186,7 @@ export function makeCampaignControllers(auth: AuthService) {
     async read(@Req() req: Request, @Param('id') rawId: string) {
       await adminRead(req);
       const row = await getCampaign(db, parse(uuid, rawId).toLowerCase());
-      return present(row, row._count.recipients);
+      return presentOne(db, row);
     }
 
     @Post(':id/preview')
@@ -202,7 +220,7 @@ export function makeCampaignControllers(auth: AuthService) {
             where: { campaignId: id }, orderBy: { userId: 'asc' }, select: { userId: true, consentRevision: true },
           });
           if (input.audienceFingerprint === audienceFingerprint(id, recipients.map(row => ({ user_id: row.userId, revision: row.consentRevision })))) {
-            return present(row, row._count.recipients);
+            return presentOne(tx, row);
           }
         }
         if (row.state !== 'draft') throw new PublicError(409, 'CAMPAIGN_NOT_DRAFT', 'This campaign already has a scheduling decision.');
@@ -221,7 +239,7 @@ export function makeCampaignControllers(auth: AuthService) {
         const updated = await tx.promotionalCampaign.update({
           where: { id }, data: { state: 'scheduled', scheduledFor, scheduledBy: actor.user.id },
         });
-        return present(updated, recipients.length);
+        return presentOne(tx, updated);
       });
     }
 
@@ -235,11 +253,15 @@ export function makeCampaignControllers(auth: AuthService) {
       const { reason } = parse(cancel, raw);
       return mutation(req, true, async (tx, actor) => {
         const row = await lockCampaign(tx, id);
-        if (row.state === 'cancelled') return present(row, row._count.recipients);
+        if (row.state === 'cancelled') return presentOne(tx, row);
         const updated = await tx.promotionalCampaign.update({
           where: { id }, data: { state: 'cancelled', cancelledAt: new Date(), cancelledBy: actor.user.id, cancellationReason: reason },
         });
-        return present(updated, row._count.recipients);
+        await tx.promotionalCampaignRecipient.updateMany({
+          where: { campaignId: id, deliveryStatus: 'queued' },
+          data: { deliveryStatus: 'skipped', resolvedAt: new Date(), deliveryCode: 'CAMPAIGN_CANCELLED' },
+        });
+        return presentOne(tx, updated);
       });
     }
   }

@@ -9,6 +9,7 @@ import { MediaStore } from '../../shared/media-store.js';
 import { processMediaBatch, cleanupMediaBatch } from '../../shared/media-processing.js';
 import { processBookingReminders } from '../../shared/booking-reminders.js';
 import { processBookingDocuments } from '../../shared/booking-documents.js';
+import { processPromotionalEmail } from '../../shared/campaign-delivery.js';
 import { log } from '../../shared/log.js';
 
 async function main() {
@@ -53,6 +54,16 @@ async function main() {
     catch { log('reminder.scan_failed', { code: 'REMINDER_PROCESSING_UNAVAILABLE' }); }
     finally { remindersRunning = false; }
   }
+  let campaignsRunning = false;
+  async function scanCampaigns() {
+    if (stopping || campaignsRunning) return;
+    campaignsRunning = true;
+    try { await processPromotionalEmail(deps.db, config, mailer); }
+    catch { log('campaign.scan_failed', { code: 'CAMPAIGN_PROCESSING_UNAVAILABLE' }); }
+    finally { campaignsRunning = false; }
+  }
+  const campaignTimer = setInterval(() => void scanCampaigns(), 3000);
+  void scanCampaigns();
   const reminderTimer = setInterval(() => void scanReminders(), 3000);
   void scanReminders();
   const timer = setInterval(() => void scan(), 1000);
@@ -68,9 +79,9 @@ async function main() {
   });
   server.listen(config.WORKER_HEALTH_PORT, '0.0.0.0');
   for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => {
-    stopping = true; mediaStopping=true; clearInterval(mediaTimer); clearInterval(timer); server.close();
+    stopping = true; mediaStopping=true; clearInterval(mediaTimer); clearInterval(timer); clearInterval(reminderTimer); clearInterval(campaignTimer); server.close();
     void (async () => {
-      while (running || mediaRunning || remindersRunning) await new Promise(resolve => setTimeout(resolve, 50));
+      while (running || mediaRunning || remindersRunning || campaignsRunning) await new Promise(resolve => setTimeout(resolve, 50));
       await worker.close(); await queue.close(); mailer.close(); mediaStore.close();
       await Promise.allSettled([publisher.quit(), subscriber.quit(), closeResources(deps)]);
     })().catch(() => { process.exitCode = 1; });
