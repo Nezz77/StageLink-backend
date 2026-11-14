@@ -87,6 +87,7 @@ model AuthUser {
   reviewModerations BookingReviewModeration[]
   submittedInspections EquipmentInspectionReport[] @relation("InspectionSubmitter")
   decidedInspections EquipmentInspectionReport[] @relation("InspectionDecider")
+  systemAuditEntries SystemAuditEntry[]
   bookingReminders BookingReminder[]
   notifications Notification[]
   notificationPreferences NotificationPreference?
@@ -1489,4 +1490,33 @@ model NotificationPreference {
   revision Int @default(1)
   user AuthUser @relation(fields: [userId], references: [id], onDelete: Cascade)
   @@map("notification_preferences")
+}
+
+model SystemSetting {
+  id Int @id
+  maintenance Boolean @default(false)
+  maintenanceMessage String? @map("maintenance_message") @db.VarChar(500)
+  revision Int @default(1)
+  announcementCacheVersion BigInt @default(0) @map("announcement_cache_version")
+  @@map("system_settings")
+}
+
+enum SystemAuditAction {
+  maintenance
+  announcement_publish
+  announcement_unpublish
+  announcement_cache_invalidate
+  sessions_revoke
+}
+
+model SystemAuditEntry {
+  id BigInt @id @default(autoincrement())
+  actorId String @map("actor_id") @db.Uuid
+  action SystemAuditAction
+  targetId String? @map("target_id") @db.Uuid
+  reason String @db.VarChar(500)
+  details Json
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  actor AuthUser @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  @@map("system_audit_entries")
 }

@@ -9,6 +9,8 @@ import type { Config } from '../../shared/config.js';
 import { closeResources, readiness, resources, type Resources } from '../../shared/resources.js';
 import { log } from '../../shared/log.js';
 import { AuthService } from './auth/service.js';
+import { makeMaintenanceGuard } from './operations/maintenance.js';
+import { makeSystemControllers } from './operations/system.js';
 import { makeNotificationsController } from './operations/notifications.js';
 import { makeRemindersController } from './operations/reminders.js';
 import { makeArbitrationController } from './bookings/arbitration.js';
@@ -98,7 +100,7 @@ export async function createApp(config: Config, dependencies: Resources = resour
   }
   const auth = new AuthService(config, dependencies);
   const mediaStore = new MediaStore(config);
-  @Module({ controllers: [HealthController, makeAuthController(auth), makeAiOperationsController(auth), makePromptController(auth), makeRecommendationController(auth), makeVerificationController(auth), makeSupportController(auth), makeArbitrationController(auth), makeRemindersController(auth), makeNotificationsController(auth), ...makeProfileControllers(auth), ...makeMediaControllers(auth, mediaStore), ...makeGigControllers(auth), ...makeRentalControllers(auth), makeInventoryController(auth), ...makeRentalGalleryControllers(auth), makePublicFeedController(dependencies.db), makeEventBriefController(auth), makeSavedItemsController(auth), makeDraftsController(auth), makeInquiriesController(auth), ...makeAvailabilityControllers(auth), makeBookingRequestsController(auth), makeQuotationsController(auth), makeBookingMessagesController(auth), makeCompletionController(auth), makeRefundsController(auth), makeDocumentsController(auth, mediaStore), makeReviewsController(auth, mediaStore), makeInspectionsController(auth), makeDamageClaimsController(auth), makePaymentOrdersController(auth), makePayoutsController(auth), makePayHereController(auth), makeStripeController(auth)] })
+  @Module({ controllers: [HealthController, makeAuthController(auth), makeAiOperationsController(auth), makePromptController(auth), makeRecommendationController(auth), makeVerificationController(auth), makeSupportController(auth), makeArbitrationController(auth), makeRemindersController(auth), makeNotificationsController(auth), ...makeSystemControllers(auth), ...makeProfileControllers(auth), ...makeMediaControllers(auth, mediaStore), ...makeGigControllers(auth), ...makeRentalControllers(auth), makeInventoryController(auth), ...makeRentalGalleryControllers(auth), makePublicFeedController(dependencies.db), makeEventBriefController(auth), makeSavedItemsController(auth), makeDraftsController(auth), makeInquiriesController(auth), ...makeAvailabilityControllers(auth), makeBookingRequestsController(auth), makeQuotationsController(auth), makeBookingMessagesController(auth), makeCompletionController(auth), makeRefundsController(auth), makeDocumentsController(auth, mediaStore), makeReviewsController(auth, mediaStore), makeInspectionsController(auth), makeDamageClaimsController(auth), makePaymentOrdersController(auth), makePayoutsController(auth), makePayHereController(auth), makeStripeController(auth)] })
   class AppModule {
     async onApplicationShutdown() { mediaStore.close(); await closeResources(dependencies); }
   }
@@ -121,6 +123,7 @@ export async function createApp(config: Config, dependencies: Resources = resour
   });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
   app.useGlobalFilters(new Errors());
+  app.useGlobalGuards(makeMaintenanceGuard(dependencies.db));
   const document = openApi(app);
   // Interactive documentation is local/development-only; committed JSON is the contract.
   if (config.NODE_ENV !== 'production') SwaggerModule.setup('api/docs', app, document);

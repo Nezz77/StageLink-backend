@@ -30,6 +30,7 @@ async function activeAnnouncements(db: Prisma.TransactionClient, now: Date) {
 }
 
 export function makePublicFeedController(db: Resources['db']) {
+  let cached: { version: bigint; until: number; items: Awaited<ReturnType<typeof activeAnnouncements>> } | undefined;
   @ApiTags('Public catalog')
   @Controller('public')
   class PublicFeedController {
@@ -67,7 +68,20 @@ export function makePublicFeedController(db: Resources['db']) {
     @Get('announcements')
     @ApiOkResponse({ schema: schema(announcements) })
     async announcements() {
-      return { items: await activeAnnouncements(db, new Date()) };
+      const settings = await db.systemSetting.findUniqueOrThrow({ where: { id: 1 }, select: { announcementCacheVersion: true } });
+      const now = new Date();
+      if (cached?.version === settings.announcementCacheVersion && cached.until > now.getTime()) return { items: cached.items };
+      const [items, upcoming] = await Promise.all([
+        activeAnnouncements(db, now),
+        db.publicAnnouncement.findFirst({
+          where: { publishedAt: { lte: now }, startsAt: { gt: now } },
+          orderBy: { startsAt: 'asc' }, select: { startsAt: true },
+        }),
+      ]);
+      const ends = items.map(item => item.endsAt ? Date.parse(item.endsAt) : Infinity);
+      const until = Math.min(now.getTime() + 5000, upcoming?.startsAt.getTime() ?? Infinity, ...ends);
+      cached = { version: settings.announcementCacheVersion, until, items };
+      return { items };
     }
   }
   return PublicFeedController;
