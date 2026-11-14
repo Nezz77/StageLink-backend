@@ -2304,7 +2304,9 @@
       ]
     }
   ],
-  "implementation_branch": "backend",
+  "implementation_branch": "main",
+  "implementation_repository": "https://github.com/Nezz77/StageLink-backend",
+  "remote_frontend_repository": "https://github.com/Nezz77/StageLink",
   "implementation_checkout": "/Users/nezz/Desktop/UOM/Software Project/StageLink-backend",
   "updated_at": "2026-11-03",
   "remote_frontend_branch": "frontend"

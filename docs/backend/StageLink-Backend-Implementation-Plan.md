@@ -104,11 +104,11 @@ No whole-app move into `apps/web` during the foundation ticket. Use workspaces o
 
 ## 4. Git branch and delivery workflow
 
-Integration branch name: **`backend`**, created from the latest verified frontend baseline when implementation begins. If it already exists, inspect and reuse it rather than overwriting it. Recheck `git status`, current HEAD and branch names before switching; preserve any intervening user changes. `main` remains the working frontend reference. No force-push, reset, automatic merge or deployment is implied by this plan.
+Backend development uses `main` in [Nezz77/StageLink-backend](https://github.com/Nezz77/StageLink-backend). The backend checkout contains server code, contracts, documentation, and infrastructure. Push each completed backend task with `git push origin main`.
 
-Use small feature commits on `backend`, optionally short feature branches from it when team workflow needs reviews. Suggested sequence: `chore(backend): foundation`, `feat(auth): persisted sessions`, `feat(catalog): persisted listings`, etc. Every feature checkpoint records API/database/UI/test status separately. Do not merge unfinished backend work into `main` just to preserve progress.
+Frontend development stays in a separate checkout of [Nezz77/StageLink](https://github.com/Nezz77/StageLink). Update the corresponding Figma screens when making UI changes.
 
-For isolated concurrent frontend work, use a separate managed checkout/worktree for the backend branch; do not let switching branches silently replace the source serving the user's current UI preview. This is a workflow recommendation, not a worktree already created.
+Use small feature commits and record API, database, and verification status in each checkpoint.
 
 ### One ticket's completion gate
 
@@ -250,7 +250,7 @@ Phase order is dependency-driven. Each phase consists of small tickets in `backe
 
 ### P00 — Branch, requirements and baseline
 
-- Recheck latest source, branch and dirty state; create/reuse `backend` from the verified baseline in an isolated checkout when appropriate.
+- Recheck latest source, branch and dirty state; verify the dedicated backend checkout and preserve the recorded frontend baseline.
 - Bring this plan into `docs/backend/`; capture current frontend screenshots, existing 158-test baseline, typecheck/build and routing inventory.
 - Resolve proposal/report source and ADRs: modular API topology, NestJS, database/tool versions, auth/session, currency/advance/fee policy, privacy visibility, media provider, payment capability and signing requirements.
 - Inventory all UI actions and unimplemented report items; agree event/venue/weekly rental/semantic scope explicitly.
@@ -465,11 +465,9 @@ These are feature gates, not requests to paste secrets into chat. Create sanitiz
 
 ## 14. First implementation milestone
 
-Start with **P00 + P01**, then **P02**. The first reviewable result should be a backend branch with reproducible API/PostgreSQL/Redis/worker infrastructure, migrations, contracts and health checks, followed by persistent real accounts and sessions. This makes later per-user data meaningful and prevents investing in more role-global fixtures.
+Start with **P00 + P01**, then **P02**. The first reviewable result should be a backend checkout with reproducible API/PostgreSQL/Redis/worker infrastructure, migrations, contracts and health checks, followed by persistent real accounts and sessions. This makes later per-user data meaningful and prevents investing in more role-global fixtures.
 
 Do not start by connecting the existing “Pay” button to a gateway or by copying all current seed objects into database tables. First establish identity, catalog and reservation truth, then agreement and money commands.
-
-The next implementation request can be: “Start P00 and P01 from this plan on the backend branch.” The branch creation, source edits and dependencies belong to that implementation step, not to this planning deliverable.
 
 ## 15. Reference documentation used for design checks
 
