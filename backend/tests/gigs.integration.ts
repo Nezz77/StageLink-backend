@@ -127,6 +127,22 @@ test('gig ownership, publication snapshots and concurrent revisions', async () =
     assert.equal(matching.status, 200);
     assert.ok(matching.data.items.some((item: { id: string }) => item.id === created.data.id));
     assert.ok(!JSON.stringify(matching.data).includes('6.927111'));
+
+    const discovery = await call('discovery/intent', { query: 'Find a Jazz singer in Colombo with LKR 15,000.' });
+    assert.equal(discovery.status, 200);
+    assert.equal(discovery.data.unparsed, 'Find a Jazz singer in Colombo with LKR 15,000');
+    const intent = await call('discovery/intent', { query: 'Find a Jazz singer in Colombo up to LKR 15,000.' });
+    assert.deepEqual(intent.data, { filters: { city: 'Colombo', genre: 'Jazz', category: 'Vocalist', maxPriceMinor: 1500000 }, unparsed: null });
+    const confirmed = new URLSearchParams(Object.fromEntries(
+      Object.entries(intent.data.filters).map(([name, value]) => [name, String(value)]),
+    ));
+    const exactMatch = await call('listings?' + confirmed);
+    assert.equal(exactMatch.status, 200);
+    assert.ok(exactMatch.data.items.some((item: { id: string }) => item.id === created.data.id));
+    confirmed.set('category', 'DJ');
+    const wrongCategory = await call('listings?' + confirmed);
+    assert.equal(wrongCategory.status, 200);
+    assert.ok(!wrongCategory.data.items.some((item: { id: string }) => item.id === created.data.id));
     for (const query of ['genre=rock', 'maxPriceMinor=1499999', 'lat=7.3&lng=80.6&radiusKm=5']) {
       const excluded = await call('listings?' + query);
       assert.equal(excluded.status, 200);

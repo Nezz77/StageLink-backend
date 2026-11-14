@@ -3,6 +3,7 @@ import { ApiQuery } from '@nestjs/swagger';
 import { z } from 'zod';
 import { Prisma } from '../../../generated/prisma/client.js';
 import { PublicError } from '../auth/errors.js';
+import { artistDetails } from '../profiles/schemas.js';
 
 const pageSize = 24;
 const price = z.string().regex(/^\d{1,9}$/).transform(Number).pipe(z.number().int().max(100_000_000));
@@ -22,17 +23,23 @@ const base = z.object({
 const hasCompleteRadius = (input: z.output<typeof base>) =>
   [input.lat, input.lng, input.radiusKm].every(value => value === undefined) ||
   [input.lat, input.lng, input.radiusKm].every(value => value !== undefined);
-const gigQuery = base.extend({ genre: text(40).optional() }).refine(hasCompleteRadius);
+const gigQuery = base.extend({
+  genre: text(40).optional(),
+  category: artistDetails.shape.category.optional(),
+}).refine(hasCompleteRadius);
+const rentalCategory = z.enum(['Sound', 'Lighting', 'Instruments', 'Power', 'Stage', 'Other']);
 const rentalQuery = base.extend({
-  category: z.enum(['Sound', 'Lighting', 'Instruments', 'Power', 'Stage', 'Other']).optional(),
+  category: rentalCategory.optional(),
   kind: z.enum(['equipment', 'venue', 'bundle']).optional(),
 }).refine(hasCompleteRadius);
 
 export function ApiCatalogQuery(type: 'gig' | 'rental') {
   const common = ['cursor', 'q', 'city', 'maxPriceMinor', 'minRating', 'lat', 'lng', 'radiusKm'];
-  const fields = type === 'gig' ? [...common, 'genre'] : [...common, 'category', 'kind'];
+  const fields = type === 'gig' ? [...common, 'genre', 'category'] : [...common, 'category', 'kind'];
+  const categoryOptions = type === 'gig' ? artistDetails.shape.category.options : rentalCategory.options;
   return applyDecorators(...fields.map(name => ApiQuery({
     name, required: false, type: String,
+    ...(name === 'category' ? { enum: categoryOptions } : {}),
     ...(name === 'radiusKm' ? { description: '1–500 km. Requires lat and lng.' } : {}),
     ...(name === 'minRating' ? { description: 'Minimum average of published verified reviews, from 1 to 5.' } : {}),
     ...(name === 'maxPriceMinor' ? { description: 'Maximum advertised base or daily rate in LKR minor units.' } : {}),
@@ -73,7 +80,10 @@ export async function searchPublished(tx: Prisma.TransactionClient, type: 'gig' 
       WHERE lower(genre) = lower(${filters.genre})
     )`);
   }
-  if ('category' in filters && filters.category !== undefined) clauses.push(Prisma.sql`v.category = ${filters.category}`);
+  if ('category' in filters && filters.category !== undefined) {
+    const category = gig ? Prisma.sql`p.approved_snapshot->'details'->>'category'` : Prisma.sql`v.category`;
+    clauses.push(Prisma.sql`${category} = ${filters.category}`);
+  }
   if ('kind' in filters && filters.kind !== undefined) clauses.push(Prisma.sql`l.kind = ${filters.kind}::"RentalKind"`);
   if (filters.lat !== undefined && filters.lng !== undefined && filters.radiusKm !== undefined) {
     clauses.push(Prisma.sql`p.approved_latitude IS NOT NULL AND p.approved_longitude IS NOT NULL AND

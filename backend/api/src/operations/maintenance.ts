@@ -6,6 +6,7 @@ import { PublicError } from '../auth/errors.js';
 
 const reads = new Set(['GET', 'HEAD', 'OPTIONS']);
 const availableActions = new Set([
+  'POST /api/v1/discovery/intent',
   'POST /api/v1/auth/login',
   'POST /api/v1/auth/refresh',
   'POST /api/v1/auth/logout',

@@ -45,6 +45,7 @@ A checked box marks implemented backend code. PostgreSQL integration, client wir
 - [x] P15 AI service status, revisioned matching weights and persisted usage queries.
 - [x] P15 Prompt drafts, placeholder validation, preview, published history and rollback.
 - [x] P15 Top-three event-brief artist recommendations using published listings and versioned catalog weights.
+- [x] P15 Natural-language artist search preview with confirmable catalog filters.
 - [x] P16 Private provider verification submissions, administrative review and resubmission history.
 - [x] P16 Support tickets, member/staff replies, private notes, assignments and reopen history.
 - [x] P16 Booking disputes, private evidence, audited dismissal and atomic arbitration reservations.

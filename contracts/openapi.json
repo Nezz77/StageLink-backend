@@ -25210,6 +25210,21 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "category",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "Vocalist",
+                "Band",
+                "DJ",
+                "Dancer",
+                "Instrumentalist"
+              ],
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -25515,6 +25530,92 @@
                     "currency",
                     "packages",
                     "artist"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Public catalog"
+        ]
+      }
+    },
+    "/api/v1/discovery/intent": {
+      "post": {
+        "operationId": "DiscoveryIntentController_parse",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 240
+                  }
+                },
+                "required": [
+                  "query"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Suggested filters for GET /listings and any text the parser could not use.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "filters": {
+                      "type": "object",
+                      "properties": {
+                        "city": {
+                          "type": "string",
+                          "maxLength": 100
+                        },
+                        "genre": {
+                          "type": "string",
+                          "maxLength": 40
+                        },
+                        "category": {
+                          "type": "string",
+                          "enum": [
+                            "Vocalist",
+                            "Band",
+                            "DJ",
+                            "Dancer",
+                            "Instrumentalist"
+                          ]
+                        },
+                        "maxPriceMinor": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 100000000
+                        },
+                        "q": {
+                          "type": "string",
+                          "maxLength": 120
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "unparsed": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "filters",
+                    "unparsed"
                   ],
                   "additionalProperties": false
                 }
@@ -27579,6 +27680,14 @@
             "required": false,
             "in": "query",
             "schema": {
+              "enum": [
+                "Sound",
+                "Lighting",
+                "Instruments",
+                "Power",
+                "Stage",
+                "Other"
+              ],
               "type": "string"
             }
           },

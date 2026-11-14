@@ -2256,7 +2256,7 @@
         "src/components/watermelon/morphing-discovery-bar.tsx",
         "src/components/BrowseArtistsPage.tsx"
       ],
-      "proposed_contract": "POST /discovery/intent; GET /listings with confirmed parsed filters",
+      "proposed_contract": "POST /discovery/intent; GET /listings with confirmed parsed filters, including artist category",
       "entities": [
         "search intents",
         "optional generation/model usage"
@@ -2267,10 +2267,11 @@
         "Applicable schema/API/auth/UI/reload/failure tests and checkpoint evidence complete"
       ],
       "requires_new_report_ui": true,
-      "status": "not_started",
+      "status": "implemented_pending_verification",
       "ui_coverage_ids": [
         "UI-054"
-      ]
+      ],
+      "remaining": "Run PostgreSQL HTTP integration and wire the review-and-confirm flow in the frontend and Figma."
     },
     {
       "id": "BE-065",

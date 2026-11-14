@@ -1605,6 +1605,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/discovery/intent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["DiscoveryIntentController_parse"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/rentals": {
         parameters: {
             query?: never;
@@ -11991,6 +12007,7 @@ export interface operations {
                 /** @description 1–500 km. Requires lat and lng. */
                 radiusKm?: string;
                 genre?: string;
+                category?: "Vocalist" | "Band" | "DJ" | "Dancer" | "Instrumentalist";
             };
             header?: never;
             path?: never;
@@ -12078,6 +12095,42 @@ export interface operations {
                             /** @enum {string} */
                             category: "Vocalist" | "Band" | "DJ" | "Dancer" | "Instrumentalist";
                         };
+                    };
+                };
+            };
+        };
+    };
+    DiscoveryIntentController_parse: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    query: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Suggested filters for GET /listings and any text the parser could not use. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        filters: {
+                            city?: string;
+                            genre?: string;
+                            /** @enum {string} */
+                            category?: "Vocalist" | "Band" | "DJ" | "Dancer" | "Instrumentalist";
+                            maxPriceMinor?: number;
+                            q?: string;
+                        };
+                        unparsed: string | null;
                     };
                 };
             };
@@ -12574,7 +12627,7 @@ export interface operations {
                 lng?: string;
                 /** @description 1–500 km. Requires lat and lng. */
                 radiusKm?: string;
-                category?: string;
+                category?: "Sound" | "Lighting" | "Instruments" | "Power" | "Stage" | "Other";
                 kind?: string;
             };
             header?: never;

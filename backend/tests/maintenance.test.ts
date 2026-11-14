@@ -27,6 +27,7 @@ test('maintenance rejects business writes and preserves payments and recovery ro
   assert.equal(await check('POST', '/api/v1/auth/login'), true);
   assert.equal(await check('POST', '/api/v1/assets/:id/access'), true);
   assert.equal(await check('PUT', '/api/v1/admin/system/maintenance'), true);
+  assert.equal(await check('POST', '/api/v1/discovery/intent'), true);
   assert.equal(reads, 0);
   await assert.rejects(check('POST', '/api/v1/payment-orders/:id/sessions/stripe'), { code: 'MAINTENANCE_MODE' });
   assert.equal(headers.get('Retry-After'), '60');
