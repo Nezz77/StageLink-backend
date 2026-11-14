@@ -9,6 +9,7 @@ const schema = z.object({
   AUTH_MAIL_KEY: z.string().regex(/^[0-9a-f]{64}$/),
   PAYOUT_DATA_KEY: z.string().regex(/^[0-9a-f]{64}$/),
   AUTH_RATE_PREFIX: z.string().regex(/^[a-zA-Z0-9:_-]{1,96}$/).default('stagelink-auth-v1'),
+  BOOKING_EMAIL_REMINDERS: z.enum(['true','false']).default('false'),
   SMTP_HOST: z.string().min(1).max(253).default('127.0.0.1'),
   SMTP_PORT: z.coerce.number().int().min(1).max(65535).default(1025),
   SMTP_SECURE: z.enum(['true','false']).default('false'),

@@ -162,3 +162,7 @@ Members create and read their own cases through `POST /api/v1/cases` and `GET /a
 ## Booking disputes
 
 Booking participants can open a dispute at `POST /api/v1/bookings/:id/disputes` and attach private images uploaded with purpose `evidence`. Administrators review the case and eligible service balance under `/api/v1/admin/disputes`. A dismissal releases the dispute hold. A financial decision requires the reviewed balance and reserves the sandbox refund, fee and provider amounts atomically. `GET /api/v1/arbitrations/:id` reports the reservation as `awaiting_gateway`.
+
+## Booking reminders
+
+Set `BOOKING_EMAIL_REMINDERS=true` to have the worker queue and send email reminders for eligible bookings. Development Compose uses Mailpit. Administrators can inspect and manage rows at `/api/v1/admin/reminders`. SMTP acceptance means the receiving server accepted the message. An unknown send outcome requires reconciliation before any resend.

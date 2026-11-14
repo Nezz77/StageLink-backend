@@ -7,6 +7,7 @@ import { consume, dispatchBatch, QUEUE } from '../../shared/outbox.js';
 import { createMailer, deliverAuthMail } from '../../shared/auth-mail.js';
 import { MediaStore } from '../../shared/media-store.js';
 import { processMediaBatch, cleanupMediaBatch } from '../../shared/media-processing.js';
+import { processBookingReminders } from '../../shared/booking-reminders.js';
 import { processBookingDocuments } from '../../shared/booking-documents.js';
 import { log } from '../../shared/log.js';
 
@@ -33,13 +34,27 @@ async function main() {
   let stopping = false;
   let running = false;
   let lastScan = 0;
+  let remindersRunning = false;
   async function scan() {
     if (running || stopping) return;
     running = true;
-    try { await dispatchBatch(deps.db, queue); await deliverAuthMail(deps, config, mailer); lastScan = Date.now(); }
+    try {
+      await dispatchBatch(deps.db, queue);
+      await deliverAuthMail(deps, config, mailer);
+      lastScan = Date.now();
+    }
     catch { log('outbox.scan_failed', { code: 'DATABASE_OR_QUEUE_UNAVAILABLE' }); }
     finally { running = false; }
   }
+  async function scanReminders() {
+    if (stopping || remindersRunning) return;
+    remindersRunning = true;
+    try { await processBookingReminders(deps.db, config, mailer); }
+    catch { log('reminder.scan_failed', { code: 'REMINDER_PROCESSING_UNAVAILABLE' }); }
+    finally { remindersRunning = false; }
+  }
+  const reminderTimer = setInterval(() => void scanReminders(), 3000);
+  void scanReminders();
   const timer = setInterval(() => void scan(), 1000);
   void scan();
   const server = createServer(async (req, res) => {
@@ -55,7 +70,7 @@ async function main() {
   for (const signal of ['SIGINT', 'SIGTERM']) process.once(signal, () => {
     stopping = true; mediaStopping=true; clearInterval(mediaTimer); clearInterval(timer); server.close();
     void (async () => {
-      while (running || mediaRunning) await new Promise(resolve => setTimeout(resolve, 50));
+      while (running || mediaRunning || remindersRunning) await new Promise(resolve => setTimeout(resolve, 50));
       await worker.close(); await queue.close(); mailer.close(); mediaStore.close();
       await Promise.allSettled([publisher.quit(), subscriber.quit(), closeResources(deps)]);
     })().catch(() => { process.exitCode = 1; });

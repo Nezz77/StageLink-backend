@@ -87,6 +87,8 @@ model AuthUser {
   reviewModerations BookingReviewModeration[]
   submittedInspections EquipmentInspectionReport[] @relation("InspectionSubmitter")
   decidedInspections EquipmentInspectionReport[] @relation("InspectionDecider")
+  bookingReminders BookingReminder[]
+  reminderActions ReminderAdminAction[]
   openedDisputes BookingDispute[] @relation("DisputeOpener")
   dismissedDisputes BookingDispute[] @relation("DisputeDismisser")
   arbitrationDecisions ArbitrationDecision[] @relation("ArbitrationReviewer")
@@ -615,6 +617,7 @@ model Booking {
   damageClaim DamageClaim?
   supportCases SupportCase[]
   dispute BookingDispute?
+  reminders BookingReminder[]
   cancelledAt DateTime? @map("cancelled_at") @db.Timestamptz(3)
   cancellationReason String? @map("cancellation_reason") @db.VarChar(500)
   providerDecision ProviderDecision? @map("provider_decision")
@@ -1410,4 +1413,47 @@ model ArbitrationSource {
   order PaymentOrder @relation(fields: [orderId], references: [id], onDelete: Restrict)
   @@id([decisionId, orderId])
   @@map("arbitration_sources")
+}
+
+enum ReminderStatus {
+  queued
+  sending
+  accepted
+  failed
+  unknown
+  cancelled
+}
+
+model BookingReminder {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  bookingId String @map("booking_id") @db.Uuid
+  recipientId String @map("recipient_id") @db.Uuid
+  startsAt DateTime @map("starts_at") @db.Timestamptz(3)
+  dueAt DateTime @map("due_at") @db.Timestamptz(3)
+  offsetHours Int @map("offset_hours")
+  status ReminderStatus @default(queued)
+  attempts Int @default(0)
+  sendingAt DateTime? @map("sending_at") @db.Timestamptz(3)
+  acceptedAt DateTime? @map("accepted_at") @db.Timestamptz(3)
+  lastCode String? @map("last_code") @db.VarChar(60)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  recipient AuthUser @relation(fields: [recipientId], references: [id], onDelete: Restrict)
+  adminActions ReminderAdminAction[]
+  @@unique([bookingId, recipientId, startsAt, offsetHours])
+  @@index([status, dueAt])
+  @@map("booking_reminders")
+}
+
+model ReminderAdminAction {
+  id String @id @default(uuid()) @db.Uuid
+  reminderId String @map("reminder_id") @db.Uuid
+  actorId String @map("actor_id") @db.Uuid
+  action String @db.VarChar(12)
+  reason String @db.VarChar(500)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  reminder BookingReminder @relation(fields: [reminderId], references: [id], onDelete: Restrict)
+  actor AuthUser @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  @@index([reminderId])
+  @@map("reminder_admin_actions")
 }

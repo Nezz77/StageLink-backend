@@ -48,7 +48,8 @@ A checked box marks implemented backend code. PostgreSQL integration, client wir
 - [x] P16 Private provider verification submissions, administrative review and resubmission history.
 - [x] P16 Support tickets, member/staff replies, private notes, assignments and reopen history.
 - [x] P16 Booking disputes, private evidence, audited dismissal and atomic arbitration reservations.
-- [ ] P15–P17 AI provider calls and output previews, semantic ranking, verification policy enforcement, support notifications, arbitration execution, reminders and system controls.
+- [x] P17 Durable 24-hour and 2-hour booking email reminder queue with audited controls.
+- [ ] P15–P17 AI provider calls and output previews, semantic ranking, verification policy enforcement, support notifications, arbitration execution, SMS reminders and system controls.
 - [ ] P18 analytics, security, accessibility, backup and rollback, and end-to-end release verification.
 
 ## Verification and client integration
