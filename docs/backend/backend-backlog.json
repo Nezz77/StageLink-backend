@@ -2162,10 +2162,11 @@
         "Applicable schema/API/auth/UI/reload/failure tests and checkpoint evidence complete"
       ],
       "requires_new_report_ui": true,
-      "status": "not_started",
+      "status": "in_progress",
       "ui_coverage_ids": [
         "UI-051"
-      ]
+      ],
+      "remaining": "Add the campaign delivery worker with consent rechecks, aggregate rate and cost limits, unsubscribe handling and reconciled attempt records. Add SMS consent and delivery, then verify frontend and Figma integration."
     },
     {
       "id": "BE-062",

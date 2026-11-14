@@ -174,3 +174,7 @@ Members list notifications at `GET /api/v1/me/notifications` and mark a notifica
 Read maintenance state at `GET /api/v1/system/public-status`. Administrators use `PUT /api/v1/admin/system/maintenance` with the current revision, an enabled flag and a reason. While enabled, new business writes receive `503 MAINTENANCE_MODE`. Reads, sign-in, account recovery, payment callbacks, and these recovery controls remain available. Background workers continue running.
 
 Administrators list and schedule announcements under `/api/v1/admin/announcements`. Publishing or unpublishing refreshes the public announcement cache. `POST /api/v1/admin/cache/invalidate` accepts the `public_announcements` scope. `POST /api/v1/admin/sessions/revoke` accepts one user ID and an optional session ID. `GET /api/v1/admin/audit` lists recorded control changes.
+
+## Promotional campaigns
+
+Members manage opt-in with `GET` and `PUT /api/v1/me/marketing-preferences`. Consent applies to the verified address at the time of opt-in and is independent of booking reminders. Administrators create campaigns under `/api/v1/admin/campaigns`. Preview returns the eligible recipient count and an audience fingerprint to submit with a schedule. The recipient cap is 100 per campaign. Scheduled rows are stored for the future delivery worker.

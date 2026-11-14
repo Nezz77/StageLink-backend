@@ -87,6 +87,11 @@ model AuthUser {
   reviewModerations BookingReviewModeration[]
   submittedInspections EquipmentInspectionReport[] @relation("InspectionSubmitter")
   decidedInspections EquipmentInspectionReport[] @relation("InspectionDecider")
+  marketingEmailPreference MarketingEmailPreference?
+  createdCampaigns PromotionalCampaign[] @relation("CampaignCreator")
+  scheduledCampaigns PromotionalCampaign[] @relation("CampaignScheduler")
+  cancelledCampaigns PromotionalCampaign[] @relation("CampaignCanceller")
+  campaignRecipients PromotionalCampaignRecipient[]
   systemAuditEntries SystemAuditEntry[]
   bookingReminders BookingReminder[]
   notifications Notification[]
@@ -1519,4 +1524,50 @@ model SystemAuditEntry {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   actor AuthUser @relation(fields: [actorId], references: [id], onDelete: Restrict)
   @@map("system_audit_entries")
+}
+
+model MarketingEmailPreference {
+  userId String @id @map("user_id") @db.Uuid
+  consentEmail String? @map("consent_email") @db.VarChar(200)
+  revision Int
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
+  user AuthUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@map("marketing_email_preferences")
+}
+
+enum PromotionalCampaignState {
+  draft
+  scheduled
+  cancelled
+}
+
+model PromotionalCampaign {
+  id String @id @default(uuid()) @db.Uuid
+  createdBy String @map("created_by") @db.Uuid
+  subject String @db.VarChar(140)
+  body String @db.VarChar(4000)
+  recipientLimit Int @map("recipient_limit")
+  state PromotionalCampaignState @default(draft)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  scheduledFor DateTime? @map("scheduled_for") @db.Timestamptz(3)
+  scheduledBy String? @map("scheduled_by") @db.Uuid
+  cancelledBy String? @map("cancelled_by") @db.Uuid
+  cancellationReason String? @map("cancellation_reason") @db.VarChar(500)
+  cancelledAt DateTime? @map("cancelled_at") @db.Timestamptz(3)
+  creator AuthUser @relation("CampaignCreator", fields: [createdBy], references: [id], onDelete: Restrict)
+  scheduler AuthUser? @relation("CampaignScheduler", fields: [scheduledBy], references: [id], onDelete: Restrict)
+  canceller AuthUser? @relation("CampaignCanceller", fields: [cancelledBy], references: [id], onDelete: Restrict)
+  recipients PromotionalCampaignRecipient[]
+  @@map("promotional_campaigns")
+}
+
+model PromotionalCampaignRecipient {
+  campaignId String @map("campaign_id") @db.Uuid
+  userId String @map("user_id") @db.Uuid
+  consentRevision Int @map("consent_revision")
+  campaign PromotionalCampaign @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  user AuthUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@id([campaignId, userId])
+  @@index([userId])
+  @@map("promotional_campaign_recipients")
 }

@@ -16,6 +16,7 @@ test('system controls enforce maintenance, invalidate announcements and revoke s
   const { app } = await createApp(config, deps);
   const users: string[] = [];
   const announcementId = randomUUID();
+  const campaignId = randomUUID();
   const password = 'A private fixture password 12!';
   const reason = 'Verify the system operations.';
   type Login = { accessToken: string; csrfToken: string; user: { id: string; email: string } };
@@ -91,6 +92,29 @@ test('system controls enforce maintenance, invalidate announcements and revoke s
     ]);
     assert.equal((await request(controls, 'PUT', { revision: enabled.data.revision, enabled: false, reason }, admin)).response.status, 200);
     assert.equal((await request('event-posts', 'POST', {}, outsider)).response.status, 400);
+
+    const preferencePath = 'me/marketing-preferences';
+    assert.deepEqual((await request(preferencePath, 'GET', undefined, outsider)).data, { revision: 0, emailOptIn: false });
+    const consent = { revision: 0, emailOptIn: true };
+    assert.deepEqual((await request(preferencePath, 'PUT', consent, outsider)).data, { revision: 1, emailOptIn: true });
+    const draft = { id: campaignId, subject: 'StageLink update', body: 'A member update.', recipientLimit: 100 };
+    assert.equal((await request('admin/campaigns', 'POST', draft, outsider)).response.status, 403);
+    assert.equal((await request('admin/campaigns', 'POST', draft, admin)).data.state, 'draft');
+    const campaign = 'admin/campaigns/' + campaignId;
+    const preview = await request(campaign + '/preview', 'POST', {}, admin);
+    assert.equal(preview.data.recipientCount, 1);
+    assert.deepEqual(Object.keys(preview.data).sort(), ['audienceFingerprint', 'recipientCount', 'recipientLimit']);
+    const scheduledFor = new Date(Date.now() + 60_000).toISOString();
+    await request(preferencePath, 'PUT', { revision: 1, emailOptIn: false }, outsider);
+    const stale = { scheduledFor, audienceFingerprint: preview.data.audienceFingerprint };
+    assert.equal((await request(campaign + '/schedule', 'POST', stale, admin)).data.code, 'CAMPAIGN_AUDIENCE_CHANGED');
+    await request(preferencePath, 'PUT', { revision: 2, emailOptIn: true }, outsider);
+    const refreshed = await request(campaign + '/preview', 'POST', {}, admin);
+    const schedule = { scheduledFor, audienceFingerprint: refreshed.data.audienceFingerprint };
+    assert.equal((await request(campaign + '/schedule', 'POST', schedule, admin)).data.state, 'scheduled');
+    assert.equal((await request(campaign + '/schedule', 'POST', schedule, admin)).data.recipientCount, 1);
+    assert.equal((await request(campaign + '/cancel', 'POST', { reason }, admin)).data.state, 'cancelled');
+
   } finally {
     try {
       await deps.db.systemSetting.update({ where: { id: 1 }, data: {
@@ -98,6 +122,8 @@ test('system controls enforce maintenance, invalidate announcements and revoke s
       } });
       await deps.db.publicAnnouncement.deleteMany({ where: { id: announcementId } });
       await deps.db.systemAuditEntry.deleteMany({ where: { actorId: { in: users } } });
+      await deps.db.promotionalCampaignRecipient.deleteMany({ where: { campaignId } });
+      await deps.db.promotionalCampaign.deleteMany({ where: { id: campaignId } });
       await deps.db.authUser.deleteMany({ where: { id: { in: users } } });
     } finally {
       await app.close();

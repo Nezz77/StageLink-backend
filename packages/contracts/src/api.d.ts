@@ -949,6 +949,102 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/marketing-preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ConsentController_get"];
+        put: operations["ConsentController_update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/campaigns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["CampaignController_list"];
+        put?: never;
+        post: operations["CampaignController_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/campaigns/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["CampaignController_read"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/campaigns/{id}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["CampaignController_preview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/campaigns/{id}/schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["CampaignController_schedule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/campaigns/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["CampaignController_cancel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/profile": {
         parameters: {
             query?: never;
@@ -6424,6 +6520,297 @@ export interface operations {
                             createdAt: string;
                         }[];
                         nextCursor: string | null;
+                    };
+                };
+            };
+        };
+    };
+    ConsentController_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        revision: number;
+                        emailOptIn: boolean;
+                    };
+                };
+            };
+        };
+    };
+    ConsentController_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    revision: number;
+                    emailOptIn: boolean;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        revision: number;
+                        emailOptIn: boolean;
+                    };
+                };
+            };
+        };
+    };
+    CampaignController_list: {
+        parameters: {
+            query?: {
+                after?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** Format: uuid */
+                            id: string;
+                            subject: string;
+                            body: string;
+                            recipientLimit: number;
+                            /** @enum {string} */
+                            state: "draft" | "scheduled" | "cancelled";
+                            /** Format: date-time */
+                            scheduledFor: string | null;
+                            /** Format: date-time */
+                            createdAt: string;
+                            /** Format: date-time */
+                            cancelledAt: string | null;
+                            cancellationReason: string | null;
+                            recipientCount: number;
+                        }[];
+                        /** Format: uuid */
+                        nextCursor: string | null;
+                    };
+                };
+            };
+        };
+    };
+    CampaignController_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    id: string;
+                    subject: string;
+                    body: string;
+                    recipientLimit: number;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        subject: string;
+                        body: string;
+                        recipientLimit: number;
+                        /** @enum {string} */
+                        state: "draft" | "scheduled" | "cancelled";
+                        /** Format: date-time */
+                        scheduledFor: string | null;
+                        /** Format: date-time */
+                        createdAt: string;
+                        /** Format: date-time */
+                        cancelledAt: string | null;
+                        cancellationReason: string | null;
+                        recipientCount: number;
+                    };
+                };
+            };
+        };
+    };
+    CampaignController_read: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        subject: string;
+                        body: string;
+                        recipientLimit: number;
+                        /** @enum {string} */
+                        state: "draft" | "scheduled" | "cancelled";
+                        /** Format: date-time */
+                        scheduledFor: string | null;
+                        /** Format: date-time */
+                        createdAt: string;
+                        /** Format: date-time */
+                        cancelledAt: string | null;
+                        cancellationReason: string | null;
+                        recipientCount: number;
+                    };
+                };
+            };
+        };
+    };
+    CampaignController_preview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        recipientCount: number;
+                        recipientLimit: number;
+                        audienceFingerprint: string;
+                    };
+                };
+            };
+        };
+    };
+    CampaignController_schedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: date-time */
+                    scheduledFor: string;
+                    audienceFingerprint: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        subject: string;
+                        body: string;
+                        recipientLimit: number;
+                        /** @enum {string} */
+                        state: "draft" | "scheduled" | "cancelled";
+                        /** Format: date-time */
+                        scheduledFor: string | null;
+                        /** Format: date-time */
+                        createdAt: string;
+                        /** Format: date-time */
+                        cancelledAt: string | null;
+                        cancellationReason: string | null;
+                        recipientCount: number;
+                    };
+                };
+            };
+        };
+    };
+    CampaignController_cancel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        subject: string;
+                        body: string;
+                        recipientLimit: number;
+                        /** @enum {string} */
+                        state: "draft" | "scheduled" | "cancelled";
+                        /** Format: date-time */
+                        scheduledFor: string | null;
+                        /** Format: date-time */
+                        createdAt: string;
+                        /** Format: date-time */
+                        cancelledAt: string | null;
+                        cancellationReason: string | null;
+                        recipientCount: number;
                     };
                 };
             };

@@ -18,6 +18,7 @@ const availableActions = new Set([
   'PUT /api/v1/admin/announcements',
   'POST /api/v1/admin/cache/invalidate',
   'POST /api/v1/admin/sessions/revoke',
+  'PUT /api/v1/me/marketing-preferences',
 ]);
 
 export function makeMaintenanceGuard(db: Resources['db']): CanActivate {

@@ -51,7 +51,8 @@ A checked box marks implemented backend code. PostgreSQL integration, client wir
 - [x] P17 Durable 24-hour and 2-hour booking email reminder queue with audited controls.
 - [x] P17 In-app notifications, unread counts, read state and email reminder preferences.
 - [x] P17 Read-only maintenance mode, public announcement controls, scoped cache invalidation, session revocation and operations audit.
-- [ ] P15–P17 AI provider calls and output previews, semantic ranking, verification policy enforcement, realtime notifications, arbitration execution, SMS reminders and promotional campaigns.
+- [x] P17 Promotional email opt-in, campaign drafts, verified audience preview, scheduling and cancellation.
+- [ ] P15–P17 AI provider calls and output previews, semantic ranking, verification policy enforcement, realtime notifications, arbitration execution, SMS reminders and promotional campaign delivery.
 - [ ] P18 analytics, security, accessibility, backup and rollback, and end-to-end release verification.
 
 ## Verification and client integration
