@@ -1045,6 +1045,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/analytics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AnalyticsController_admin"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/analytics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AnalyticsController_provider"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/profile": {
         parameters: {
             query?: never;
@@ -6811,6 +6843,156 @@ export interface operations {
                         cancelledAt: string | null;
                         cancellationReason: string | null;
                         recipientCount: number;
+                    };
+                };
+            };
+        };
+    };
+    AnalyticsController_admin: {
+        parameters: {
+            query?: {
+                from?: string;
+                to?: string;
+                currency?: "LKR";
+                environment?: "sandbox" | "live";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        bookings: {
+                            requested: number;
+                            agreed: number;
+                            cancelled: number;
+                            verifiedCompleted: number;
+                        };
+                        money: {
+                            serviceCapturedMinor: string;
+                            depositCapturedMinor: string;
+                            captureReviewMinor: string;
+                            refundReservedMinor: string;
+                            payoutReservedMinor: string;
+                            feeReservedMinor: string;
+                        } | null;
+                        newUsers: number | null;
+                        /** Format: date */
+                        from: string;
+                        /** Format: date */
+                        to: string;
+                        /** @enum {string} */
+                        currency: "LKR";
+                        /** @enum {string} */
+                        environment: "sandbox" | "live";
+                        days: {
+                            bookings: {
+                                requested: number;
+                                agreed: number;
+                                cancelled: number;
+                                verifiedCompleted: number;
+                            };
+                            money: {
+                                serviceCapturedMinor: string;
+                                depositCapturedMinor: string;
+                                captureReviewMinor: string;
+                                refundReservedMinor: string;
+                                payoutReservedMinor: string;
+                                feeReservedMinor: string;
+                            } | null;
+                            newUsers: number | null;
+                            /** Format: date */
+                            date: string;
+                        }[];
+                        settled: {
+                            /** @enum {string|null} */
+                            refundedMinor: null;
+                            /** @enum {string|null} */
+                            paidOutMinor: null;
+                            /** @enum {string|null} */
+                            feeRevenueMinor: null;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    AnalyticsController_provider: {
+        parameters: {
+            query?: {
+                from?: string;
+                to?: string;
+                currency?: "LKR";
+                environment?: "sandbox" | "live";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        bookings: {
+                            requested: number;
+                            agreed: number;
+                            cancelled: number;
+                            verifiedCompleted: number;
+                        };
+                        money: {
+                            serviceCapturedMinor: string;
+                            depositCapturedMinor: string;
+                            captureReviewMinor: string;
+                            refundReservedMinor: string;
+                            payoutReservedMinor: string;
+                            feeReservedMinor: string;
+                        } | null;
+                        newUsers: number | null;
+                        /** Format: date */
+                        from: string;
+                        /** Format: date */
+                        to: string;
+                        /** @enum {string} */
+                        currency: "LKR";
+                        /** @enum {string} */
+                        environment: "sandbox" | "live";
+                        days: {
+                            bookings: {
+                                requested: number;
+                                agreed: number;
+                                cancelled: number;
+                                verifiedCompleted: number;
+                            };
+                            money: {
+                                serviceCapturedMinor: string;
+                                depositCapturedMinor: string;
+                                captureReviewMinor: string;
+                                refundReservedMinor: string;
+                                payoutReservedMinor: string;
+                                feeReservedMinor: string;
+                            } | null;
+                            newUsers: number | null;
+                            /** Format: date */
+                            date: string;
+                        }[];
+                        settled: {
+                            /** @enum {string|null} */
+                            refundedMinor: null;
+                            /** @enum {string|null} */
+                            paidOutMinor: null;
+                            /** @enum {string|null} */
+                            feeRevenueMinor: null;
+                        };
                     };
                 };
             };

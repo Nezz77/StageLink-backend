@@ -118,6 +118,7 @@ model AuthUser {
   verifiedCompletions BookingCompletion[] @relation("CompletionVerifier")
   customerBookings Booking[] @relation("BookingCustomer")
   providerBookings Booking[] @relation("BookingProvider")
+  @@index([createdAt])
   @@map("auth_users")
 }
 model AuthSession {
@@ -653,6 +654,7 @@ model Booking {
   @@unique([customerId, requestKey])
   @@index([customerId, id])
   @@index([providerId, id])
+  @@index([createdAt])
   @@map("bookings")
 }
 

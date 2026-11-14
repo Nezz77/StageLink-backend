@@ -178,3 +178,9 @@ Administrators list and schedule announcements under `/api/v1/admin/announcement
 ## Promotional campaigns
 
 Members manage opt-in with `GET` and `PUT /api/v1/me/marketing-preferences`. Consent applies to the verified address at the time of opt-in and is independent of booking reminders. Administrators create campaigns under `/api/v1/admin/campaigns`. Preview returns the eligible recipient count and an audience fingerprint to submit with a schedule. The recipient cap is 100 per campaign. Scheduled rows are stored for the future delivery worker.
+
+## Analytics
+
+Administrators use `GET /api/v1/admin/analytics`. Providers use `GET /api/v1/me/analytics` for their own bookings. Both accept `from` (inclusive) and `to` (exclusive) as UTC calendar dates, defaulting to 30 days through the current UTC day. The maximum range is 366 days. Booking requests, agreements, cancellations and verified completions count on the dates those events occurred. The administrator view includes new user registrations. These operational counts are independent of the payment environment.
+
+Financial activity uses the journal posting date and accepts `currency=LKR` and `environment=sandbox|live`. Amounts are decimal strings in minor units. Service capture is the successfully posted booking payment total before refunds and fees. Deposits and captures posted for reconciliation appear separately. Refund, payout and fee reservations show newly reserved amounts in the period. Live financial activity and settled refunds, payouts and fee revenue return `null` until those payment flows are supported.

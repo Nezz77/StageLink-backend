@@ -2200,10 +2200,11 @@
         "Applicable schema/API/auth/UI/reload/failure tests and checkpoint evidence complete"
       ],
       "requires_new_report_ui": false,
-      "status": "not_started",
+      "status": "in_progress",
       "ui_coverage_ids": [
         "UI-052"
-      ]
+      ],
+      "remaining": "Add verified live and settled refund, payout and revenue analytics after gateway reconciliation, and verify the frontend charts and Figma integration."
     },
     {
       "id": "BE-063",

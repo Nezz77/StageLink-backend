@@ -382,6 +382,8 @@ Phase order is dependency-driven. Each phase consists of small tickets in `backe
 
 ### P18 — Analytics, complete hardcode removal and release
 
+Administrator and provider analytics report database-backed daily booking activity and posted sandbox financial activity. Verified gateway settlements and frontend charts remain pending.
+
 - Replace all KPI, revenue/GMV, user growth, booking charts and provider earnings with currency-aware documented queries/materialized projections; distinguish test/live and captured/refunded/released values.
 - Remove production fixture imports, demo wallet/cards, response/clock controls, universal OTPs, generated serials, fake reviews/media and context reset-to-seeds. Keep explicit developer/test fixtures isolated.
 - Complete security/object-authorization tests, real PostgreSQL concurrency tests, two-browser journeys, desktop/mobile/accessibility/theme checks, actual PDF/media/file tests and provider sandbox contract suites.

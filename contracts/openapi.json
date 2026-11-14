@@ -10451,6 +10451,624 @@
         ]
       }
     },
+    "/api/v1/admin/analytics": {
+      "get": {
+        "operationId": "AnalyticsController_admin",
+        "parameters": [
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "currency",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "LKR"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "environment",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "sandbox",
+                "live"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "bookings": {
+                      "type": "object",
+                      "properties": {
+                        "requested": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "agreed": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "cancelled": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "verifiedCompleted": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "requested",
+                        "agreed",
+                        "cancelled",
+                        "verifiedCompleted"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "money": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "serviceCapturedMinor": {
+                          "type": "string",
+                          "pattern": "^\\d+$"
+                        },
+                        "depositCapturedMinor": {
+                          "type": "string",
+                          "pattern": "^\\d+$"
+                        },
+                        "captureReviewMinor": {
+                          "type": "string",
+                          "pattern": "^\\d+$"
+                        },
+                        "refundReservedMinor": {
+                          "type": "string",
+                          "pattern": "^\\d+$"
+                        },
+                        "payoutReservedMinor": {
+                          "type": "string",
+                          "pattern": "^\\d+$"
+                        },
+                        "feeReservedMinor": {
+                          "type": "string",
+                          "pattern": "^\\d+$"
+                        }
+                      },
+                      "required": [
+                        "serviceCapturedMinor",
+                        "depositCapturedMinor",
+                        "captureReviewMinor",
+                        "refundReservedMinor",
+                        "payoutReservedMinor",
+                        "feeReservedMinor"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "newUsers": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "from": {
+                      "type": "string",
+                      "format": "date",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                    },
+                    "to": {
+                      "type": "string",
+                      "format": "date",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                    },
+                    "currency": {
+                      "type": "string",
+                      "enum": [
+                        "LKR"
+                      ]
+                    },
+                    "environment": {
+                      "type": "string",
+                      "enum": [
+                        "sandbox",
+                        "live"
+                      ]
+                    },
+                    "days": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "bookings": {
+                            "type": "object",
+                            "properties": {
+                              "requested": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "agreed": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "cancelled": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "verifiedCompleted": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": [
+                              "requested",
+                              "agreed",
+                              "cancelled",
+                              "verifiedCompleted"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "money": {
+                            "nullable": true,
+                            "type": "object",
+                            "properties": {
+                              "serviceCapturedMinor": {
+                                "type": "string",
+                                "pattern": "^\\d+$"
+                              },
+                              "depositCapturedMinor": {
+                                "type": "string",
+                                "pattern": "^\\d+$"
+                              },
+                              "captureReviewMinor": {
+                                "type": "string",
+                                "pattern": "^\\d+$"
+                              },
+                              "refundReservedMinor": {
+                                "type": "string",
+                                "pattern": "^\\d+$"
+                              },
+                              "payoutReservedMinor": {
+                                "type": "string",
+                                "pattern": "^\\d+$"
+                              },
+                              "feeReservedMinor": {
+                                "type": "string",
+                                "pattern": "^\\d+$"
+                              }
+                            },
+                            "required": [
+                              "serviceCapturedMinor",
+                              "depositCapturedMinor",
+                              "captureReviewMinor",
+                              "refundReservedMinor",
+                              "payoutReservedMinor",
+                              "feeReservedMinor"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "newUsers": {
+                            "nullable": true,
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "date": {
+                            "type": "string",
+                            "format": "date",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                          }
+                        },
+                        "required": [
+                          "bookings",
+                          "money",
+                          "newUsers",
+                          "date"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "settled": {
+                      "type": "object",
+                      "properties": {
+                        "refundedMinor": {
+                          "type": "string",
+                          "nullable": true,
+                          "enum": [
+                            null
+                          ]
+                        },
+                        "paidOutMinor": {
+                          "type": "string",
+                          "nullable": true,
+                          "enum": [
+                            null
+                          ]
+                        },
+                        "feeRevenueMinor": {
+                          "type": "string",
+                          "nullable": true,
+                          "enum": [
+                            null
+                          ]
+                        }
+                      },
+                      "required": [
+                        "refundedMinor",
+                        "paidOutMinor",
+                        "feeRevenueMinor"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "bookings",
+                    "money",
+                    "newUsers",
+                    "from",
+                    "to",
+                    "currency",
+                    "environment",
+                    "days",
+                    "settled"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Analytics"
+        ]
+      }
+    },
+    "/api/v1/me/analytics": {
+      "get": {
+        "operationId": "AnalyticsController_provider",
+        "parameters": [
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "currency",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "LKR"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "environment",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "sandbox",
+                "live"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "bookings": {
+                      "type": "object",
+                      "properties": {
+                        "requested": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "agreed": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "cancelled": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "verifiedCompleted": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "requested",
+                        "agreed",
+                        "cancelled",
+                        "verifiedCompleted"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "money": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "serviceCapturedMinor": {
+                          "type": "string",
+                          "pattern": "^\\d+$"
+                        },
+                        "depositCapturedMinor": {
+                          "type": "string",
+                          "pattern": "^\\d+$"
+                        },
+                        "captureReviewMinor": {
+                          "type": "string",
+                          "pattern": "^\\d+$"
+                        },
+                        "refundReservedMinor": {
+                          "type": "string",
+                          "pattern": "^\\d+$"
+                        },
+                        "payoutReservedMinor": {
+                          "type": "string",
+                          "pattern": "^\\d+$"
+                        },
+                        "feeReservedMinor": {
+                          "type": "string",
+                          "pattern": "^\\d+$"
+                        }
+                      },
+                      "required": [
+                        "serviceCapturedMinor",
+                        "depositCapturedMinor",
+                        "captureReviewMinor",
+                        "refundReservedMinor",
+                        "payoutReservedMinor",
+                        "feeReservedMinor"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "newUsers": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "from": {
+                      "type": "string",
+                      "format": "date",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                    },
+                    "to": {
+                      "type": "string",
+                      "format": "date",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                    },
+                    "currency": {
+                      "type": "string",
+                      "enum": [
+                        "LKR"
+                      ]
+                    },
+                    "environment": {
+                      "type": "string",
+                      "enum": [
+                        "sandbox",
+                        "live"
+                      ]
+                    },
+                    "days": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "bookings": {
+                            "type": "object",
+                            "properties": {
+                              "requested": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "agreed": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "cancelled": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              },
+                              "verifiedCompleted": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 9007199254740991
+                              }
+                            },
+                            "required": [
+                              "requested",
+                              "agreed",
+                              "cancelled",
+                              "verifiedCompleted"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "money": {
+                            "nullable": true,
+                            "type": "object",
+                            "properties": {
+                              "serviceCapturedMinor": {
+                                "type": "string",
+                                "pattern": "^\\d+$"
+                              },
+                              "depositCapturedMinor": {
+                                "type": "string",
+                                "pattern": "^\\d+$"
+                              },
+                              "captureReviewMinor": {
+                                "type": "string",
+                                "pattern": "^\\d+$"
+                              },
+                              "refundReservedMinor": {
+                                "type": "string",
+                                "pattern": "^\\d+$"
+                              },
+                              "payoutReservedMinor": {
+                                "type": "string",
+                                "pattern": "^\\d+$"
+                              },
+                              "feeReservedMinor": {
+                                "type": "string",
+                                "pattern": "^\\d+$"
+                              }
+                            },
+                            "required": [
+                              "serviceCapturedMinor",
+                              "depositCapturedMinor",
+                              "captureReviewMinor",
+                              "refundReservedMinor",
+                              "payoutReservedMinor",
+                              "feeReservedMinor"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "newUsers": {
+                            "nullable": true,
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "date": {
+                            "type": "string",
+                            "format": "date",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                          }
+                        },
+                        "required": [
+                          "bookings",
+                          "money",
+                          "newUsers",
+                          "date"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "settled": {
+                      "type": "object",
+                      "properties": {
+                        "refundedMinor": {
+                          "type": "string",
+                          "nullable": true,
+                          "enum": [
+                            null
+                          ]
+                        },
+                        "paidOutMinor": {
+                          "type": "string",
+                          "nullable": true,
+                          "enum": [
+                            null
+                          ]
+                        },
+                        "feeRevenueMinor": {
+                          "type": "string",
+                          "nullable": true,
+                          "enum": [
+                            null
+                          ]
+                        }
+                      },
+                      "required": [
+                        "refundedMinor",
+                        "paidOutMinor",
+                        "feeRevenueMinor"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "bookings",
+                    "money",
+                    "newUsers",
+                    "from",
+                    "to",
+                    "currency",
+                    "environment",
+                    "days",
+                    "settled"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Analytics"
+        ]
+      }
+    },
     "/api/v1/me/profile": {
       "get": {
         "operationId": "ProfilesController_profile",
