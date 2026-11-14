@@ -1,6 +1,7 @@
 import type { PrismaClient } from '../generated/prisma/client.js';
 import type { createMailer } from './auth-mail.js';
 import { smtpFailureState } from './booking-reminders.js';
+import { promotionalUnsubscribeHeaders } from './promotional-unsubscribe.js';
 import type { Config } from './config.js';
 
 type Mailer = Pick<ReturnType<typeof createMailer>, 'sendMail'>;
@@ -30,8 +31,8 @@ export async function processPromotionalEmail(db: PrismaClient, config: Config, 
     // Consent changes use the user lock, and cancellation uses the campaign lock.
     await tx.$queryRaw`SELECT id FROM auth_users WHERE id=${candidate.userId}::uuid FOR NO KEY UPDATE`;
     await tx.$queryRaw`SELECT id FROM promotional_campaigns WHERE id=${candidate.campaignId}::uuid FOR UPDATE`;
-    const [current] = await tx.$queryRaw<{ email: string; subject: string; body: string; eligible: boolean }[]>`
-      SELECT u.email, c.subject, c.body,
+    const [current] = await tx.$queryRaw<{ email: string; consentRevision: number; subject: string; body: string; eligible: boolean }[]>`
+      SELECT u.email, r.consent_revision AS "consentRevision", c.subject, c.body,
         COALESCE(p.revision=r.consent_revision AND p.consent_email=u.email
           AND u.email_verified_at IS NOT NULL AND u.disabled_at IS NULL
           AND u.roles && ARRAY['customer','artist','renter']::"AuthRole"[], false) AS eligible
@@ -68,6 +69,9 @@ export async function processPromotionalEmail(db: PrismaClient, config: Config, 
       from: config.SMTP_FROM,
       to: message.email,
       subject: message.subject,
+      headers: promotionalUnsubscribeHeaders(config, {
+        userId: message.userId, email: message.email, consentRevision: message.consentRevision,
+      }),
       messageId: `<campaign-${message.campaignId}-${message.userId}@${config.SMTP_FROM.split('@')[1]}>`,
       text: [message.body, 'Manage promotional email preferences in your StageLink account: ' + config.WEB_ORIGIN].join('\n\n'),
     });

@@ -53,6 +53,7 @@ A checked box marks implemented backend code. PostgreSQL integration, client wir
 - [x] P17 Read-only maintenance mode, public announcement controls, scoped cache invalidation, session revocation and operations audit.
 - [x] P17 Promotional email opt-in, campaign drafts, verified audience preview, scheduling and cancellation.
 - [x] P17 Opt-in promotional email worker, rolling hourly cap, and administrator delivery counts.
+- [x] P17 One-click promotional email opt-out from supported mail clients.
 - [ ] P15–P17 AI provider calls and output previews, semantic ranking, verification policy enforcement, realtime notifications, arbitration execution, SMS reminders, promotional SMS, and live SMTP campaign verification.
 - [x] P18 Administrator and provider analytics from booking records and posted sandbox journals.
 - [ ] P18 Settled financial analytics, security, accessibility, backup and rollback, and end-to-end release verification.

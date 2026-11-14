@@ -10676,6 +10676,68 @@
         ]
       }
     },
+    "/api/v1/marketing/unsubscribe": {
+      "post": {
+        "operationId": "UnsubscribeController_unsubscribe",
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "List-Unsubscribe": {
+                    "type": "string",
+                    "enum": [
+                      "One-Click"
+                    ]
+                  }
+                },
+                "required": [
+                  "List-Unsubscribe"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "List-Unsubscribe": {
+                    "type": "string",
+                    "enum": [
+                      "One-Click"
+                    ]
+                  }
+                },
+                "required": [
+                  "List-Unsubscribe"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Promotional consent revoked or already inactive."
+          }
+        },
+        "tags": [
+          "Promotional consent"
+        ]
+      }
+    },
     "/api/v1/admin/analytics": {
       "get": {
         "operationId": "AnalyticsController_admin",

@@ -11,6 +11,9 @@ const schema = z.object({
   AUTH_RATE_PREFIX: z.string().regex(/^[a-zA-Z0-9:_-]{1,96}$/).default('stagelink-auth-v1'),
   PROMOTIONAL_EMAIL_DELIVERY: z.enum(['true', 'false']).default('false'),
   PROMOTIONAL_EMAIL_HOURLY_LIMIT: z.coerce.number().int().min(1).max(1000).default(100),
+  PROMOTIONAL_UNSUBSCRIBE_ORIGIN: optionalSetting(z.url({ protocol: /^https$/ }).refine(value => {
+    try { return new URL(value).origin === value; } catch { return false; }
+  }, 'Must be an HTTPS origin without a trailing slash or path')),
   BOOKING_EMAIL_REMINDERS: z.enum(['true','false']).default('false'),
   SMTP_HOST: z.string().min(1).max(253).default('127.0.0.1'),
   SMTP_PORT: z.coerce.number().int().min(1).max(65535).default(1025),

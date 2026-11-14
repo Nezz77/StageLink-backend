@@ -1045,6 +1045,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/marketing/unsubscribe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["UnsubscribeController_unsubscribe"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/analytics": {
         parameters: {
             query?: never;
@@ -6885,6 +6901,37 @@ export interface operations {
                         };
                     };
                 };
+            };
+        };
+    };
+    UnsubscribeController_unsubscribe: {
+        parameters: {
+            query: {
+                token: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/x-www-form-urlencoded": {
+                    /** @enum {string} */
+                    "List-Unsubscribe": "One-Click";
+                };
+                "multipart/form-data": {
+                    /** @enum {string} */
+                    "List-Unsubscribe": "One-Click";
+                };
+            };
+        };
+        responses: {
+            /** @description Promotional consent revoked or already inactive. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

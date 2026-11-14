@@ -1,9 +1,11 @@
-import { Body, Controller, Get, HttpCode, Param, Post, Put, Query, Req } from '@nestjs/common';
-import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, HttpCode, Param, Post, Put, Query, Req, UseInterceptors } from '@nestjs/common';
+import { ApiBearerAuth, ApiBody, ApiConsumes, ApiNoContentResponse, ApiOkResponse, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { NoFilesInterceptor } from '@nestjs/platform-express';
 import type { Request } from 'express';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import type { Prisma, PromotionalCampaign } from '../../../generated/prisma/client.js';
+import { readPromotionalUnsubscribeToken, revokePromotionalConsent } from '../../../shared/promotional-unsubscribe.js';
 import { PublicError } from '../auth/errors.js';
 import type { AuthService } from '../auth/service.js';
 import { parse, schema, uuid } from '../payments/orders.js';
@@ -22,6 +24,7 @@ const fingerprint = z.string().regex(/^[0-9a-f]{64}$/);
 const schedule = z.object({ scheduledFor: z.iso.datetime({ offset: true }), audienceFingerprint: fingerprint }).strict();
 const cancel = z.object({ reason: z.string().trim().min(10).max(500) }).strict();
 const empty = z.object({}).strict();
+const oneClick = z.object({ 'List-Unsubscribe': z.literal('One-Click') }).strict();
 const count = z.number().int().nonnegative();
 const state = z.enum(['draft', 'scheduled', 'cancelled']);
 const deliveryCounts = z.object({ queued: count, sending: count, accepted: count, failed: count, unknown: count, skipped: count });
@@ -265,5 +268,25 @@ export function makeCampaignControllers(auth: AuthService) {
       });
     }
   }
-  return [ConsentController, CampaignController];
+  @ApiTags('Promotional consent')
+  @Controller('marketing/unsubscribe')
+  class UnsubscribeController {
+    @Post()
+    @HttpCode(204)
+    @UseInterceptors(NoFilesInterceptor({ limits: { fieldNameSize: 32, fieldSize: 32, fields: 1, parts: 2 } }))
+    @ApiConsumes('application/x-www-form-urlencoded', 'multipart/form-data')
+    @ApiQuery({ name: 'token', type: String })
+    @ApiBody({ schema: schema(oneClick) })
+    @ApiNoContentResponse({ description: 'Promotional consent revoked or already inactive.' })
+    async unsubscribe(@Req() req: Request, @Query('token') rawToken: unknown, @Body() body: unknown) {
+      if ((!req.is('application/x-www-form-urlencoded') && !req.is('multipart/form-data')) ||
+        !oneClick.safeParse(body).success) {
+        throw new PublicError(400, 'INVALID_UNSUBSCRIBE_REQUEST', 'Invalid unsubscribe request.');
+      }
+      const recipient = readPromotionalUnsubscribeToken(auth.config.AUTH_MAIL_KEY, rawToken);
+      if (!recipient) throw new PublicError(400, 'INVALID_UNSUBSCRIBE_REQUEST', 'Invalid unsubscribe request.');
+      await revokePromotionalConsent(db, recipient);
+    }
+  }
+  return [ConsentController, CampaignController, UnsubscribeController];
 }

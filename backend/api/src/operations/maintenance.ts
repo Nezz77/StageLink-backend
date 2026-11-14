@@ -1,6 +1,7 @@
 import type { CanActivate, ExecutionContext } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import type { Resources } from '../../../shared/resources.js';
+import { promotionalUnsubscribePath } from '../../../shared/promotional-unsubscribe.js';
 import { PublicError } from '../auth/errors.js';
 
 const reads = new Set(['GET', 'HEAD', 'OPTIONS']);
@@ -19,6 +20,7 @@ const availableActions = new Set([
   'POST /api/v1/admin/cache/invalidate',
   'POST /api/v1/admin/sessions/revoke',
   'PUT /api/v1/me/marketing-preferences',
+  'POST ' + promotionalUnsubscribePath,
 ]);
 
 export function makeMaintenanceGuard(db: Resources['db']): CanActivate {

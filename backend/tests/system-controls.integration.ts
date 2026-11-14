@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { createApp } from '../api/src/app.js';
 import { hashPassword } from '../api/src/auth/security.js';
+import { promotionalUnsubscribeHeaders } from '../shared/promotional-unsubscribe.js';
 import { readConfig } from '../shared/config.js';
 import { resources } from '../shared/resources.js';
 
@@ -114,6 +115,35 @@ test('system controls enforce maintenance, invalidate announcements and revoke s
     assert.equal((await request(campaign + '/schedule', 'POST', schedule, admin)).data.state, 'scheduled');
     assert.equal((await request(campaign + '/schedule', 'POST', schedule, admin)).data.recipientCount, 1);
     assert.equal((await request(campaign + '/cancel', 'POST', { reason }, admin)).data.state, 'cancelled');
+
+    function unsubscribeUrl(consentRevision: number) {
+      const headers = promotionalUnsubscribeHeaders({
+        ...config, PROMOTIONAL_UNSUBSCRIBE_ORIGIN: 'https://api.stagelink.test',
+      }, { userId: outsider.user.id, email: outsider.user.email, consentRevision });
+      const url = new URL(headers['List-Unsubscribe']!.slice(1, -1));
+      return base + url.pathname + url.search;
+    }
+    const url = unsubscribeUrl(3);
+    assert.equal((await fetch(url)).status, 404);
+    const form = { 'List-Unsubscribe': 'One-Click' };
+    const unsubscribe = (target: string, fields = form) => fetch(target, {
+      method: 'POST', body: new URLSearchParams(fields),
+    });
+    assert.equal((await unsubscribe(url + 'invalid')).status, 400);
+    assert.equal((await unsubscribe(url, { 'List-Unsubscribe': 'anything-else' })).status, 400);
+    assert.deepEqual((await request(preferencePath, 'GET', undefined, outsider)).data, { revision: 3, emailOptIn: true });
+    const maintenance = await request(controls, 'PUT', { ...change, revision: enabled.data.revision + 1 }, admin);
+    assert.equal(maintenance.response.status, 200);
+    assert.equal((await unsubscribe(url)).status, 204);
+    assert.equal((await unsubscribe(url)).status, 204);
+    assert.deepEqual((await request(preferencePath, 'GET', undefined, outsider)).data, { revision: 4, emailOptIn: false });
+    assert.equal((await request(preferencePath, 'PUT', { revision: 4, emailOptIn: true }, outsider)).response.status, 200);
+    assert.equal((await unsubscribe(url)).status, 204);
+    assert.deepEqual((await request(preferencePath, 'GET', undefined, outsider)).data, { revision: 5, emailOptIn: true });
+    const multipart = new FormData();
+    multipart.set('List-Unsubscribe', 'One-Click');
+    assert.equal((await fetch(unsubscribeUrl(5), { method: 'POST', body: multipart })).status, 204);
+    assert.deepEqual((await request(preferencePath, 'GET', undefined, outsider)).data, { revision: 6, emailOptIn: false });
 
   } finally {
     try {

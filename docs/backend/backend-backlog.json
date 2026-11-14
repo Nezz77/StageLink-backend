@@ -2166,7 +2166,7 @@
       "ui_coverage_ids": [
         "UI-051"
       ],
-      "remaining": "Verify the opt-in email worker against SMTP. Add direct unsubscribe, provider delivery reconciliation, any provider-specific spend controls, and SMS consent and delivery. Verify frontend and Figma integration."
+      "remaining": "Verify the opt-in email worker and DKIM-signed one-click unsubscribe against the configured SMTP relay. Add provider delivery reconciliation, any provider-specific spend controls, and SMS consent and delivery. Verify frontend and Figma integration."
     },
     {
       "id": "BE-062",
