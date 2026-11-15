@@ -107,6 +107,7 @@ model AuthUser {
   supportAssignments SupportEntry[] @relation("SupportEntryAssignee")
   matchingVersions MatchingVersion[]
   promptVersions AiPromptVersion[]
+  aiGenerations AiGenerationJob[]
   verificationCases VerificationCase[] @relation("VerificationProvider")
   reviewedVerificationCases VerificationCase[] @relation("VerificationReviewer")
   resolvedDamageClaims DamageClaim[]
@@ -1207,8 +1208,11 @@ model AiModelCall {
   promptVersion Int? @map("prompt_version")
   templateRevision Int? @map("template_revision")
   promptSource String? @map("prompt_source") @db.VarChar(12)
+  generationId String? @map("generation_id") @db.Uuid
+  generation AiGenerationJob? @relation(fields: [generationId], references: [id], onDelete: SetNull)
   prompt AiPromptVersion? @relation(fields: [promptKey, promptVersion], references: [key, version], onDelete: Restrict, map: "ai_model_call_prompt_version_fkey")
   @@index([createdAt])
+  @@index([generationId])
   @@map("ai_model_calls")
 }
 
@@ -1235,7 +1239,38 @@ model AiPromptVersion {
   rollbacks AiPromptVersion[] @relation("PromptRollback")
   @@id([key, version])
   modelCalls AiModelCall[]
+  generations AiGenerationJob[]
   @@map("ai_prompt_versions")
+}
+
+enum AiGenerationStatus {
+  processing
+  succeeded
+  failed
+  refused
+  unavailable
+}
+
+model AiGenerationJob {
+  id String @id @default(uuid()) @db.Uuid
+  ownerId String @map("owner_id") @db.Uuid
+  requestKey String @map("request_key") @db.Uuid
+  requestHash String @map("request_hash") @db.Char(64)
+  kind String @db.VarChar(20)
+  promptVersion Int @map("prompt_version")
+  templateRevision Int @map("template_revision")
+  status AiGenerationStatus @default(processing)
+  suggestion Json?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(3)
+  completedAt DateTime? @map("completed_at") @db.Timestamptz(3)
+  owner AuthUser @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  prompt AiPromptVersion @relation(fields: [kind, promptVersion], references: [key, version], onDelete: Restrict)
+  calls AiModelCall[]
+  @@unique([ownerId, requestKey])
+  @@index([createdAt])
+  @@index([ownerId, createdAt])
+  @@map("ai_generation_jobs")
 }
 
 model RecommendationRun {

@@ -389,6 +389,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/ai/generations/{kind}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["GenerationsController_generate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ai/generations/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GenerationsController_read"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/event-posts/{id}/recommendations": {
         parameters: {
             query?: never;
@@ -4682,7 +4714,7 @@ export interface operations {
                     "application/json": {
                         items: {
                             /** @enum {string} */
-                            key: "bio" | "equipment";
+                            key: "bio" | "equipment" | "gig";
                             revision: number;
                             draft: string | null;
                             current: {
@@ -4708,7 +4740,7 @@ export interface operations {
             };
             header?: never;
             path: {
-                key: "bio" | "equipment";
+                key: "bio" | "equipment" | "gig";
             };
             cookie?: never;
         };
@@ -4739,7 +4771,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                key: "bio" | "equipment";
+                key: "bio" | "equipment" | "gig";
             };
             cookie?: never;
         };
@@ -4759,7 +4791,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         /** @enum {string} */
-                        key: "bio" | "equipment";
+                        key: "bio" | "equipment" | "gig";
                         revision: number;
                         draft: string | null;
                         current: {
@@ -4782,7 +4814,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                key: "bio" | "equipment";
+                key: "bio" | "equipment" | "gig";
             };
             cookie?: never;
         };
@@ -4807,7 +4839,10 @@ export interface operations {
                         resolved: string;
                         /** @enum {string} */
                         modelStatus: "succeeded";
-                        output: string;
+                        output: string | {
+                            title: string;
+                            description: string;
+                        };
                     } | {
                         resolved: string;
                         /** @enum {string} */
@@ -4824,7 +4859,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                key: "bio" | "equipment";
+                key: "bio" | "equipment" | "gig";
             };
             cookie?: never;
         };
@@ -4844,7 +4879,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         /** @enum {string} */
-                        key: "bio" | "equipment";
+                        key: "bio" | "equipment" | "gig";
                         revision: number;
                         draft: string | null;
                         current: {
@@ -4867,7 +4902,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                key: "bio" | "equipment";
+                key: "bio" | "equipment" | "gig";
             };
             cookie?: never;
         };
@@ -4888,7 +4923,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         /** @enum {string} */
-                        key: "bio" | "equipment";
+                        key: "bio" | "equipment" | "gig";
                         revision: number;
                         draft: string | null;
                         current: {
@@ -4901,6 +4936,100 @@ export interface operations {
                         };
                         /** Format: date-time */
                         updatedAt: string;
+                    };
+                };
+            };
+        };
+    };
+    GenerationsController_generate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kind: "bio" | "gig";
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    requestKey: string;
+                    fields: {
+                        artist_name: string;
+                        event_type: string;
+                        genres: string;
+                    };
+                } | {
+                    /** Format: uuid */
+                    requestKey: string;
+                    fields: {
+                        artist_name: string;
+                        event_type: string;
+                        performance: string;
+                    };
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** @enum {string} */
+                        kind: "bio" | "gig";
+                        promptVersion: number;
+                        /** @enum {string} */
+                        status: "processing" | "succeeded" | "failed" | "refused" | "unavailable";
+                        suggestion: ({
+                            bio: string;
+                        } | {
+                            title: string;
+                            description: string;
+                        }) | null;
+                        /** Format: date-time */
+                        createdAt: string;
+                    };
+                };
+            };
+        };
+    };
+    GenerationsController_read: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** @enum {string} */
+                        kind: "bio" | "gig";
+                        promptVersion: number;
+                        /** @enum {string} */
+                        status: "processing" | "succeeded" | "failed" | "refused" | "unavailable";
+                        suggestion: ({
+                            bio: string;
+                        } | {
+                            title: string;
+                            description: string;
+                        }) | null;
+                        /** Format: date-time */
+                        createdAt: string;
                     };
                 };
             };

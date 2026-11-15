@@ -1,5 +1,14 @@
 import { z } from 'zod';
 import type { Config } from '../../../shared/config.js';
+import type { Prisma } from '../../../generated/prisma/client.js';
+
+export const promptKeys = z.enum(['bio', 'equipment', 'gig']);
+export type PromptKey = z.infer<typeof promptKeys>;
+export const previewText = z.string().trim().min(1).max(1600);
+export const gigDraft = z.object({
+  title: z.string().trim().min(1).max(120), description: previewText,
+}).strict();
+export const draftOutput = z.union([previewText, gigDraft]);
 
 const tokens = z.number().int().min(0).max(2_147_483_647);
 const usage = z.object({
@@ -11,13 +20,13 @@ const usage = z.object({
   (value.inputTokens !== null && value.cachedInputTokens <= value.inputTokens));
 const earlierAttempt = usage.and(z.object({ outcome: z.literal('failed'), output: z.null() }));
 const observation = z.discriminatedUnion('outcome', [
-  z.object({ outcome: z.literal('succeeded'), output: z.string().trim().min(1).max(1600) }),
+  z.object({ outcome: z.literal('succeeded'), output: draftOutput }),
   z.object({ outcome: z.enum(['failed', 'refused']), output: z.null() }),
 ]).and(usage).and(z.object({
   priorAttempts: z.array(earlierAttempt).max(1).default([]),
 })).refine(result => result.priorAttempts.every(attempt => attempt.provider !== result.provider));
 
-type PreviewInput = { key: 'bio' | 'equipment'; template: string; fields: Record<string, string> };
+type PreviewInput = { key: PromptKey; template: string; fields: Record<string, string> };
 
 export async function requestModelPreview(
   config: Pick<Config, 'AI_SERVICE_ORIGIN' | 'AI_INTERNAL_TOKEN'>, input: PreviewInput, send = fetch,
@@ -31,8 +40,28 @@ export async function requestModelPreview(
     });
     if (!response.ok) return null;
     const parsed = observation.safeParse(await response.json());
-    return parsed.success ? parsed.data : null;
+    if (!parsed.success) return null;
+    const result = parsed.data;
+    if (result.outcome === 'succeeded' && (input.key === 'gig') !== (typeof result.output === 'object')) return null;
+    return result;
   } catch {
     return null;
   }
+}
+
+type ModelResult = NonNullable<Awaited<ReturnType<typeof requestModelPreview>>>;
+type PromptTrace = {
+  capability: string;
+  promptKey: PromptKey;
+  promptVersion: number | null;
+  templateRevision: number;
+  promptSource: 'inline' | 'draft' | 'published';
+  generationId?: string;
+};
+
+export function saveModelAttempts(tx: Prisma.TransactionClient, result: ModelResult, trace: PromptTrace) {
+  const { priorAttempts, ...latest } = result;
+  return tx.aiModelCall.createMany({
+    data: [...priorAttempts, latest].map(({ output: _output, ...attempt }) => ({ ...attempt, ...trace })),
+  });
 }

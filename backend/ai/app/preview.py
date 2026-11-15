@@ -13,11 +13,6 @@ GEMINI_MODEL_ID = r"^[A-Za-z0-9_.-]{1,100}$"
 ProviderName = Literal["openai", "gemini"]
 REFUSAL_REASONS = ("SAFETY", "BLOCKLIST", "PROHIBITED_CONTENT", "SPII", "RECITATION", "IMAGE_SAFETY")
 MAX_OUTPUT_TOKENS = 450
-OUTPUT_SCHEMA = {
-    "type": "object", "properties": {"text": {"type": "string"}},
-    "required": ["text"], "additionalProperties": False,
-}
-
 
 @dataclass(frozen=True)
 class Provider:
@@ -26,13 +21,18 @@ class Provider:
     api_key: SecretStr
 
 
-PreviewKey = Literal["bio", "equipment"]
+PreviewKey = Literal["bio", "equipment", "gig"]
 PreviewField = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
 TokenCount = Annotated[int, Field(strict=True, ge=0, le=2_147_483_647)]
-FIELDS = {"bio": {"artist_name", "genres", "event_type"}, "equipment": {"equipment_title", "manufacturer"}}
+FIELDS = {
+    "bio": {"artist_name", "genres", "event_type"},
+    "equipment": {"equipment_title", "manufacturer"},
+    "gig": {"artist_name", "performance", "event_type"},
+}
 TASKS = {
     "bio": "Draft a short artist biography. Use only supplied artist facts.",
     "equipment": "Draft a short equipment listing summary. Omit unverified specs, performance claims and compatibility.",
+    "gig": "Draft a short title and description for a gig listing using only supplied facts. Omit pricing and availability.",
 }
 
 
@@ -54,6 +54,12 @@ class PreviewText(BaseModel):
     text: str = Field(min_length=1, max_length=1600)
 
 
+class GigDraft(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    title: str = Field(min_length=1, max_length=120)
+    description: str = Field(min_length=1, max_length=1600)
+
+
 class InputTokenDetails(BaseModel):
     cached_tokens: TokenCount | None = None
 
@@ -68,7 +74,7 @@ class PreviewObservation(BaseModel):
     provider: ProviderName
     model: str = Field(pattern=MODEL_ID)
     outcome: Literal["succeeded", "failed", "refused"] = "failed"
-    output: str | None = None
+    output: str | GigDraft | None = None
     latencyMs: int = 0
     inputTokens: TokenCount | None = None
     outputTokens: TokenCount | None = None
@@ -95,9 +101,10 @@ def record_usage(observation: PreviewObservation, model, input_tokens, output_to
         observation.cachedInputTokens = cached_tokens
 
 
-def accept_text(observation: PreviewObservation, parts: list[str]):
+def accept_text(observation: PreviewObservation, parts: list[str], kind: PreviewKey):
+    encoded = "".join(parts)
     try:
-        output = PreviewText.model_validate_json("".join(parts)).text.strip()
+        output = GigDraft.model_validate_json(encoded) if kind == "gig" else PreviewText.model_validate_json(encoded).text.strip()
     except ValidationError:
         return
     if output:
@@ -105,7 +112,7 @@ def accept_text(observation: PreviewObservation, parts: list[str]):
         observation.outcome = "succeeded"
 
 
-def observe_openai(data: dict, observation: PreviewObservation):
+def observe_openai(data: dict, observation: PreviewObservation, kind: PreviewKey):
     try:
         usage = OpenAiUsage.model_validate(data.get("usage"))
     except ValidationError:
@@ -135,10 +142,10 @@ def observe_openai(data: dict, observation: PreviewObservation):
                 return
             if part.get("type") == "output_text" and isinstance(part.get("text"), str):
                 parts.append(part["text"])
-    accept_text(observation, parts)
+    accept_text(observation, parts, kind)
 
 
-def observe_gemini(data: dict, observation: PreviewObservation):
+def observe_gemini(data: dict, observation: PreviewObservation, kind: PreviewKey):
     try:
         usage = GeminiUsage.model_validate(data.get("usageMetadata"))
     except ValidationError:
@@ -169,13 +176,20 @@ def observe_gemini(data: dict, observation: PreviewObservation):
     accept_text(observation, [
         part["text"] for part in content["parts"]
         if isinstance(part, dict) and part.get("thought") is not True and isinstance(part.get("text"), str)
-    ])
+    ], kind)
 
 
-async def attempt_preview(client: AsyncClient, provider: Provider, instructions: str, fields: str, deadline: float):
+async def attempt_preview(
+    client: AsyncClient, provider: Provider, kind: PreviewKey, instructions: str, fields: str, deadline: float,
+):
     observation = PreviewObservation(provider=provider.name, model=provider.model)
     started = monotonic()
     key = provider.api_key.get_secret_value()
+    output_fields = ["title", "description"] if kind == "gig" else ["text"]
+    output_schema = {
+        "type": "object", "properties": {field: {"type": "string"} for field in output_fields},
+        "required": output_fields, "additionalProperties": False,
+    }
     if provider.name == "openai":
         url = "https://api.openai.com/v1/responses"
         headers = {"Authorization": f"Bearer {key}"}
@@ -183,7 +197,7 @@ async def attempt_preview(client: AsyncClient, provider: Provider, instructions:
             "model": provider.model, "instructions": instructions, "input": fields,
             "store": False, "max_output_tokens": MAX_OUTPUT_TOKENS,
             "text": {"format": {
-                "type": "json_schema", "name": "stagelink_preview", "strict": True, "schema": OUTPUT_SCHEMA,
+                "type": "json_schema", "name": "stagelink_preview", "strict": True, "schema": output_schema,
             }},
         }
         observe = observe_openai
@@ -195,7 +209,7 @@ async def attempt_preview(client: AsyncClient, provider: Provider, instructions:
             "contents": [{"role": "user", "parts": [{"text": fields}]}],
             "generationConfig": {
                 "candidateCount": 1, "maxOutputTokens": MAX_OUTPUT_TOKENS,
-                "responseMimeType": "application/json", "responseJsonSchema": OUTPUT_SCHEMA,
+                "responseMimeType": "application/json", "responseJsonSchema": output_schema,
             },
         }
         observe = observe_gemini
@@ -207,7 +221,7 @@ async def attempt_preview(client: AsyncClient, provider: Provider, instructions:
             response.raise_for_status()
             data = response.json()
         if isinstance(data, dict):
-            observe(data, observation)
+            observe(data, observation, kind)
     except (HTTPError, ValueError, TimeoutError):
         pass
     observation.latencyMs = round((monotonic() - started) * 1000)
@@ -222,8 +236,8 @@ async def generate_preview(client: AsyncClient, request: PreviewRequest, primary
     )
     fields = json.dumps(request.fields, ensure_ascii=False)
     deadline = monotonic() + 8
-    result, rate_limited = await attempt_preview(client, primary, instructions, fields, deadline)
+    result, rate_limited = await attempt_preview(client, primary, request.key, instructions, fields, deadline)
     if fallback and rate_limited and monotonic() < deadline:
-        second, _ = await attempt_preview(client, fallback, instructions, fields, deadline)
+        second, _ = await attempt_preview(client, fallback, request.key, instructions, fields, deadline)
         return PreviewResult(**second.model_dump(), priorAttempts=[result])
     return PreviewResult(**result.model_dump())

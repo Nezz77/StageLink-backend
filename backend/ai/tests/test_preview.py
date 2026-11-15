@@ -181,3 +181,31 @@ def test_rate_limit_stays_with_primary_when_fallback_disabled(monkeypatch):
         result = call_preview(client).json()
         assert calls == ["api.openai.com"]
         assert (result["outcome"], result["priorAttempts"]) == ("failed", [])
+
+
+@pytest.mark.parametrize(("output", "outcome"), [
+    ({"title": "Jazz duo", "description": "Live jazz for private events."}, "succeeded"),
+    ({"title": "Jazz duo", "description": "Live jazz.", "price": "50000"}, "failed"),
+    ({"title": " ", "description": "Live jazz."}, "failed"),
+])
+def test_gig_preview_requires_title_and_description(monkeypatch, output, outcome):
+    configure_gemini(monkeypatch, "gemini")
+
+    def respond(request):
+        payload = json.loads(request.content)
+        assert payload["generationConfig"]["responseJsonSchema"]["required"] == ["title", "description"]
+        data = gemini_output()
+        data["candidates"][0]["content"]["parts"][-1]["text"] = json.dumps(output)
+        return httpx.Response(200, json=data)
+
+    install_provider_mock(monkeypatch, respond)
+    body = {
+        "key": "gig",
+        "template": "Draft a gig for {{artist_name}} performing {{performance}} at {{event_type}}.",
+        "fields": {"artist_name": "Fixture artist", "performance": "jazz duo", "event_type": "private party"},
+    }
+    with TestClient(main.app) as client:
+        response = client.post("/internal/prompt-preview", json=body, headers={"Authorization": f"Bearer {TOKEN}"})
+        assert response.status_code == 200
+        assert response.json()["outcome"] == outcome
+        assert response.json()["output"] == (output if outcome == "succeeded" else None)

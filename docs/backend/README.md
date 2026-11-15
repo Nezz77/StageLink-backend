@@ -161,6 +161,12 @@ Set `AI_PREVIEW_FALLBACK=true` and configure both providers to permit a second a
 
 Provider-reported usage and template source are recorded in PostgreSQL per attempt. Draft, inline and published templates are traced separately. Preview output requires review before copying into a listing. Equipment prompts direct the model to omit unverified technical claims.
 
+## Artist writing suggestions
+
+Verified artist accounts can request a biography at `POST /api/v1/ai/generations/bio` with `requestKey` and `fields` containing `artist_name`, `genres` and `event_type`. For a gig title and description, use `POST /api/v1/ai/generations/gig` with `artist_name`, `performance` and `event_type`. Each request uses the latest published template at acceptance. The result can be retrieved by its owner from `GET /api/v1/ai/generations/:id`. Artists review and copy suggestions into their own drafts before saving.
+
+Supply a fresh UUID for each intended generation. Reuse that key and the same fields to recover the existing result after a network interruption. Pending results stay processing for up to 30 seconds. User input fields are sent to the configured provider as data. The job retains a request fingerprint, the suggested text, the prompt version and links to usage records. The rolling 24-hour limits are five requests per artist and `AI_GENERATION_DAILY_LIMIT` (default 20) across all artists. Configured provider fallback follows the same rules as administrator previews.
+
 ## Provider verification
 
 Providers submit two to five validated private images with `POST /api/v1/verification-cases`. Upload them with purpose `verification`, then pass their asset IDs in the case. Providers read their own history at `GET /api/v1/me/verification`. Administrators review pending cases at `GET /api/v1/admin/verification-cases` and record a reasoned decision at `POST /api/v1/admin/verification-cases/:id/decisions`. A rejected provider can submit a new version.

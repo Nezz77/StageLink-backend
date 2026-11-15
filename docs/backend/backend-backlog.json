@@ -1004,10 +1004,11 @@
         "Applicable schema/API/auth/UI/reload/failure tests and checkpoint evidence complete"
       ],
       "requires_new_report_ui": true,
-      "status": "not_started",
+      "status": "implemented_pending_verification",
       "ui_coverage_ids": [
         "UI-017"
-      ]
+      ],
+      "remaining": "Verify live provider generation and connect the writing assistant to the frontend and Figma flows."
     },
     {
       "id": "BE-028",
@@ -1993,7 +1994,7 @@
       "ui_coverage_ids": [
         "UI-046"
       ],
-      "remaining": "OpenAI and Gemini administrator previews record usage and template source per attempt. Verify both live accounts and fallback configuration, add provider-facing generation, and connect frontend/Figma flows."
+      "remaining": "OpenAI and Gemini administrator previews record usage and template source per attempt. Verify both live accounts and fallback configuration, and connect frontend/Figma flows. Artist generations now use the published bio and gig prompts."
     },
     {
       "id": "BE-057",

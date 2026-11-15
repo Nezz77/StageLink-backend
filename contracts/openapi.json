@@ -3836,7 +3836,8 @@
                             "type": "string",
                             "enum": [
                               "bio",
-                              "equipment"
+                              "equipment",
+                              "gig"
                             ]
                           },
                           "revision": {
@@ -3937,7 +3938,8 @@
             "schema": {
               "enum": [
                 "bio",
-                "equipment"
+                "equipment",
+                "gig"
               ],
               "type": "string"
             }
@@ -4041,7 +4043,8 @@
             "schema": {
               "enum": [
                 "bio",
-                "equipment"
+                "equipment",
+                "gig"
               ],
               "type": "string"
             }
@@ -4087,7 +4090,8 @@
                       "type": "string",
                       "enum": [
                         "bio",
-                        "equipment"
+                        "equipment",
+                        "gig"
                       ]
                     },
                     "revision": {
@@ -4181,7 +4185,8 @@
             "schema": {
               "enum": [
                 "bio",
-                "equipment"
+                "equipment",
+                "gig"
               ],
               "type": "string"
             }
@@ -4238,7 +4243,33 @@
                           ]
                         },
                         "output": {
-                          "type": "string"
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 1600
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "title": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 120
+                                },
+                                "description": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 1600
+                                }
+                              },
+                              "required": [
+                                "title",
+                                "description"
+                              ],
+                              "additionalProperties": false
+                            }
+                          ]
                         }
                       },
                       "required": [
@@ -4304,7 +4335,8 @@
             "schema": {
               "enum": [
                 "bio",
-                "equipment"
+                "equipment",
+                "gig"
               ],
               "type": "string"
             }
@@ -4350,7 +4382,8 @@
                       "type": "string",
                       "enum": [
                         "bio",
-                        "equipment"
+                        "equipment",
+                        "gig"
                       ]
                     },
                     "revision": {
@@ -4444,7 +4477,8 @@
             "schema": {
               "enum": [
                 "bio",
-                "equipment"
+                "equipment",
+                "gig"
               ],
               "type": "string"
             }
@@ -4497,7 +4531,8 @@
                       "type": "string",
                       "enum": [
                         "bio",
-                        "equipment"
+                        "equipment",
+                        "gig"
                       ]
                     },
                     "revision": {
@@ -4577,6 +4612,340 @@
         ],
         "tags": [
           "AI prompt templates"
+        ]
+      }
+    },
+    "/api/v1/ai/generations/{kind}": {
+      "post": {
+        "operationId": "GenerationsController_generate",
+        "parameters": [
+          {
+            "name": "kind",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "enum": [
+                "bio",
+                "gig"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "requestKey": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      "fields": {
+                        "type": "object",
+                        "properties": {
+                          "artist_name": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 120
+                          },
+                          "event_type": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 160
+                          },
+                          "genres": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 160
+                          }
+                        },
+                        "required": [
+                          "artist_name",
+                          "event_type",
+                          "genres"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "requestKey",
+                      "fields"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "requestKey": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                      },
+                      "fields": {
+                        "type": "object",
+                        "properties": {
+                          "artist_name": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 120
+                          },
+                          "event_type": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 160
+                          },
+                          "performance": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 500
+                          }
+                        },
+                        "required": [
+                          "artist_name",
+                          "event_type",
+                          "performance"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "requestKey",
+                      "fields"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "bio",
+                        "gig"
+                      ]
+                    },
+                    "promptVersion": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "exclusiveMinimum": true,
+                      "maximum": 9007199254740991
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "processing",
+                        "succeeded",
+                        "failed",
+                        "refused",
+                        "unavailable"
+                      ]
+                    },
+                    "suggestion": {
+                      "nullable": true,
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "bio": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 1600
+                            }
+                          },
+                          "required": [
+                            "bio"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "title": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 120
+                            },
+                            "description": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 1600
+                            }
+                          },
+                          "required": [
+                            "title",
+                            "description"
+                          ],
+                          "additionalProperties": false
+                        }
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "kind",
+                    "promptVersion",
+                    "status",
+                    "suggestion",
+                    "createdAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Artist writing assistant"
+        ]
+      }
+    },
+    "/api/v1/ai/generations/{id}": {
+      "get": {
+        "operationId": "GenerationsController_read",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "bio",
+                        "gig"
+                      ]
+                    },
+                    "promptVersion": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "exclusiveMinimum": true,
+                      "maximum": 9007199254740991
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "processing",
+                        "succeeded",
+                        "failed",
+                        "refused",
+                        "unavailable"
+                      ]
+                    },
+                    "suggestion": {
+                      "nullable": true,
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "bio": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 1600
+                            }
+                          },
+                          "required": [
+                            "bio"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "title": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 120
+                            },
+                            "description": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 1600
+                            }
+                          },
+                          "required": [
+                            "title",
+                            "description"
+                          ],
+                          "additionalProperties": false
+                        }
+                      ]
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "kind",
+                    "promptVersion",
+                    "status",
+                    "suggestion",
+                    "createdAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Artist writing assistant"
         ]
       }
     },
