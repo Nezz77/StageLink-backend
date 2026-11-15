@@ -243,7 +243,12 @@ test('completion requires a paid advance, provider check-in and resolved overtim
     const cancellation = await deps.db.booking.create({ data: {
       providerId: provider.user.id, customerId: customer.user.id, requestKey: randomUUID(), requestDigest: '0'.repeat(64),
       targetKind: 'gig', targetId: randomUUID(), targetVersion: 1, startsAt: futureStart,
-      endsAt: new Date(futureStart.getTime() + 3_600_000), holdExpiresAt: new Date(Date.now() + 60_000), snapshot: {},
+      endsAt: new Date(futureStart.getTime() + 3_600_000), holdExpiresAt: new Date(Date.now() + 60_000),
+      snapshot: {
+        title: 'Cancellation fixture', currency: 'LKR', quantity: 1, guestCount: null,
+        rateMinor: 35_011, periods: 1, rateUnit: null, subtotalMinor: 35_011,
+        depositPolicy: { mode: 'none', currency: 'LKR' }, depositMinor: 0, package: null, bundleItems: [],
+      },
     } });
     cancelledBookingId = cancellation.id;
     const cancellationPath = 'bookings/' + cancellation.id;

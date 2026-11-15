@@ -612,7 +612,13 @@ test('renter owns revisions and public browse only shows approved published equi
     assert.equal((await call(assetPath + '/remove', {}, winnerCustomer)).status, 409);
     const versions = await call(quotations, undefined, renter);
     assert.deepEqual(versions.data.items.map((item: { status: string }) => item.status), ['accepted', 'superseded']);
-    await deps.db.booking.update({ where: { id: winner.id }, data: { holdExpiresAt: new Date(Date.now() - 1000) } });
+    await deps.db.booking.update({
+      where: { id: winner.id },
+      data: {
+        startsAt: new Date(winner.startsAt), endsAt: new Date(winner.endsAt),
+        holdExpiresAt: new Date(Date.now() - 1000),
+      },
+    });
     assert.deepEqual((await call(availabilityPath)).data, { available: false });
     const rejected = await call('bookings/' + booked.data.id + '/provider-decisions', { revision: 1, decision: 'rejected' }, renter);
     assert.equal(rejected.status, 200);
