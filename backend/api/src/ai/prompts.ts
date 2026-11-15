@@ -188,13 +188,13 @@ export function makePromptController(auth: AuthService) {
       await previewLimits.check('ai-preview', 'shared', auth.config.AI_PREVIEW_DAILY_LIMIT, 86_400);
       const result = await requestModelPreview(auth.config, { key, template: body, fields: input.fields });
       if (!result) return unavailable;
-      const { output, outcome, ...usage } = result;
+      const { priorAttempts, ...latest } = result;
       const promptSource = input.body !== undefined ? 'inline' : row.draft !== null ? 'draft' : 'published';
-      await db.aiModelCall.create({ data: {
-        ...usage, outcome, capability: 'preview-' + key, promptKey: key, promptSource,
+      await db.aiModelCall.createMany({ data: [...priorAttempts, latest].map(({ output: _output, ...attempt }) => ({
+        ...attempt, capability: 'preview-' + key, promptKey: key, promptSource,
         templateRevision: row.revision, promptVersion: promptSource === 'published' ? active.version : null,
-      } });
-      return { resolved, modelStatus: outcome, output };
+      })) });
+      return { resolved, modelStatus: latest.outcome, output: latest.output };
     }
 
     @Post(':key/publish')

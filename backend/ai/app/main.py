@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from app.preview import MODEL_ID, PreviewObservation, PreviewRequest, generate_preview
+from app.preview import GEMINI_MODEL_ID, MODEL_ID, PreviewRequest, PreviewResult, Provider, ProviderName, generate_preview
 
 
 class Settings(BaseSettings):
@@ -20,12 +20,31 @@ class Settings(BaseSettings):
     internal_token: SecretStr = SecretStr("")
     openai_api_key: SecretStr = SecretStr("")
     openai_model: str = ""
+    gemini_api_key: SecretStr = SecretStr("")
+    gemini_model: str = ""
+    preview_primary_provider: ProviderName = "openai"
+    preview_fallback: bool = False
+
+    def provider(self, name: ProviderName) -> Provider | None:
+        key, model, pattern = (self.openai_api_key, self.openai_model, MODEL_ID) if name == "openai" else (
+            self.gemini_api_key, self.gemini_model, GEMINI_MODEL_ID,
+        )
+        if key.get_secret_value().strip() and fullmatch(pattern, model):
+            return Provider(name, model, key)
+        return None
+
+    def primary_provider(self) -> Provider | None:
+        if fullmatch(r"[a-f0-9]{64}", self.internal_token.get_secret_value()):
+            return self.provider(self.preview_primary_provider)
+        return None
+
+    def fallback_provider(self) -> Provider | None:
+        if self.preview_fallback:
+            return self.provider("gemini" if self.preview_primary_provider == "openai" else "openai")
+        return None
 
     def capabilities(self) -> list[str]:
-        configured = self.openai_api_key.get_secret_value().strip() and fullmatch(MODEL_ID, self.openai_model)
-        if configured and fullmatch(r"[a-f0-9]{64}", self.internal_token.get_secret_value()):
-            return ["prompt-preview"]
-        return ["health-only"]
+        return ["prompt-preview"] if self.primary_provider() else ["health-only"]
 
 
 @asynccontextmanager
@@ -89,14 +108,15 @@ async def live(request: Request):
                   version="0.1.0", capabilities=request.app.state.settings.capabilities())
 
 
-@app.post("/internal/prompt-preview", response_model=PreviewObservation)
+@app.post("/internal/prompt-preview", response_model=PreviewResult)
 async def prompt_preview(request: Request, body: PreviewRequest):
     settings = request.app.state.settings
-    if "prompt-preview" not in settings.capabilities():
+    primary = settings.primary_provider()
+    if primary is None:
         raise HTTPException(status_code=503, detail="Model preview unavailable")
     credential = ("Bearer " + settings.internal_token.get_secret_value()).encode()
     if not compare_digest(request.headers.get("authorization", "").encode(), credential):
         raise HTTPException(status_code=401, detail="Internal authorization required")
     return await generate_preview(
-        request.app.state.model_client, settings.openai_api_key.get_secret_value(), settings.openai_model, body,
+        request.app.state.model_client, body, primary, settings.fallback_provider(),
     )

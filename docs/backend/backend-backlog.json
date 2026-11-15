@@ -1993,7 +1993,7 @@
       "ui_coverage_ids": [
         "UI-046"
       ],
-      "remaining": "OpenAI administrator previews record usage and template source. Verify against a configured account, add Gemini failover and provider-facing generation, and connect frontend/Figma flows."
+      "remaining": "OpenAI and Gemini administrator previews record usage and template source per attempt. Verify both live accounts and fallback configuration, add provider-facing generation, and connect frontend/Figma flows."
     },
     {
       "id": "BE-057",

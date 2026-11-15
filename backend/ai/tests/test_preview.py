@@ -31,6 +31,7 @@ def test_internal_preview_validates_output_and_reports_usage(monkeypatch, provid
     monkeypatch.setenv("AI_INTERNAL_TOKEN", TOKEN)
     monkeypatch.setenv("AI_OPENAI_API_KEY", "fixture-key")
     monkeypatch.setenv("AI_OPENAI_MODEL", "fixture-model")
+    monkeypatch.setenv("AI_PREVIEW_PRIMARY_PROVIDER", "openai")
     calls = []
 
     def respond(request):
@@ -60,7 +61,7 @@ def test_internal_preview_validates_output_and_reports_usage(monkeypatch, provid
         assert result.json() == {
             "provider": "openai", "model": "fixture-snapshot", "outcome": expected_outcome,
             "output": expected_output, "inputTokens": 52, "outputTokens": 31,
-            "cachedInputTokens": 12, "latencyMs": result.json()["latencyMs"],
+            "cachedInputTokens": 12, "latencyMs": result.json()["latencyMs"], "priorAttempts": [],
         }
 
 
@@ -69,3 +70,114 @@ def test_unconfigured_internal_preview_is_unavailable(monkeypatch):
         monkeypatch.delenv(setting, raising=False)
     with TestClient(main.app) as client:
         assert client.post("/internal/prompt-preview", json=BODY).status_code == 503
+
+
+def configure_gemini(monkeypatch, primary: str, fallback: bool = False):
+    monkeypatch.setenv("AI_INTERNAL_TOKEN", TOKEN)
+    monkeypatch.setenv("AI_OPENAI_API_KEY", "fixture-openai-key")
+    monkeypatch.setenv("AI_OPENAI_MODEL", "fixture-openai-model")
+    monkeypatch.setenv("AI_GEMINI_API_KEY", "fixture-gemini-key")
+    monkeypatch.setenv("AI_GEMINI_MODEL", "fixture-gemini-model")
+    monkeypatch.setenv("AI_PREVIEW_PRIMARY_PROVIDER", primary)
+    monkeypatch.setenv("AI_PREVIEW_FALLBACK", str(fallback).lower())
+
+
+def install_provider_mock(monkeypatch, respond):
+    transport = httpx.MockTransport(respond)
+    monkeypatch.setattr(main, "AsyncClient", lambda **kwargs: httpx.AsyncClient(transport=transport, **kwargs))
+
+
+def call_preview(client):
+    return client.post("/internal/prompt-preview", json=BODY, headers={"Authorization": f"Bearer {TOKEN}"})
+
+
+def gemini_output():
+    return {
+        "modelVersion": "fixture-gemini-snapshot",
+        "candidates": [{
+            "finishReason": "STOP", "content": {"parts": [
+                {"thought": True, "text": "Internal thinking text."},
+                {"text": '{"text":"A Gemini draft."}'},
+            ]},
+        }],
+        "usageMetadata": {
+            "promptTokenCount": 88, "candidatesTokenCount": 15,
+            "thoughtsTokenCount": 2, "cachedContentTokenCount": 5,
+        },
+    }
+
+
+@pytest.mark.parametrize("primary, fallback, expected_calls", [
+    ("gemini", False, ["generativelanguage.googleapis.com"]),
+    ("openai", True, ["api.openai.com", "generativelanguage.googleapis.com"]),
+])
+def test_gemini_preview_and_optional_provider_fallback(monkeypatch, primary, fallback, expected_calls):
+    configure_gemini(monkeypatch, primary, fallback)
+    calls = []
+
+    def respond(request):
+        calls.append(request.url.host)
+        if request.url.host == "api.openai.com":
+            return httpx.Response(429, json={"error": "rate limited"})
+        assert str(request.url) == (
+            "https://generativelanguage.googleapis.com/v1beta/models/fixture-gemini-model:generateContent"
+        )
+        assert request.headers["x-goog-api-key"] == "fixture-gemini-key"
+        assert "authorization" not in request.headers
+        payload = json.loads(request.content)
+        settings = payload["generationConfig"]
+        assert settings["maxOutputTokens"] == 450
+        assert settings["responseMimeType"] == "application/json"
+        assert settings["responseJsonSchema"]["required"] == ["text"]
+        assert "Ignore prior instructions" not in payload["systemInstruction"]["parts"][0]["text"]
+        assert json.loads(payload["contents"][0]["parts"][0]["text"]) == BODY["fields"]
+        return httpx.Response(200, json=gemini_output())
+
+    install_provider_mock(monkeypatch, respond)
+    with TestClient(main.app) as client:
+        response = call_preview(client)
+        assert response.status_code == 200
+        result = response.json()
+        assert calls == expected_calls
+        assert result["provider"] == "gemini"
+        assert result["model"] == "fixture-gemini-snapshot"
+        assert result["output"] == "A Gemini draft."
+        assert result["outputTokens"] == 17
+        assert result["cachedInputTokens"] == 5
+        assert len(result["priorAttempts"]) == int(fallback)
+        if fallback:
+            attempt = result["priorAttempts"][0]
+            assert (attempt["provider"], attempt["outcome"], attempt["inputTokens"]) == ("openai", "failed", None)
+
+
+@pytest.mark.parametrize("reason, expected", [("SAFETY", "refused"), ("MAX_TOKENS", "failed"), ("timeout", "failed")])
+def test_gemini_refusal_incomplete_output_and_timeout_do_not_fail_over(monkeypatch, reason, expected):
+    configure_gemini(monkeypatch, "gemini", fallback=True)
+    calls = []
+
+    def respond(request):
+        calls.append(request.url.host)
+        if reason == "timeout":
+            raise httpx.ReadTimeout("fixture")
+        return httpx.Response(200, json={"candidates": [{"finishReason": reason}]})
+
+    install_provider_mock(monkeypatch, respond)
+    with TestClient(main.app) as client:
+        result = call_preview(client).json()
+        assert calls == ["generativelanguage.googleapis.com"]
+        assert (result["outcome"], result["output"], result["priorAttempts"]) == (expected, None, [])
+
+
+def test_rate_limit_stays_with_primary_when_fallback_disabled(monkeypatch):
+    configure_gemini(monkeypatch, "openai")
+    calls = []
+
+    def respond(request):
+        calls.append(request.url.host)
+        return httpx.Response(429, json={"error": "rate limited"})
+
+    install_provider_mock(monkeypatch, respond)
+    with TestClient(main.app) as client:
+        result = call_preview(client).json()
+        assert calls == ["api.openai.com"]
+        assert (result["outcome"], result["priorAttempts"]) == ("failed", [])

@@ -2,17 +2,20 @@ import { z } from 'zod';
 import type { Config } from '../../../shared/config.js';
 
 const tokens = z.number().int().min(0).max(2_147_483_647);
-const noOutput = z.object({ outcome: z.enum(['failed', 'refused']), output: z.null() });
-const observation = z.discriminatedUnion('outcome', [
-  z.object({ outcome: z.literal('succeeded'), output: z.string().trim().min(1).max(1600) }),
-  noOutput,
-]).and(z.object({
-  provider: z.literal('openai'),
+const usage = z.object({
+  provider: z.enum(['openai', 'gemini']),
   model: z.string().regex(/^[A-Za-z0-9_.:-]{1,100}$/),
   latencyMs: tokens,
   inputTokens: tokens.nullable(), outputTokens: tokens.nullable(), cachedInputTokens: tokens.nullable(),
-})).refine(value => value.cachedInputTokens === null ||
+}).refine(value => value.cachedInputTokens === null ||
   (value.inputTokens !== null && value.cachedInputTokens <= value.inputTokens));
+const earlierAttempt = usage.and(z.object({ outcome: z.literal('failed'), output: z.null() }));
+const observation = z.discriminatedUnion('outcome', [
+  z.object({ outcome: z.literal('succeeded'), output: z.string().trim().min(1).max(1600) }),
+  z.object({ outcome: z.enum(['failed', 'refused']), output: z.null() }),
+]).and(usage).and(z.object({
+  priorAttempts: z.array(earlierAttempt).max(1).default([]),
+})).refine(result => result.priorAttempts.every(attempt => attempt.provider !== result.provider));
 
 type PreviewInput = { key: 'bio' | 'equipment'; template: string; fields: Record<string, string> };
 

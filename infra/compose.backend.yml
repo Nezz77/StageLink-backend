@@ -110,6 +110,10 @@ services:
       AI_INTERNAL_TOKEN: ${AI_INTERNAL_TOKEN:-}
       AI_OPENAI_API_KEY: ${AI_OPENAI_API_KEY:-}
       AI_OPENAI_MODEL: ${AI_OPENAI_MODEL:-}
+      AI_GEMINI_API_KEY: ${AI_GEMINI_API_KEY:-}
+      AI_GEMINI_MODEL: ${AI_GEMINI_MODEL:-}
+      AI_PREVIEW_PRIMARY_PROVIDER: ${AI_PREVIEW_PRIMARY_PROVIDER:-openai}
+      AI_PREVIEW_FALLBACK: ${AI_PREVIEW_FALLBACK:-false}
     # Internal-only service, no browser access or public port.
     healthcheck:
       test: ["CMD", ".venv/bin/python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=2)"]

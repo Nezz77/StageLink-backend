@@ -155,7 +155,11 @@ Customers can request up to three ranked published gigs at `POST /api/v1/event-p
 
 The administrator preview endpoint `POST /api/v1/admin/ai/prompts/:key/preview` resolves the template with the supplied fields. Set `generate: true` to request a model suggestion as well. The response includes the rendered template, model status and optional plain-text draft for review.
 
-Enable model previews by configuring the API and its private FastAPI service with the same `AI_INTERNAL_TOKEN` (32 random bytes encoded as hex). Configure `AI_OPENAI_API_KEY` and `AI_OPENAI_MODEL` in FastAPI. Select an OpenAI model that supports Structured Outputs. The API limits submitted generation requests using a shared 24-hour Redis counter (`AI_PREVIEW_DAILY_LIMIT`, default 20). The model call uses a fixed output-token limit, no tools and a short timeout. Provider-reported usage and the template source are recorded in PostgreSQL. Draft, inline and published templates are traced separately. Preview output requires review before copying into a listing. Equipment prompts direct the model to omit unverified technical claims.
+Enable model previews by configuring the API and its private FastAPI service with the same `AI_INTERNAL_TOKEN` (32 random bytes encoded as hex). Set `AI_PREVIEW_PRIMARY_PROVIDER` to `openai` (default) or `gemini`. Configure the selected provider's API key and structured-output model in FastAPI with `AI_OPENAI_API_KEY` and `AI_OPENAI_MODEL`, or `AI_GEMINI_API_KEY` and `AI_GEMINI_MODEL`.
+
+Set `AI_PREVIEW_FALLBACK=true` and configure both providers to permit a second attempt after an explicit HTTP 429. The same template and fields may then be sent to both providers. Both attempts share an eight-second deadline. Refusals, timeouts, incomplete results and other provider errors end the preview. The API uses a shared 24-hour Redis counter (`AI_PREVIEW_DAILY_LIMIT`, default 20 submitted previews). Each attempt requests a maximum of 450 output tokens and supplies no tools.
+
+Provider-reported usage and template source are recorded in PostgreSQL per attempt. Draft, inline and published templates are traced separately. Preview output requires review before copying into a listing. Equipment prompts direct the model to omit unverified technical claims.
 
 ## Provider verification
 

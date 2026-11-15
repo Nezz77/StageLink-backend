@@ -17,15 +17,25 @@ if (baseConfig.NODE_ENV !== 'test' || !new URL(baseConfig.DATABASE_URL).pathname
 test('model previews require opt-in, obey the shared budget and record usage against the prompt source', async () => {
   const token = 'f'.repeat(64);
   const model = 'fixture-' + randomUUID();
+  const fallbackModel = model + '-fallback';
+  const models = [model, fallbackModel];
   const requests: { credential?: string; key: string; template: string; fields: Record<string, string> }[] = [];
   const service = createServer(async (req, res) => {
     let body = '';
     for await (const chunk of req) body += chunk.toString();
     requests.push({ credential: req.headers.authorization, ...JSON.parse(body) });
-    res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({
+    const initial = {
       provider: 'openai', model, outcome: 'succeeded', latencyMs: 14,
       output: 'A biography draft.', inputTokens: 120, outputTokens: 16, cachedInputTokens: 6,
-    }));
+    };
+    const result = requests.length === 1 ? initial : {
+      ...initial, provider: 'gemini', model: fallbackModel,
+      priorAttempts: [{
+        ...initial, outcome: 'failed', output: null, inputTokens: null,
+        outputTokens: null, cachedInputTokens: null,
+      }],
+    };
+    res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(result));
   });
   await new Promise<void>(resolve => service.listen(0, '127.0.0.1', resolve));
   const config = {
@@ -78,16 +88,18 @@ test('model previews require opt-in, obey the shared budget and record usage aga
     assert.equal(overBudget.status, 429);
     assert.equal(requests.length, 2);
 
-    const observed = await deps.db.aiModelCall.findMany({ where: { model }, orderBy: { createdAt: 'asc' } });
+    const observed = await deps.db.aiModelCall.findMany({ where: { model: { in: models } } });
     assert.deepEqual(observed.map(row => ({
-      source: row.promptSource, version: row.promptVersion, key: row.promptKey, tokens: row.inputTokens,
-    })), [
-      { source: 'published', version: active.version, key: 'bio', tokens: 120 },
-      { source: 'inline', version: null, key: 'bio', tokens: 120 },
+      provider: row.provider, outcome: row.outcome, source: row.promptSource,
+      version: row.promptVersion, key: row.promptKey, tokens: row.inputTokens,
+    })).sort((a, b) => (a.source + a.provider).localeCompare(b.source + b.provider)), [
+      { provider: 'gemini', outcome: 'succeeded', source: 'inline', version: null, key: 'bio', tokens: 120 },
+      { provider: 'openai', outcome: 'failed', source: 'inline', version: null, key: 'bio', tokens: null },
+      { provider: 'openai', outcome: 'succeeded', source: 'published', version: active.version, key: 'bio', tokens: 120 },
     ]);
   } finally {
     try {
-      await deps.db.aiModelCall.deleteMany({ where: { model } });
+      await deps.db.aiModelCall.deleteMany({ where: { model: { in: models } } });
       if (userId) await deps.db.authUser.delete({ where: { id: userId } });
     } finally {
       await app.close();
