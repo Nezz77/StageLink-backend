@@ -4205,6 +4205,9 @@
                       "minLength": 1,
                       "maxLength": 500
                     }
+                  },
+                  "generate": {
+                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -4221,31 +4224,60 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "resolved": {
-                      "type": "string"
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "resolved": {
+                          "type": "string"
+                        },
+                        "modelStatus": {
+                          "type": "string",
+                          "enum": [
+                            "succeeded"
+                          ]
+                        },
+                        "output": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "resolved",
+                        "modelStatus",
+                        "output"
+                      ],
+                      "additionalProperties": false
                     },
-                    "modelStatus": {
-                      "type": "string",
-                      "enum": [
-                        "unavailable"
-                      ]
-                    },
-                    "output": {
-                      "type": "string",
-                      "nullable": true,
-                      "enum": [
-                        null
-                      ]
+                    {
+                      "type": "object",
+                      "properties": {
+                        "resolved": {
+                          "type": "string"
+                        },
+                        "modelStatus": {
+                          "type": "string",
+                          "enum": [
+                            "unavailable",
+                            "failed",
+                            "refused"
+                          ]
+                        },
+                        "output": {
+                          "type": "string",
+                          "nullable": true,
+                          "enum": [
+                            null
+                          ]
+                        }
+                      },
+                      "required": [
+                        "resolved",
+                        "modelStatus",
+                        "output"
+                      ],
+                      "additionalProperties": false
                     }
-                  },
-                  "required": [
-                    "resolved",
-                    "modelStatus",
-                    "output"
-                  ],
-                  "additionalProperties": false
+                  ]
                 }
               }
             }

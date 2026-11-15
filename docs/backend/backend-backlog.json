@@ -1961,7 +1961,7 @@
       "ui_coverage_ids": [
         "UI-045"
       ],
-      "remaining": "Record actual provider calls and measured token usage, apply published weights in recommendations, and verify integration and frontend/Figma wiring."
+      "remaining": "Published weights are active in recommendations and administrator previews record provider usage. Verify live provider accounts, broaden model coverage, and complete frontend/Figma wiring."
     },
     {
       "id": "BE-056",
@@ -1993,7 +1993,7 @@
       "ui_coverage_ids": [
         "UI-046"
       ],
-      "remaining": "Connect real bounded provider previews and generation, persist usage linked to published versions, and verify the API and frontend/Figma integration."
+      "remaining": "OpenAI administrator previews record usage and template source. Verify against a configured account, add Gemini failover and provider-facing generation, and connect frontend/Figma flows."
     },
     {
       "id": "BE-057",

@@ -1,23 +1,42 @@
 from contextlib import asynccontextmanager
+from hmac import compare_digest
+from re import fullmatch
 import json
 import logging
 import time
 import uuid
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
+from httpx import AsyncClient
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from app.preview import MODEL_ID, PreviewObservation, PreviewRequest, generate_preview
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="AI_", extra="ignore")
     service_name: str = Field(default="stagelink-ai", min_length=1, max_length=64)
+    internal_token: SecretStr = SecretStr("")
+    openai_api_key: SecretStr = SecretStr("")
+    openai_model: str = ""
+
+    def capabilities(self) -> list[str]:
+        configured = self.openai_api_key.get_secret_value().strip() and fullmatch(MODEL_ID, self.openai_model)
+        if configured and fullmatch(r"[a-f0-9]{64}", self.internal_token.get_secret_value()):
+            return ["prompt-preview"]
+        return ["health-only"]
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app.state.settings = Settings()
-    yield
+    if "prompt-preview" not in app.state.settings.capabilities():
+        yield
+        return
+    async with AsyncClient(follow_redirects=False, timeout=8) as client:
+        app.state.model_client = client
+        yield
 
 
 logger = logging.getLogger("stagelink.ai")
@@ -62,12 +81,22 @@ async def request_context(request: Request, call_next):
 @app.get("/health/ready", response_model=Health)
 async def health(request: Request):
     return Health(status="ready", service=request.app.state.settings.service_name,
-                  version="0.1.0", capabilities=["health-only"])
+                  version="0.1.0", capabilities=request.app.state.settings.capabilities())
 
 @app.get("/health/live", response_model=Health)
 async def live(request: Request):
     return Health(status="alive", service=request.app.state.settings.service_name,
-                  version="0.1.0", capabilities=["health-only"])
+                  version="0.1.0", capabilities=request.app.state.settings.capabilities())
 
 
-# No generation endpoint or fabricated metrics. Provider setup belongs to P15.
+@app.post("/internal/prompt-preview", response_model=PreviewObservation)
+async def prompt_preview(request: Request, body: PreviewRequest):
+    settings = request.app.state.settings
+    if "prompt-preview" not in settings.capabilities():
+        raise HTTPException(status_code=503, detail="Model preview unavailable")
+    credential = ("Bearer " + settings.internal_token.get_secret_value()).encode()
+    if not compare_digest(request.headers.get("authorization", "").encode(), credential):
+        raise HTTPException(status_code=401, detail="Internal authorization required")
+    return await generate_preview(
+        request.app.state.model_client, settings.openai_api_key.get_secret_value(), settings.openai_model, body,
+    )

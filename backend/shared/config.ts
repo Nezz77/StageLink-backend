@@ -35,6 +35,8 @@ const schema = z.object({
       return ['http:', 'https:'].includes(url.protocol) && url.origin === value;
     } catch { return false; }
   })),
+  AI_INTERNAL_TOKEN: optionalSetting(z.string().regex(/^[a-f0-9]{64}$/)),
+  AI_PREVIEW_DAILY_LIMIT: z.coerce.number().int().min(1).max(200).default(20),
   WORKER_HEALTH_PORT: z.coerce.number().int().min(1).max(65535).default(4001),
   STRIPE_TEST_SECRET_KEY: optionalSetting(z.string().regex(/^sk_test_[A-Za-z0-9_]{1,250}$/)),
   STRIPE_TEST_WEBHOOK_SECRET: optionalSetting(z.string().regex(/^whsec_[A-Za-z0-9_]{1,250}$/)),

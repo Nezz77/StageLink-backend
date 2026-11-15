@@ -1203,6 +1203,11 @@ model AiModelCall {
   outputTokens Int? @map("output_tokens")
   cachedInputTokens Int? @map("cached_input_tokens")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  promptKey String? @map("prompt_key") @db.VarChar(20)
+  promptVersion Int? @map("prompt_version")
+  templateRevision Int? @map("template_revision")
+  promptSource String? @map("prompt_source") @db.VarChar(12)
+  prompt AiPromptVersion? @relation(fields: [promptKey, promptVersion], references: [key, version], onDelete: Restrict, map: "ai_model_call_prompt_version_fkey")
   @@index([createdAt])
   @@map("ai_model_calls")
 }
@@ -1229,6 +1234,7 @@ model AiPromptVersion {
   rollbackSource AiPromptVersion? @relation("PromptRollback", fields: [key, rolledBackFrom], references: [key, version], onDelete: Restrict)
   rollbacks AiPromptVersion[] @relation("PromptRollback")
   @@id([key, version])
+  modelCalls AiModelCall[]
   @@map("ai_prompt_versions")
 }
 

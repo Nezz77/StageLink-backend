@@ -3,10 +3,12 @@ import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiParam, ApiQuery, ApiTags } fr
 import type { Request } from 'express';
 import { z } from 'zod';
 import type { AiPromptTemplate, AiPromptVersion, Prisma } from '../../../generated/prisma/client.js';
+import { AuthRateLimit } from '../auth/rate-limit.js';
 import { PublicError } from '../auth/errors.js';
 import type { AuthService } from '../auth/service.js';
 import { parse, schema } from '../payments/orders.js';
 import { ProfileService } from '../profiles/service.js';
+import { requestModelPreview } from './preview.js';
 
 const keys = z.enum(['bio', 'equipment']);
 type PromptKey = z.infer<typeof keys>;
@@ -24,8 +26,14 @@ const template = z.object({
   key: keys, revision, draft: text.nullable(), current: version, updatedAt: z.iso.datetime(),
 });
 const history = z.object({ items: z.array(version), nextVersion: revision.nullable() });
-const preview = z.object({ body: text.optional(), fields: z.record(z.string(), z.string().trim().min(1).max(500)) }).strict();
-const previewResult = z.object({ resolved: z.string(), modelStatus: z.literal('unavailable'), output: z.null() });
+const preview = z.object({
+  body: text.optional(), fields: z.record(z.string(), z.string().trim().min(1).max(500)),
+  generate: z.boolean().optional(),
+}).strict();
+const previewResult = z.discriminatedUnion('modelStatus', [
+  z.object({ resolved: z.string(), modelStatus: z.literal('succeeded'), output: z.string() }),
+  z.object({ resolved: z.string(), modelStatus: z.enum(['unavailable', 'failed', 'refused']), output: z.null() }),
+]);
 
 const fields: Record<PromptKey, readonly string[]> = {
   bio: ['artist_name', 'genres', 'event_type'],
@@ -63,6 +71,7 @@ function present(row: AiPromptTemplate, current: AiPromptVersion) {
 export function makePromptController(auth: AuthService) {
   const db = auth.deps.db;
   const profiles = new ProfileService(auth);
+  const previewLimits = new AuthRateLimit(auth.deps.redis, auth.config.AUTH_RATE_PREFIX, auth.config.AUTH_JWT_SECRET);
 
   async function admin(req: Request) {
     const actor = await auth.authenticate(req.get('Authorization'));
@@ -171,8 +180,21 @@ export function makePromptController(auth: AuthService) {
       const row = await db.aiPromptTemplate.findUniqueOrThrow({
         where: { key }, include: { versions: { orderBy: { version: 'desc' }, take: 1 } },
       });
-      const body = input.body ?? row.draft ?? row.versions[0]!.body;
-      return { resolved: resolvePrompt(key, body, input.fields), modelStatus: 'unavailable', output: null };
+      const active = row.versions[0]!;
+      const body = input.body ?? row.draft ?? active.body;
+      const resolved = resolvePrompt(key, body, input.fields);
+      const unavailable = { resolved, modelStatus: 'unavailable' as const, output: null };
+      if (!input.generate || !auth.config.AI_SERVICE_ORIGIN || !auth.config.AI_INTERNAL_TOKEN) return unavailable;
+      await previewLimits.check('ai-preview', 'shared', auth.config.AI_PREVIEW_DAILY_LIMIT, 86_400);
+      const result = await requestModelPreview(auth.config, { key, template: body, fields: input.fields });
+      if (!result) return unavailable;
+      const { output, outcome, ...usage } = result;
+      const promptSource = input.body !== undefined ? 'inline' : row.draft !== null ? 'draft' : 'published';
+      await db.aiModelCall.create({ data: {
+        ...usage, outcome, capability: 'preview-' + key, promptKey: key, promptSource,
+        templateRevision: row.revision, promptVersion: promptSource === 'published' ? active.version : null,
+      } });
+      return { resolved, modelStatus: outcome, output };
     }
 
     @Post(':key/publish')

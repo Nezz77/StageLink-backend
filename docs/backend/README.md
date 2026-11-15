@@ -151,6 +151,12 @@ Administrators manage the biography and equipment prompts under `/api/v1/admin/a
 
 Customers can request up to three ranked published gigs at `POST /api/v1/event-posts/:id/recommendations` with `{requestKey, expectedRevision, genres?}`. Read saved results at `GET /api/v1/recommendations/:id`. Rankings use the published base price and event brief budget, city, optional genres, published ratings and the saved matching weights. Confirm the booking time through the availability endpoint before booking.
 
+## Prompt model previews
+
+The administrator preview endpoint `POST /api/v1/admin/ai/prompts/:key/preview` resolves the template with the supplied fields. Set `generate: true` to request a model suggestion as well. The response includes the rendered template, model status and optional plain-text draft for review.
+
+Enable model previews by configuring the API and its private FastAPI service with the same `AI_INTERNAL_TOKEN` (32 random bytes encoded as hex). Configure `AI_OPENAI_API_KEY` and `AI_OPENAI_MODEL` in FastAPI. Select an OpenAI model that supports Structured Outputs. The API limits submitted generation requests using a shared 24-hour Redis counter (`AI_PREVIEW_DAILY_LIMIT`, default 20). The model call uses a fixed output-token limit, no tools and a short timeout. Provider-reported usage and the template source are recorded in PostgreSQL. Draft, inline and published templates are traced separately. Preview output requires review before copying into a listing. Equipment prompts direct the model to omit unverified technical claims.
+
 ## Provider verification
 
 Providers submit two to five validated private images with `POST /api/v1/verification-cases`. Upload them with purpose `verification`, then pass their asset IDs in the case. Providers read their own history at `GET /api/v1/me/verification`. Administrators review pending cases at `GET /api/v1/admin/verification-cases` and record a reasoned decision at `POST /api/v1/admin/verification-cases/:id/decisions`. A rejected provider can submit a new version.

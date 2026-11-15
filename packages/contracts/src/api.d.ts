@@ -4793,6 +4793,7 @@ export interface operations {
                     fields: {
                         [key: string]: string;
                     };
+                    generate?: boolean;
                 };
             };
         };
@@ -4805,7 +4806,12 @@ export interface operations {
                     "application/json": {
                         resolved: string;
                         /** @enum {string} */
-                        modelStatus: "unavailable";
+                        modelStatus: "succeeded";
+                        output: string;
+                    } | {
+                        resolved: string;
+                        /** @enum {string} */
+                        modelStatus: "unavailable" | "failed" | "refused";
                         /** @enum {string|null} */
                         output: null;
                     };
