@@ -38,14 +38,14 @@ export async function dispatchBatch(db: PrismaClient, queue: Publisher) {
   }
   return claimed.length;
 }
-export async function consume(db: PrismaClient, eventId: string) {
-  await db.$transaction(async tx => {
+export async function consume(db: PrismaClient, eventId: string): Promise<string[]> {
+  return db.$transaction(async tx => {
     const rows = await tx.$queryRaw<Array<{ topic: string; payload: unknown; processed_at: Date | null; dead_lettered_at: Date | null; created_at: Date }>>`
       SELECT topic, payload, processed_at, dead_lettered_at, created_at FROM outbox_events
       WHERE id = ${eventId}::uuid FOR UPDATE`;
     const event = rows[0];
     if (!event) throw new Error('EVENT_NOT_FOUND');
-    if (event.processed_at || event.dead_lettered_at) return;
+    if (event.processed_at || event.dead_lettered_at) return [];
     if (event.topic === NOTIFICATION_TOPIC) {
       const payload = notificationPayload.safeParse(event.payload);
       if (payload.success) {
@@ -53,20 +53,22 @@ export async function consume(db: PrismaClient, eventId: string) {
         const users = await tx.$queryRaw<{ id: string }[]>`
           SELECT id FROM auth_users WHERE id IN (${Prisma.join(recipients.map(id => Prisma.sql`${id}::uuid`))})
           ORDER BY id FOR KEY SHARE`;
-        await tx.notification.createMany({
-          data: users.map(({ id: recipientId }) => ({ recipientId, ...details, createdAt: event.created_at })), skipDuplicates: true,
+        const inserted = await tx.notification.createManyAndReturn({
+          data: users.map(({ id: recipientId }) => ({ recipientId, ...details, createdAt: event.created_at })),
+          select: { recipientId: true },
+          skipDuplicates: true,
         });
         await tx.outboxEvent.update({
           where: { id: eventId }, data: { processedAt: new Date(), lockedUntil: null, lastErrorCode: null },
         });
-        return;
+        return inserted.map(row => row.recipientId);
       }
     }
     if (event.topic !== PING_TOPIC || JSON.stringify(event.payload) !== '{"version":1}') {
       await tx.outboxEvent.update({ where: { id: eventId }, data: {
         deadLetteredAt: new Date(), lastErrorCode: 'UNSUPPORTED_EVENT', lockedUntil: null,
       } });
-      return;
+      return [];
     }
     const receipt = await tx.consumedEvent.createMany({
       data: { consumer: CONSUMER, eventId }, skipDuplicates: true,
@@ -75,5 +77,6 @@ export async function consume(db: PrismaClient, eventId: string) {
     await tx.outboxEvent.update({ where: { id: eventId }, data: {
       processedAt: new Date(), lockedUntil: null, lastErrorCode: null,
     } });
+    return [];
   });
 }

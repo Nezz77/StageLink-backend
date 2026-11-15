@@ -4,6 +4,7 @@ import { Redis } from 'ioredis';
 import { readConfig } from '../../shared/config.js';
 import { resources, closeResources, readiness } from '../../shared/resources.js';
 import { consume, dispatchBatch, QUEUE } from '../../shared/outbox.js';
+import { publishNotificationChange } from '../../shared/notification-signals.js';
 import { createMailer, deliverAuthMail } from '../../shared/auth-mail.js';
 import { MediaStore } from '../../shared/media-store.js';
 import { processMediaBatch, cleanupMediaBatch } from '../../shared/media-processing.js';
@@ -26,9 +27,10 @@ async function main() {
   const queue = new Queue(QUEUE, { connection: publisher, defaultJobOptions: {
     attempts: 5, backoff: { type: 'exponential', delay: 500 }, removeOnComplete: true, removeOnFail: true,
   } });
-  const worker = new Worker(QUEUE, async job => { await consume(deps.db, String(job.data.eventId)); }, {
-    connection: subscriber, concurrency: 4,
-  });
+  const worker = new Worker(QUEUE, async job => {
+    const recipients = await consume(deps.db, String(job.data.eventId));
+    await publishNotificationChange(publisher, recipients);
+  }, { connection: subscriber, concurrency: 4 });
   worker.on('error', () => log('worker.error', { code: 'WORKER_CONNECTION_ERROR' }));
   worker.on('failed', () => log('worker.job_failed', { code: 'RETRY_OR_REDISPATCH' }));
   queue.on('error', () => log('queue.error', { code: 'QUEUE_CONNECTION_ERROR' }));

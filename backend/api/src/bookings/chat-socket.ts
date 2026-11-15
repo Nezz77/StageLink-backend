@@ -2,6 +2,7 @@ import type { Server as HttpServer } from 'node:http';
 import { Server, type Socket } from 'socket.io';
 import { z } from 'zod';
 import { log } from '../../../shared/log.js';
+import { subscribeToNotificationChanges } from '../../../shared/notification-signals.js';
 import { PublicError } from '../auth/errors.js';
 import type { AuthService, Identity } from '../auth/service.js';
 import { checkMaintenance } from '../operations/maintenance.js';
@@ -12,6 +13,7 @@ const interval = 15_000;
 const bookingId = z.uuid().transform(id => id.toLowerCase());
 const roomInput = z.object({ bookingId }).strict();
 const writeInput = roomInput.extend({ data: z.unknown() });
+const empty = z.object({}).strict();
 const typingInput = roomInput.extend({ typing: z.boolean() });
 
 type Failure = { ok: false; error: { code: string; message: string } };
@@ -41,6 +43,7 @@ export function attachBookingChat(server: HttpServer, auth: AuthService, chat: B
     allowRequest: (req, done) => done(null, req.headers.origin === auth.config.WEB_ORIGIN),
   });
   const room = (id: string) => 'booking:' + id;
+  const inboxRoom = (id: string) => 'notifications:' + id;
   const credentials = new WeakMap<Socket, string>();
 
   async function authenticate(socket: Socket) {
@@ -66,22 +69,28 @@ export function attachBookingChat(server: HttpServer, auth: AuthService, chat: B
     next(Object.assign(new Error('Sign in to use booking chat.'), { data: { code: 'UNAUTHORIZED' } }));
   });
 
-  async function deliver(event: 'chat:changed' | 'chat:typing', payload: BookingChatChange | Typing, skip?: Socket) {
-    const sockets = io.sockets.adapter.rooms.get(room(payload.bookingId));
+  async function deliver(roomName: string, send: (socket: Socket, identity: Identity) => void, skip?: Socket) {
+    const sockets = io.sockets.adapter.rooms.get(roomName);
     if (!sockets) return;
     await Promise.all([...sockets].map(async id => {
       const socket = io.sockets.sockets.get(id);
       if (!socket || socket === skip) return;
       try {
-        await authenticate(socket);
-        if (!socket.connected || !socket.rooms.has(room(payload.bookingId))) return;
-        if (event === 'chat:typing') socket.volatile.emit(event, payload);
-        else socket.emit(event, payload);
+        const identity = await authenticate(socket);
+        if (socket.connected && socket.rooms.has(roomName)) send(socket, identity);
       } catch (error) {
         if (!(error instanceof PublicError)) log('chat.delivery_failed', { code: 'CHAT_UNAVAILABLE' });
       }
     }));
   }
+
+  const inbox = subscribeToNotificationChanges(auth.deps.redis, userIds => {
+    for (const userId of userIds) {
+      void deliver(inboxRoom(userId), (socket, identity) => {
+        if (identity.user.id === userId) socket.emit('notifications:changed', {});
+      });
+    }
+  });
 
   io.on('connection', socket => {
     let windowStart = performance.now();
@@ -109,7 +118,8 @@ export function attachBookingChat(server: HttpServer, auth: AuthService, chat: B
 
     handle('chat:join', async (actor, raw) => {
       const id = await chat.join(actor, parse(roomInput, raw).bookingId);
-      if (socket.rooms.size > maxRooms && !socket.rooms.has(room(id))) {
+      const inboxCount = Number(socket.rooms.has(inboxRoom(actor.user.id)));
+      if (socket.rooms.size > maxRooms + inboxCount && !socket.rooms.has(room(id))) {
         throw new PublicError(429, 'CHAT_ROOM_LIMIT', 'Leave another conversation first.');
       }
       if (socket.connected) await socket.join(room(id));
@@ -138,10 +148,19 @@ export function attachBookingChat(server: HttpServer, auth: AuthService, chat: B
       const now = performance.now();
       if (now - lastTyping >= 750) {
         lastTyping = now;
-        void deliver('chat:typing', { bookingId, userId: actor.user.id, typing }, socket);
+        const payload: Typing = { bookingId, userId: actor.user.id, typing };
+        void deliver(room(bookingId), peer => peer.volatile.emit('chat:typing', payload), socket);
       }
       return { bookingId };
     });
+    handle('notifications:subscribe', async (actor, raw) => {
+      parse(empty, raw);
+      try { await inbox.start(); }
+      catch { throw new PublicError(503, 'NOTIFICATIONS_UNAVAILABLE', 'Live notifications are temporarily unavailable.'); }
+      if (socket.connected) await socket.join(inboxRoom(actor.user.id));
+      return {};
+    });
+
   });
 
   let checking = false;
@@ -161,10 +180,13 @@ export function attachBookingChat(server: HttpServer, auth: AuthService, chat: B
   timer.unref();
 
   return {
-    notify(change: BookingChatChange) { void deliver('chat:changed', change); },
+    notify(change: BookingChatChange) {
+      void deliver(room(change.bookingId), socket => socket.emit('chat:changed', change));
+    },
     close() {
       stopped = true;
       clearInterval(timer);
+      inbox.close();
       io.disconnectSockets(true);
       io.engine.close();
     },

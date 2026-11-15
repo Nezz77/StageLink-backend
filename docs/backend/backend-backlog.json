@@ -2082,7 +2082,7 @@
       "source_files": [
         "src/components/NotificationCenter.tsx"
       ],
-      "proposed_contract": "GET /me/notifications; PUT /me/notifications/:id/read; GET /me/notification-preferences; PATCH /me/notification-preferences; scoped notification event",
+      "proposed_contract": "GET /me/notifications; PUT /me/notifications/:id/read; GET /me/notification-preferences; PATCH /me/notification-preferences; Socket.IO notifications:subscribe and notifications:changed",
       "entities": [
         "notifications",
         "notification_preferences",
@@ -2094,11 +2094,11 @@
         "Applicable schema/API/auth/UI/reload/failure tests and checkpoint evidence complete"
       ],
       "requires_new_report_ui": false,
-      "status": "in_progress",
+      "status": "implemented_pending_verification",
       "ui_coverage_ids": [
         "UI-049"
       ],
-      "remaining": "Verify the Redis outbox and per-user HTTP integration, add scoped realtime invalidation, and connect frontend/Figma flows."
+      "remaining": "Verify deployment WebSocket and Redis configuration, then connect the frontend and Figma notification flows."
     },
     {
       "id": "BE-060",

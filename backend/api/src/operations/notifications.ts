@@ -2,6 +2,7 @@ import { Body, Controller, Get, HttpCode, Param, Patch, Put, Query, Req } from '
 import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { z } from 'zod';
+import { publishNotificationChange } from '../../../shared/notification-signals.js';
 import { notificationKind } from '../../../shared/notifications.js';
 import type { Notification } from '../../../generated/prisma/client.js';
 import { PublicError } from '../auth/errors.js';
@@ -72,14 +73,16 @@ export function makeNotificationsController(auth: AuthService) {
       parse(empty, raw);
       const actor = await mutation(req);
       const id = BigInt(parse(sequence, rawId));
-      return db.$transaction(async tx => {
+      const result = await db.$transaction(async tx => {
         const current = await profiles.actor(tx, actor);
         const where = { id, recipientId: current.user.id };
-        await tx.notification.updateMany({ where: { ...where, readAt: null }, data: { readAt: new Date() } });
+        const changed = await tx.notification.updateMany({ where: { ...where, readAt: null }, data: { readAt: new Date() } });
         const row = await tx.notification.findFirst({ where });
         if (!row) throw new PublicError(404, 'NOTIFICATION_NOT_FOUND', 'This notification is unavailable.');
-        return present(row);
+        return { item: present(row), changed: changed.count > 0 };
       });
+      if (result.changed) void publishNotificationChange(auth.deps.redis, [actor.user.id]);
+      return result.item;
     }
 
     @Get('notification-preferences')
