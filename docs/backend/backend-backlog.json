@@ -1124,7 +1124,7 @@
         "src/components/EquipmentSpecsEditor.tsx",
         "src/lib/equipmentSpecs.ts"
       ],
-      "proposed_contract": "POST /ai/generations/equipment-specs; GET /ai/generations/:id",
+      "proposed_contract": "POST /ai/generations/equipment-specs; GET /ai/generations/:id; GET and POST /admin/equipment-spec-sources; POST /admin/equipment-spec-sources/:id/retire",
       "entities": [
         "generation_jobs",
         "sourced_specs",
@@ -1136,10 +1136,11 @@
         "Applicable schema/API/auth/UI/reload/failure tests and checkpoint evidence complete"
       ],
       "requires_new_report_ui": false,
-      "status": "not_started",
+      "status": "implemented_pending_verification",
       "ui_coverage_ids": [
         "UI-021"
-      ]
+      ],
+      "remaining": "Populate reviewed manufacturer references and connect the existing listing editor and Figma review flow. Exact catalog lookup is available without an AI provider."
     },
     {
       "id": "BE-032",

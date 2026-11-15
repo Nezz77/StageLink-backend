@@ -7,21 +7,12 @@ import type { AuthService } from '../auth/service.js';
 import { PublicError } from '../auth/errors.js';
 import { ProfileService } from '../profiles/service.js';
 import { providerPublic } from '../profiles/schemas.js';
+import { rentalSpecs as specs } from './equipment-specs.js';
 import { depositPolicy } from './deposit-policy.js';
 import { ApiCatalogQuery, searchPublished } from './search.js';
 
 const uuid = z.string().uuid();
 const revision = z.number().int().positive().max(2_147_483_647);
-const measurement = (max: number) => z.string().trim().refine(value =>
-  value === '' || (/^\d+(\.\d{1,2})?$/.test(value) && Number(value) > 0 && Number(value) <= max),
-);
-const specs = z.object({
-  specWattage: measurement(1_000_000).optional(),
-  specSpl: measurement(250).optional(),
-  specFrequency: z.string().trim().max(120).optional(),
-  specWeight: measurement(100_000).optional(),
-  packageInclusions: z.string().trim().max(1000).optional(),
-}).strict();
 const kind = z.enum(['equipment', 'venue', 'bundle']);
 const optionalRate = z.number().int().positive().max(100_000_000).nullable();
 const component = z.object({

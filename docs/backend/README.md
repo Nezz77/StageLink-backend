@@ -167,6 +167,12 @@ Verified artist accounts can request a biography at `POST /api/v1/ai/generations
 
 Supply a fresh UUID for each intended generation. Reuse that key and the same fields to recover the existing result after a network interruption. Pending results stay processing for up to 30 seconds. User input fields are sent to the configured provider as data. The job retains a request fingerprint, the suggested text, the prompt version and links to usage records. The rolling 24-hour limits are five requests per artist and `AI_GENERATION_DAILY_LIMIT` (default 20) across all artists. Configured provider fallback follows the same rules as administrator previews.
 
+## Equipment specification suggestions
+
+Administrators review source documents and approve each manufacturer/model reference with `POST /api/v1/admin/equipment-spec-sources`. Supply `manufacturer`, `model`, `specs`, an HTTPS `url`, a document `title` and an optional `locator` such as the page number. Use listing-format values for wattage, SPL, frequency and weight. One reference can be active per manufacturer and model. List references with the admin GET route and retire a reference with `POST /api/v1/admin/equipment-spec-sources/:id/retire` and a reason.
+
+Verified renters can submit `requestKey`, `model` and optionally `manufacturer` to `POST /api/v1/ai/generations/equipment-specs`. The backend compares the full model name after case and whitespace normalization. An ambiguous or unknown match returns empty specs. Matching suggestions include a source citation and can be reopened by their owner at `GET /api/v1/ai/generations/:id`. After retirement, saved suggestions retain the citation and return `withdrawn` with empty specs. Reuse the request key to reopen a lookup or use a fresh one to check the current catalog. Renters review suggestions and save applicable values through the existing listing editor. The lookup uses approved catalog records and has a rolling limit of 30 new searches per renter over 24 hours.
+
 ## Provider verification
 
 Providers submit two to five validated private images with `POST /api/v1/verification-cases`. Upload them with purpose `verification`, then pass their asset IDs in the case. Providers read their own history at `GET /api/v1/me/verification`. Administrators review pending cases at `GET /api/v1/admin/verification-cases` and record a reasoned decision at `POST /api/v1/admin/verification-cases/:id/decisions`. A rejected provider can submit a new version.

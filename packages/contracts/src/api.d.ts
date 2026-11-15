@@ -389,6 +389,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/ai/generations/equipment-specs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["GenerationsController_equipment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/ai/generations/{kind}": {
         parameters: {
             query?: never;
@@ -415,6 +431,38 @@ export interface paths {
         get: operations["GenerationsController_read"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/equipment-spec-sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["EquipmentSourcesController_list"];
+        put?: never;
+        post: operations["EquipmentSourcesController_approve"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/equipment-spec-sources/{id}/retire": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["EquipmentSourcesController_retire"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4941,6 +4989,67 @@ export interface operations {
             };
         };
     };
+    GenerationsController_equipment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    requestKey: string;
+                    manufacturer?: string;
+                    model: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: date-time */
+                        createdAt: string;
+                        /** @enum {string} */
+                        kind: "equipment-specs";
+                        /** @enum {string|null} */
+                        promptVersion: null;
+                        /** @enum {string} */
+                        status: "succeeded";
+                        suggestion: {
+                            /** @enum {string} */
+                            match: "matched" | "unknown" | "ambiguous" | "withdrawn";
+                            manufacturer: string | null;
+                            model: string;
+                            specs: {
+                                specWattage?: string;
+                                specSpl?: string;
+                                specFrequency?: string;
+                                specWeight?: string;
+                            };
+                            source: {
+                                /** Format: uuid */
+                                id: string;
+                                /** Format: uri */
+                                url: string;
+                                title: string;
+                                locator: string | null;
+                                /** Format: date-time */
+                                approvedAt: string;
+                            } | null;
+                        };
+                    };
+                };
+            };
+        };
+    };
     GenerationsController_generate: {
         parameters: {
             query?: never;
@@ -4980,6 +5089,8 @@ export interface operations {
                     "application/json": {
                         /** Format: uuid */
                         id: string;
+                        /** Format: date-time */
+                        createdAt: string;
                         /** @enum {string} */
                         kind: "bio" | "gig";
                         promptVersion: number;
@@ -4991,8 +5102,6 @@ export interface operations {
                             title: string;
                             description: string;
                         }) | null;
-                        /** Format: date-time */
-                        createdAt: string;
                     };
                 };
             };
@@ -5017,6 +5126,8 @@ export interface operations {
                     "application/json": {
                         /** Format: uuid */
                         id: string;
+                        /** Format: date-time */
+                        createdAt: string;
                         /** @enum {string} */
                         kind: "bio" | "gig";
                         promptVersion: number;
@@ -5028,8 +5139,199 @@ export interface operations {
                             title: string;
                             description: string;
                         }) | null;
+                    } | {
+                        /** Format: uuid */
+                        id: string;
                         /** Format: date-time */
                         createdAt: string;
+                        /** @enum {string} */
+                        kind: "equipment-specs";
+                        /** @enum {string|null} */
+                        promptVersion: null;
+                        /** @enum {string} */
+                        status: "succeeded";
+                        suggestion: {
+                            /** @enum {string} */
+                            match: "matched" | "unknown" | "ambiguous" | "withdrawn";
+                            manufacturer: string | null;
+                            model: string;
+                            specs: {
+                                specWattage?: string;
+                                specSpl?: string;
+                                specFrequency?: string;
+                                specWeight?: string;
+                            };
+                            source: {
+                                /** Format: uuid */
+                                id: string;
+                                /** Format: uri */
+                                url: string;
+                                title: string;
+                                locator: string | null;
+                                /** Format: date-time */
+                                approvedAt: string;
+                            } | null;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    EquipmentSourcesController_list: {
+        parameters: {
+            query?: {
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uri */
+                            url: string;
+                            title: string;
+                            locator: string | null;
+                            /** Format: date-time */
+                            approvedAt: string;
+                            manufacturer: string;
+                            model: string;
+                            specs: {
+                                specWattage?: string;
+                                specSpl?: string;
+                                specFrequency?: string;
+                                specWeight?: string;
+                            };
+                            /** Format: uuid */
+                            approvedBy: string;
+                            /** Format: date-time */
+                            retiredAt: string | null;
+                            /** Format: uuid */
+                            retiredBy: string | null;
+                            retirementReason: string | null;
+                        }[];
+                        /** Format: uuid */
+                        nextCursor: string | null;
+                    };
+                };
+            };
+        };
+    };
+    EquipmentSourcesController_approve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    manufacturer: string;
+                    model: string;
+                    specs: {
+                        specWattage?: string;
+                        specSpl?: string;
+                        specFrequency?: string;
+                        specWeight?: string;
+                    };
+                    /** Format: uri */
+                    url: string;
+                    title: string;
+                    locator?: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uri */
+                        url: string;
+                        title: string;
+                        locator: string | null;
+                        /** Format: date-time */
+                        approvedAt: string;
+                        manufacturer: string;
+                        model: string;
+                        specs: {
+                            specWattage?: string;
+                            specSpl?: string;
+                            specFrequency?: string;
+                            specWeight?: string;
+                        };
+                        /** Format: uuid */
+                        approvedBy: string;
+                        /** Format: date-time */
+                        retiredAt: string | null;
+                        /** Format: uuid */
+                        retiredBy: string | null;
+                        retirementReason: string | null;
+                    };
+                };
+            };
+        };
+    };
+    EquipmentSourcesController_retire: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uri */
+                        url: string;
+                        title: string;
+                        locator: string | null;
+                        /** Format: date-time */
+                        approvedAt: string;
+                        manufacturer: string;
+                        model: string;
+                        specs: {
+                            specWattage?: string;
+                            specSpl?: string;
+                            specFrequency?: string;
+                            specWeight?: string;
+                        };
+                        /** Format: uuid */
+                        approvedBy: string;
+                        /** Format: date-time */
+                        retiredAt: string | null;
+                        /** Format: uuid */
+                        retiredBy: string | null;
+                        retirementReason: string | null;
                     };
                 };
             };

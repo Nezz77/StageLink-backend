@@ -108,6 +108,8 @@ model AuthUser {
   matchingVersions MatchingVersion[]
   promptVersions AiPromptVersion[]
   aiGenerations AiGenerationJob[]
+  approvedEquipmentSources EquipmentSpecSource[] @relation("EquipmentSourceApprover")
+  retiredEquipmentSources EquipmentSpecSource[] @relation("EquipmentSourceRetirer")
   verificationCases VerificationCase[] @relation("VerificationProvider")
   reviewedVerificationCases VerificationCase[] @relation("VerificationReviewer")
   resolvedDamageClaims DamageClaim[]
@@ -1257,20 +1259,44 @@ model AiGenerationJob {
   requestKey String @map("request_key") @db.Uuid
   requestHash String @map("request_hash") @db.Char(64)
   kind String @db.VarChar(20)
-  promptVersion Int @map("prompt_version")
-  templateRevision Int @map("template_revision")
+  promptVersion Int? @map("prompt_version")
+  templateRevision Int? @map("template_revision")
+  equipmentSourceId String? @map("equipment_source_id") @db.Uuid
   status AiGenerationStatus @default(processing)
   suggestion Json?
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   expiresAt DateTime @map("expires_at") @db.Timestamptz(3)
   completedAt DateTime? @map("completed_at") @db.Timestamptz(3)
   owner AuthUser @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  prompt AiPromptVersion @relation(fields: [kind, promptVersion], references: [key, version], onDelete: Restrict)
+  prompt AiPromptVersion? @relation(fields: [kind, promptVersion], references: [key, version], onDelete: Restrict)
+  equipmentSource EquipmentSpecSource? @relation(fields: [equipmentSourceId], references: [id], onDelete: Restrict)
   calls AiModelCall[]
   @@unique([ownerId, requestKey])
   @@index([createdAt])
   @@index([ownerId, createdAt])
+  @@index([equipmentSourceId])
   @@map("ai_generation_jobs")
+}
+
+model EquipmentSpecSource {
+  id String @id @default(uuid()) @db.Uuid
+  manufacturer String @db.VarChar(120)
+  manufacturerKey String @map("manufacturer_key")
+  model String @db.VarChar(120)
+  modelKey String @map("model_key")
+  specs Json
+  url String @db.VarChar(2048)
+  title String @db.VarChar(200)
+  locator String? @db.VarChar(160)
+  approvedBy String @map("approved_by") @db.Uuid
+  approvedAt DateTime @default(now()) @map("approved_at") @db.Timestamptz(3)
+  retiredBy String? @map("retired_by") @db.Uuid
+  retiredAt DateTime? @map("retired_at") @db.Timestamptz(3)
+  retirementReason String? @map("retirement_reason") @db.VarChar(500)
+  approver AuthUser @relation("EquipmentSourceApprover", fields: [approvedBy], references: [id], onDelete: Restrict)
+  retirer AuthUser? @relation("EquipmentSourceRetirer", fields: [retiredBy], references: [id], onDelete: Restrict)
+  generations AiGenerationJob[]
+  @@map("equipment_spec_sources")
 }
 
 model RecommendationRun {

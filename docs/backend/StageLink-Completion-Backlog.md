@@ -46,6 +46,7 @@ A checked box marks implemented backend code. PostgreSQL integration, client wir
 - [x] P15 Prompt drafts, placeholder validation, preview, published history and rollback.
 - [x] P15 Opt-in OpenAI and Gemini administrator previews, with bounded fallback and persisted usage per attempt.
 - [x] P15 Private artist biography and gig suggestions with published prompt versions, quotas and replay-safe retrieval.
+- [x] P15 Equipment suggestions from approved manufacturer references with citation history and withdrawal.
 - [x] P15 Top-three event-brief artist recommendations using published listings and versioned catalog weights.
 - [x] P15 Natural-language artist search preview with confirmable catalog filters.
 - [x] P16 Private provider verification submissions, administrative review and resubmission history.
@@ -59,7 +60,7 @@ A checked box marks implemented backend code. PostgreSQL integration, client wir
 - [x] P17 Promotional email opt-in, campaign drafts, verified audience preview, scheduling and cancellation.
 - [x] P17 Opt-in promotional email worker, rolling hourly cap, and administrator delivery counts.
 - [x] P17 One-click promotional email opt-out from supported mail clients.
-- [ ] P15–P17 sourced equipment generation, live model evaluation, semantic ranking, private PDF verification evidence, arbitration execution, SMS reminders, promotional SMS, and live SMTP campaign verification.
+- [ ] P15–P17 equipment catalog population, live model evaluation, semantic ranking, private PDF verification evidence, arbitration execution, SMS reminders, promotional SMS, and live SMTP campaign verification.
 - [x] P18 Administrator and provider analytics from booking records and posted sandbox journals.
 - [ ] P18 Settled financial analytics, security, accessibility, backup and rollback, and end-to-end release verification.
 

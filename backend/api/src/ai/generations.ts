@@ -8,6 +8,8 @@ import { PublicError } from '../auth/errors.js';
 import type { AuthService } from '../auth/service.js';
 import { schema } from '../payments/orders.js';
 import { ProfileService } from '../profiles/service.js';
+import type { ProviderKind } from '../profiles/schemas.js';
+import { equipmentKey, equipmentLookup, equipmentSuggestion, sourcedEquipmentSuggestion } from './equipment-sources.js';
 import { gigDraft, previewText, requestModelPreview, saveModelAttempts } from './preview.js';
 import { resolvePrompt } from './prompts.js';
 
@@ -24,20 +26,27 @@ const gig = z.object({
 }).strict();
 const biography = z.object({ bio: previewText }).strict();
 const suggestion = z.union([biography, gigDraft]);
-const job = z.object({
-  id: z.uuid(), kind: kinds, promptVersion: z.number().int().positive(),
+const jobDetails = z.object({ id: z.uuid(), createdAt: z.iso.datetime() });
+const artistJob = jobDetails.extend({
+  kind: kinds, promptVersion: z.number().int().positive(),
   status: z.enum(['processing', 'succeeded', 'failed', 'refused', 'unavailable']),
-  suggestion: suggestion.nullable(), createdAt: z.iso.datetime(),
+  suggestion: suggestion.nullable(),
+});
+const equipmentJob = jobDetails.extend({
+  kind: z.literal('equipment-specs'), promptVersion: z.null(),
+  status: z.literal('succeeded'), suggestion: equipmentSuggestion,
 });
 const rollingDayMs = 86_400_000;
 const artistDailyLimit = 5;
+const equipmentDailyLimit = 30;
 const processingWindowMs = 30_000;
+const sourceState = { equipmentSource: { select: { retiredAt: true } } } as const;
 
 function missing() {
-  return new PublicError(404, 'GENERATION_NOT_FOUND', 'This writing suggestion is unavailable.');
+  return new PublicError(404, 'GENERATION_NOT_FOUND', 'This suggestion is unavailable.');
 }
 
-function present(row: AiGenerationJob) {
+function presentArtistJob(row: AiGenerationJob) {
   const expired = row.status === 'processing' && row.expiresAt <= new Date();
   return {
     id: row.id, kind: kinds.parse(row.kind), promptVersion: row.promptVersion,
@@ -47,28 +56,92 @@ function present(row: AiGenerationJob) {
   };
 }
 
+function presentEquipmentJob(row: AiGenerationJob, withdrawn: boolean) {
+  const saved = equipmentSuggestion.parse(row.suggestion);
+  return {
+    id: row.id, kind: 'equipment-specs' as const, promptVersion: null, status: 'succeeded' as const,
+    suggestion: withdrawn ? { ...saved, match: 'withdrawn' as const, specs: {} } : saved,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
 export function makeGenerationsController(auth: AuthService) {
   const db = auth.deps.db;
   const profiles = new ProfileService(auth);
   const identity = (req: Request) => auth.authenticate(req.get('Authorization'));
 
-  @ApiTags('Artist writing assistant')
+  async function providerMutation(req: Request, kind: ProviderKind) {
+    if (req.get('Origin') !== auth.config.WEB_ORIGIN || req.get('Sec-Fetch-Site') === 'cross-site' || !req.is('application/json')) {
+      throw new PublicError(403, 'ORIGIN_REJECTED', 'Open StageLink in its own browser tab and try again.');
+    }
+    const actor = await identity(req);
+    profiles.checkCsrf(actor, req.get('X-CSRF-Token'));
+    profiles.providerRole(actor, kind);
+    profiles.verified(actor);
+    return actor;
+  }
+
+  async function priorJob(tx: Prisma.TransactionClient, ownerId: string, requestKey: string, requestHash: string) {
+    const row = await tx.aiGenerationJob.findUnique({
+      where: { ownerId_requestKey: { ownerId, requestKey } }, include: sourceState,
+    });
+    if (row && row.requestHash !== requestHash) {
+      throw new PublicError(409, 'GENERATION_KEY_REUSED', 'Use a new request key for a different suggestion.');
+    }
+    return row;
+  }
+
+  @ApiTags('Provider suggestions')
   @ApiBearerAuth()
   @Controller('ai/generations')
   class GenerationsController {
+    @Post('equipment-specs')
+    @HttpCode(200)
+    @ApiBody({ schema: schema(equipmentLookup) })
+    @ApiOkResponse({ schema: schema(equipmentJob) })
+    async equipment(@Req() req: Request, @Body() raw: unknown) {
+      const actor = await providerMutation(req, 'renter');
+      const parsed = equipmentLookup.safeParse(raw);
+      if (!parsed.success) throw new PublicError(400, 'INVALID_EQUIPMENT_REFERENCE', 'Supply a request key, model and optional manufacturer.');
+      const input = parsed.data;
+      const kind = 'equipment-specs';
+      const requestHash = createHash('sha256').update(JSON.stringify([
+        kind, equipmentKey(input.model), input.manufacturer ? equipmentKey(input.manufacturer) : null,
+      ])).digest('hex');
+
+      return db.$transaction(async tx => {
+        const current = await profiles.actor(tx, actor);
+        profiles.providerRole(current, 'renter');
+        profiles.verified(current);
+        const ownerId = current.user.id;
+        const existing = await priorJob(tx, ownerId, input.requestKey, requestHash);
+        if (existing) return presentEquipmentJob(existing, Boolean(existing.equipmentSource?.retiredAt));
+        const now = new Date();
+        const used = await tx.aiGenerationJob.count({
+          where: { ownerId, kind, createdAt: { gt: new Date(now.getTime() - rollingDayMs) } },
+        });
+        if (used >= equipmentDailyLimit) {
+          throw new PublicError(429, 'GENERATION_LIMIT_REACHED', 'The equipment lookup limit has been reached. Try again later.');
+        }
+        const resolved = await sourcedEquipmentSuggestion(tx, input);
+        const row = await tx.aiGenerationJob.create({
+          data: {
+            ownerId, requestKey: input.requestKey, requestHash, kind, status: 'succeeded', suggestion: resolved,
+            equipmentSourceId: resolved.source?.id, createdAt: now,
+            expiresAt: new Date(now.getTime() + processingWindowMs), completedAt: now,
+          },
+        });
+        return presentEquipmentJob(row, false);
+      });
+    }
+
     @Post(':kind')
     @HttpCode(200)
     @ApiParam({ name: 'kind', enum: kinds.options })
     @ApiBody({ schema: schema(z.union([bio, gig])) })
-    @ApiOkResponse({ schema: schema(job) })
+    @ApiOkResponse({ schema: schema(artistJob) })
     async generate(@Req() req: Request, @Param('kind') rawKind: string, @Body() raw: unknown) {
-      if (req.get('Origin') !== auth.config.WEB_ORIGIN || req.get('Sec-Fetch-Site') === 'cross-site' || !req.is('application/json')) {
-        throw new PublicError(403, 'ORIGIN_REJECTED', 'Open StageLink in its own browser tab and try again.');
-      }
-      const actor = await identity(req);
-      profiles.checkCsrf(actor, req.get('X-CSRF-Token'));
-      profiles.providerRole(actor, 'artist');
-      profiles.verified(actor);
+      const actor = await providerMutation(req, 'artist');
       const parsedKind = kinds.safeParse(rawKind);
       if (!parsedKind.success) throw missing();
       const kind = parsedKind.data;
@@ -82,15 +155,8 @@ export function makeGenerationsController(auth: AuthService) {
         profiles.providerRole(current, 'artist');
         profiles.verified(current);
         const ownerId = current.user.id;
-        const existing = await tx.aiGenerationJob.findUnique({
-          where: { ownerId_requestKey: { ownerId, requestKey } },
-        });
-        if (existing) {
-          if (existing.requestHash !== requestHash) {
-            throw new PublicError(409, 'GENERATION_KEY_REUSED', 'Use a new request key for a different writing suggestion.');
-          }
-          return { row: existing, template: null };
-        }
+        const existing = await priorJob(tx, ownerId, requestKey, requestHash);
+        if (existing) return { row: existing, template: null };
         if (!auth.config.AI_SERVICE_ORIGIN || !auth.config.AI_INTERNAL_TOKEN) {
           throw new PublicError(503, 'GENERATION_UNAVAILABLE', 'Writing suggestions are temporarily unavailable.');
         }
@@ -99,8 +165,9 @@ export function makeGenerationsController(auth: AuthService) {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(5, 27)`;
         const now = new Date();
         const createdAt = { gt: new Date(now.getTime() - rollingDayMs) };
-        const used = await tx.aiGenerationJob.count({ where: { ownerId, createdAt } });
-        if (used >= artistDailyLimit || await tx.aiGenerationJob.count({ where: { createdAt } }) >= auth.config.AI_GENERATION_DAILY_LIMIT) {
+        const artistJobs = { kind: { in: kinds.options }, createdAt };
+        const used = await tx.aiGenerationJob.count({ where: { ownerId, ...artistJobs } });
+        if (used >= artistDailyLimit || await tx.aiGenerationJob.count({ where: artistJobs }) >= auth.config.AI_GENERATION_DAILY_LIMIT) {
           throw new PublicError(429, 'GENERATION_LIMIT_REACHED', 'The writing suggestion limit has been reached. Try again later.');
         }
         await tx.$queryRaw`SELECT key FROM ai_prompt_templates WHERE key=${kind} FOR SHARE`;
@@ -117,12 +184,12 @@ export function makeGenerationsController(auth: AuthService) {
         });
         return { row, template: published.body };
       });
-      if (accepted.template === null) return present(accepted.row);
+      if (accepted.template === null) return presentArtistJob(accepted.row);
 
       const result = await requestModelPreview(auth.config, { key: kind, template: accepted.template, fields });
       const row = await db.$transaction(async tx => {
         const existing = await tx.aiGenerationJob.findUnique({ where: { id: accepted.row.id } });
-        if (!existing) throw missing();
+        if (!existing || existing.templateRevision === null) throw missing();
         const now = new Date();
         const status = existing.expiresAt <= now ? 'unavailable' : (result?.outcome ?? 'unavailable');
         const output = status === 'succeeded' ? result?.output : null;
@@ -132,24 +199,27 @@ export function makeGenerationsController(auth: AuthService) {
         });
         if (result) await saveModelAttempts(tx, result, {
           capability: 'generation-' + kind, promptKey: kind, promptSource: 'published',
-          generationId: completed.id, promptVersion: completed.promptVersion, templateRevision: completed.templateRevision,
+          generationId: completed.id, promptVersion: completed.promptVersion, templateRevision: existing.templateRevision,
         });
         return completed;
       });
-      return present(row);
+      return presentArtistJob(row);
     }
 
     @Get(':id')
     @ApiParam({ name: 'id', format: 'uuid' })
-    @ApiOkResponse({ schema: schema(job) })
+    @ApiOkResponse({ schema: schema(z.union([artistJob, equipmentJob])) })
     async read(@Req() req: Request, @Param('id') id: string) {
       const actor = await identity(req);
       profiles.verified(actor);
       const parsed = z.uuid().safeParse(id);
       if (!parsed.success) throw missing();
-      const row = await db.aiGenerationJob.findFirst({ where: { id: parsed.data, ownerId: actor.user.id } });
+      const row = await db.aiGenerationJob.findFirst({
+        where: { id: parsed.data, ownerId: actor.user.id }, include: sourceState,
+      });
       if (!row) throw missing();
-      return present(row);
+      if (row.kind === 'equipment-specs') return presentEquipmentJob(row, Boolean(row.equipmentSource?.retiredAt));
+      return presentArtistJob(row);
     }
   }
 
