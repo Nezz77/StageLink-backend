@@ -38,6 +38,7 @@
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.2",
     "sharp": "0.35.5",
+    "socket.io": "4.8.4",
     "zod": "4.6.7"
   },
   "devDependencies": {
@@ -45,6 +46,7 @@
     "@types/node": "24.10.0",
     "openapi-typescript": "7.13.0",
     "prisma": "7.10.1",
+    "socket.io-client": "4.8.4",
     "tsx": "4.20.6",
     "typescript": "5.9.3"
   },

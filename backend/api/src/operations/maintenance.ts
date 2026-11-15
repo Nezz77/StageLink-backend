@@ -24,16 +24,23 @@ const availableActions = new Set([
   'POST ' + promotionalUnsubscribePath,
 ]);
 
+export async function checkMaintenance(db: Resources['db']) {
+  const state = await db.systemSetting.findUniqueOrThrow({ where: { id: 1 }, select: { maintenance: true, maintenanceMessage: true } });
+  if (state.maintenance) throw new PublicError(503, 'MAINTENANCE_MODE', state.maintenanceMessage ?? 'StageLink is temporarily read-only.');
+}
+
 export function makeMaintenanceGuard(db: Resources['db']): CanActivate {
   return {
     async canActivate(context: ExecutionContext) {
       const http = context.switchToHttp();
       const req = http.getRequest<Request>();
       if (reads.has(req.method) || availableActions.has(req.method + ' ' + req.route?.path)) return true;
-      const state = await db.systemSetting.findUniqueOrThrow({ where: { id: 1 }, select: { maintenance: true, maintenanceMessage: true } });
-      if (!state.maintenance) return true;
-      http.getResponse<Response>().setHeader('Retry-After', '60');
-      throw new PublicError(503, 'MAINTENANCE_MODE', state.maintenanceMessage ?? 'StageLink is temporarily read-only.');
+      try { await checkMaintenance(db); }
+      catch (error) {
+        if (error instanceof PublicError) http.getResponse<Response>().setHeader('Retry-After', '60');
+        throw error;
+      }
+      return true;
     },
   };
 }

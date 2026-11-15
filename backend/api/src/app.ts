@@ -43,7 +43,8 @@ import { makeDocumentsController } from './bookings/documents.js';
 import { makeCompletionController } from './bookings/completion.js';
 import { makeBookingRequestsController } from './bookings/requests.js';
 import { makeQuotationsController } from './bookings/quotations.js';
-import { makeBookingMessagesController } from './bookings/messages.js';
+import { attachBookingChat } from './bookings/chat-socket.js';
+import { makeBookingChat, makeBookingMessagesController } from './bookings/messages.js';
 import { makePayoutsController } from './payments/payouts.js';
 import { makePaymentOrdersController } from './payments/orders.js';
 import { makePayHereController } from './payments/payhere.js';
@@ -103,8 +104,11 @@ export async function createApp(config: Config, dependencies: Resources = resour
   }
   const auth = new AuthService(config, dependencies);
   const mediaStore = new MediaStore(config);
-  @Module({ controllers: [HealthController, makeAuthController(auth), makeAiOperationsController(auth), makePromptController(auth), makeRecommendationController(auth), makeVerificationController(auth), makeSupportController(auth), makeArbitrationController(auth), makeRemindersController(auth), makeNotificationsController(auth), ...makeSystemControllers(auth), ...makeCampaignControllers(auth), makeAnalyticsController(auth), ...makeProfileControllers(auth), ...makeMediaControllers(auth, mediaStore), ...makeGigControllers(auth), DiscoveryIntentController, ...makeRentalControllers(auth), makeInventoryController(auth), ...makeRentalGalleryControllers(auth), makePublicFeedController(dependencies.db), makeEventBriefController(auth), makeSavedItemsController(auth), makeDraftsController(auth), makeInquiriesController(auth), ...makeAvailabilityControllers(auth), makeBookingRequestsController(auth), makeQuotationsController(auth), makeBookingMessagesController(auth), makeCompletionController(auth), makeRefundsController(auth), makeDocumentsController(auth, mediaStore), makeReviewsController(auth, mediaStore), makeInspectionsController(auth), makeDamageClaimsController(auth), makePaymentOrdersController(auth), makePayoutsController(auth), makePayHereController(auth), makeStripeController(auth)] })
+  let realtime: ReturnType<typeof attachBookingChat> | undefined;
+  const chat = makeBookingChat(auth, change => realtime?.notify(change));
+  @Module({ controllers: [HealthController, makeAuthController(auth), makeAiOperationsController(auth), makePromptController(auth), makeRecommendationController(auth), makeVerificationController(auth), makeSupportController(auth), makeArbitrationController(auth), makeRemindersController(auth), makeNotificationsController(auth), ...makeSystemControllers(auth), ...makeCampaignControllers(auth), makeAnalyticsController(auth), ...makeProfileControllers(auth), ...makeMediaControllers(auth, mediaStore), ...makeGigControllers(auth), DiscoveryIntentController, ...makeRentalControllers(auth), makeInventoryController(auth), ...makeRentalGalleryControllers(auth), makePublicFeedController(dependencies.db), makeEventBriefController(auth), makeSavedItemsController(auth), makeDraftsController(auth), makeInquiriesController(auth), ...makeAvailabilityControllers(auth), makeBookingRequestsController(auth), makeQuotationsController(auth), makeBookingMessagesController(auth, chat), makeCompletionController(auth), makeRefundsController(auth), makeDocumentsController(auth, mediaStore), makeReviewsController(auth, mediaStore), makeInspectionsController(auth), makeDamageClaimsController(auth), makePaymentOrdersController(auth), makePayoutsController(auth), makePayHereController(auth), makeStripeController(auth)] })
   class AppModule {
+    beforeApplicationShutdown() { realtime?.close(); }
     async onApplicationShutdown() { mediaStore.close(); await closeResources(dependencies); }
   }
   const app = await NestFactory.create(AppModule, { logger: false, rawBody: true });
@@ -130,6 +134,7 @@ export async function createApp(config: Config, dependencies: Resources = resour
   const document = openApi(app);
   // Interactive documentation is local/development-only; committed JSON is the contract.
   if (config.NODE_ENV !== 'production') SwaggerModule.setup('api/docs', app, document);
+  realtime = attachBookingChat(app.getHttpServer(), auth, chat);
   app.enableShutdownHooks();
   return { app, document };
 }

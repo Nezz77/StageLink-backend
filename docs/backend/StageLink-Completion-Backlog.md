@@ -26,7 +26,7 @@ A checked box marks implemented backend code. PostgreSQL integration, client wir
 - [x] P09 quotation revisions, counteroffers, authenticated acceptance and SHA-256 agreement evidence.
 - [x] P10 booking text persistence, retry deduplication, read receipts, and history catch-up.
 - [x] P10 private image attachments with validated derivatives, participant-only access, and retention while referenced.
-- [ ] P10 Socket.IO delivery, typing, and socket session revocation.
+- [x] P10 Socket.IO booking chat for a single API process, including typing and socket session revocation.
 - [x] P11 financial journal foundation. Balanced immutable postings, duplicate command protection, and atomic available-to-reserved fund transfers.
 - [x] P11 server-priced advance and deposit orders with participant-only status reads.
 - [x] P11 PayHere sandbox hosted checkout and signed notification intake for advances and deposits.

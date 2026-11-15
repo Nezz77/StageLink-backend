@@ -1479,11 +1479,11 @@
         "Socket connections and messages check persisted account/session permissions; revoked/logout/reset sessions are disconnected and cannot send or read messages (P02 follow-through)."
       ],
       "requires_new_report_ui": false,
-      "status": "in_progress",
+      "status": "implemented_pending_verification",
       "ui_coverage_ids": [
         "UI-031"
       ],
-      "remaining": "Socket.IO delivery and typing, socket session revocation, and PostgreSQL/S3 integration."
+      "remaining": "Verify hosted WebSocket upgrades, PostgreSQL/S3 integration and the frontend/Figma handoff. Add inter-replica event delivery if the API is scaled horizontally."
     },
     {
       "id": "BE-042",

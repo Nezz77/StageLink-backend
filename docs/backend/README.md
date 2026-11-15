@@ -159,6 +159,22 @@ Providers submit two to five validated private images with `POST /api/v1/verific
 
 Members create and read their own cases through `POST /api/v1/cases` and `GET /api/v1/me/cases`. Use the case replies endpoint for the shared conversation. Administrators use `/api/v1/admin/cases` for the queue, replies, private notes, assignment and status changes. Validated private images use upload purpose `support`.
 
+## Realtime booking chat
+
+Connect Socket.IO 4.x to the API host with path `/api/v1/chat/socket.io`, transport `websocket`, and `auth: { accessToken }`. The handshake expects the configured StageLink web origin. Each client event takes one payload and an acknowledgment callback. Acknowledgments return `{ ok: true, data }` or `{ ok: false, error: { code, message } }`.
+
+| Client event | Payload | Success data |
+| --- | --- | --- |
+| `chat:join` | `{ bookingId }` | `{ bookingId }` |
+| `chat:leave` | `{ bookingId }` | `{ bookingId }` |
+| `chat:send` | `{ bookingId, data: { requestKey, body, draft?, attachmentIds? } }` | Saved message |
+| `chat:read` | `{ bookingId, data: { throughId } }` | Saved read receipt |
+| `chat:typing` | `{ bookingId, typing }` | `{ bookingId }` |
+
+Join as a booking participant before sending, reading or publishing typing state. `chat:changed` carries a booking ID and either `{ kind: 'message', messageId }` or `{ kind: 'read', readerId, throughId }`. The API sends changes from REST and socket writes. Use `GET /api/v1/conversations/:id/messages?after=<last applied message ID>` to recover committed messages and current read receipts on change and after reconnect. When no messages have been loaded yet, request the initial page without a cursor. Retry an unacknowledged send with the same request key. `chat:typing` carries `{ bookingId, userId, typing }` and is transient. Expire typing indicators locally.
+
+When an access token expires, reconnect with a refreshed token and rejoin the conversation. A revoked session is rejected. Deploy the realtime API as one replica for local fanout and forward WebSocket upgrades through the proxy.
+
 ## Booking disputes
 
 Booking participants can open a dispute at `POST /api/v1/bookings/:id/disputes` and attach private images uploaded with purpose `evidence`. Administrators review the case and eligible service balance under `/api/v1/admin/disputes`. A dismissal releases the dispute hold. A financial decision requires the reviewed balance and reserves the sandbox refund, fee and provider amounts atomically. `GET /api/v1/arbitrations/:id` reports the reservation as `awaiting_gateway`.
