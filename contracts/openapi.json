@@ -44985,7 +44985,7 @@
                           },
                           "holdRevision": {
                             "type": "integer",
-                            "minimum": 1,
+                            "minimum": 0,
                             "maximum": 2147483647
                           },
                           "refundStatus": {
@@ -45208,7 +45208,7 @@
                           },
                           "holdRevision": {
                             "type": "integer",
-                            "minimum": 1,
+                            "minimum": 0,
                             "maximum": 2147483647
                           },
                           "refundStatus": {
@@ -45512,7 +45512,7 @@
                 "properties": {
                   "expectedRevision": {
                     "type": "integer",
-                    "minimum": 1,
+                    "minimum": 0,
                     "maximum": 2147483646
                   },
                   "held": {

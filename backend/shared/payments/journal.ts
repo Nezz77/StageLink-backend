@@ -10,6 +10,15 @@ const maxMinor = 9_223_372_036_854_775_807n;
 const minMinor = -maxMinor - 1n;
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 
+export function hasJournalSqlState(error: unknown, code: string) {
+  if (typeof error !== 'object' || error === null) return false;
+  const failure = error as {
+    code?: string;
+    meta?: { code?: string; driverAdapterError?: { cause?: { originalCode?: string } } };
+  };
+  return failure.code === 'P2010' && (failure.meta?.driverAdapterError?.cause?.originalCode ?? failure.meta?.code) === code;
+}
+
 function entryPayload(entries: Entry[]) {
   const values: Record<string, string> = {};
   let balance = 0n;

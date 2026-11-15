@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto';
 import type { Request } from 'express';
 import { z } from 'zod';
 import type { ArbitrationDecision, ArbitrationMode, Booking, Prisma } from '../../../generated/prisma/client.js';
-import { openAccount, postedBalance, postJournal } from '../../../shared/payments/journal.js';
+import { hasJournalSqlState, openAccount, postedBalance, postJournal } from '../../../shared/payments/journal.js';
 import { PublicError } from '../auth/errors.js';
 import type { AuthService } from '../auth/service.js';
 import { parse, schema, uuid } from '../payments/orders.js';
@@ -313,8 +313,7 @@ export function makeArbitrationController(auth: AuthService) {
         });
       } catch (error) {
         if (error instanceof PublicError && error.code === 'DESTINATION_NOT_APPROVED') unavailable();
-        const failure = error as { code?: string; meta?: { code?: string } };
-        if (failure.code === 'P2010' && failure.meta?.code === 'SL001') unavailable();
+        if (hasJournalSqlState(error, 'SL001')) unavailable();
         throw error;
       }
     }

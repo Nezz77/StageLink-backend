@@ -5,7 +5,7 @@ import type { Request } from 'express';
 import { z } from 'zod';
 import type { Booking, BookingPayoutHold, PayoutOrder, Prisma } from '../../../generated/prisma/client.js';
 import { issueDocument } from '../../../shared/booking-documents.js';
-import { openAccount, postJournal } from '../../../shared/payments/journal.js';
+import { hasJournalSqlState, openAccount, postJournal } from '../../../shared/payments/journal.js';
 import { PublicError } from '../auth/errors.js';
 import type { AuthService } from '../auth/service.js';
 import { lockBooking, maxMinor, paymentBlocked } from '../bookings/lifecycle.js';
@@ -17,7 +17,7 @@ const timestamp = z.iso.datetime();
 const minor = z.number().int().min(0).max(maxMinor);
 const revision = z.number().int().min(1).max(maxMinor);
 const holdInput = z.object({
-  expectedRevision: revision.min(0).max(maxMinor - 1), held: z.boolean(), reason: z.string().trim().min(1).max(500),
+  expectedRevision: z.number().int().min(0).max(maxMinor - 1), held: z.boolean(), reason: z.string().trim().min(1).max(500),
 }).strict();
 const payoutInput = z.object({ bookingId: uuid, destinationRevision: revision }).strict();
 const hold = z.object({
@@ -34,7 +34,7 @@ const payment = z.object({
 });
 const overview = z.object({
   bookingId: uuid, providerId: uuid, cancelled: z.boolean(), completionVerified: z.boolean(),
-  held: z.boolean(), holdRevision: revision.min(0), refundStatus: z.enum(['requested', 'approved', 'declined']).nullable(),
+  held: z.boolean(), holdRevision: z.number().int().min(0).max(maxMinor), refundStatus: z.enum(['requested', 'approved', 'declined']).nullable(),
   payments: z.array(payment), payout: payout.nullable(), currency: z.literal('LKR'),
 });
 const earnings = z.object({
@@ -266,8 +266,7 @@ export function makePayoutsController(auth: AuthService) {
         });
       } catch (error) {
         if (error instanceof PublicError && error.code === 'DESTINATION_NOT_APPROVED') notEligible();
-        const failure = error as { code?: string; meta?: { code?: string } };
-        if (failure.code === 'P2010' && failure.meta?.code === 'SL001') notEligible();
+        if (hasJournalSqlState(error, 'SL001')) notEligible();
         throw error;
       }
     }

@@ -428,7 +428,9 @@ test('renter owns revisions and public browse only shows approved published equi
     assert.equal((await call('payment-orders/' + advanceOrder.id, undefined, renter)).status, 200);
     const checkoutPath = 'payment-orders/' + advanceOrder.id + '/sessions';
     const billing = { firstName: 'Test', lastName: 'Customer', phone: '0771234567', address: 'Main Street', city: 'Colombo', country: 'Sri Lanka' };
-    assert.equal((await call(checkoutPath, billing, other)).status, 404);
+    assert.equal((await call(checkoutPath, billing, other)).data.code, 'ROLE_FORBIDDEN');
+    const unrelatedCustomer = winnerCustomer === customer ? secondCustomer : customer;
+    assert.equal((await call(checkoutPath, billing, unrelatedCustomer)).status, 404);
     const checkout = await call(checkoutPath, billing, winnerCustomer);
     assert.equal(checkout.status, 200);
     assert.equal(checkout.data.action, 'https://sandbox.payhere.lk/pay/checkout');

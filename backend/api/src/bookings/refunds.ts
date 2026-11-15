@@ -3,7 +3,7 @@ import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiParam, ApiQuery, ApiTags } fr
 import type { Request } from 'express';
 import { z } from 'zod';
 import type { Prisma, RefundRequest } from '../../../generated/prisma/client.js';
-import { openAccount, postJournal } from '../../../shared/payments/journal.js';
+import { hasJournalSqlState, openAccount, postJournal } from '../../../shared/payments/journal.js';
 import { PublicError } from '../auth/errors.js';
 import type { AuthService } from '../auth/service.js';
 import { parse, schema, uuid } from '../payments/orders.js';
@@ -254,8 +254,7 @@ export function makeRefundsController(auth: AuthService) {
           }));
         }, true);
       } catch (error) {
-        const failure = error as { code?: string; meta?: { code?: string } };
-        if (failure.code === 'P2010' && failure.meta?.code === 'SL001') unavailable();
+        if (hasJournalSqlState(error, 'SL001')) unavailable();
         throw error;
       }
     }

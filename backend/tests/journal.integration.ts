@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { createDb } from '../shared/resources.js';
 import { readConfig } from '../shared/config.js';
-import { openAccount, postedBalance, postJournal, reserveFunds } from '../shared/payments/journal.js';
+import { hasJournalSqlState, openAccount, postedBalance, postJournal, reserveFunds } from '../shared/payments/journal.js';
 
 const config = readConfig();
 if (config.NODE_ENV !== 'test' || !new URL(config.DATABASE_URL).pathname.endsWith('_test')) {
@@ -26,10 +26,7 @@ test('journal posting is balanced, replay-safe, append-only, and cannot over-res
       async function rejectsStatement(work: () => Promise<unknown>, code: string) {
         await tx.$executeRaw`SAVEPOINT journal_test`;
         try {
-          await assert.rejects(work, (error: unknown) => {
-            const failure = error as { code?: string; meta?: { code?: string } };
-            return failure.code === 'P2010' && failure.meta?.code === code;
-          });
+          await assert.rejects(work, error => hasJournalSqlState(error, code));
         } finally {
           await tx.$executeRaw`ROLLBACK TO SAVEPOINT journal_test`;
           await tx.$executeRaw`RELEASE SAVEPOINT journal_test`;
