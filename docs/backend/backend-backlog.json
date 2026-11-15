@@ -1707,7 +1707,7 @@
       ],
       "remove_or_replace": "Local transferred flag and sample earnings",
       "acceptance": [
-        "One original-price fee; funds reserved once; verified destination revision; pending/unknown not transferred",
+        "One original-price fee; funds reserved once; verified destination revision and booking-role identity approval; pending/unknown not transferred",
         "Applicable schema/API/auth/UI/reload/failure tests and checkpoint evidence complete"
       ],
       "requires_new_report_ui": false,
@@ -1854,7 +1854,7 @@
       "ui_coverage_ids": [
         "UI-042"
       ],
-      "remaining": "Support private PDF verification evidence, confirm policy linkage for verification and payouts, and verify PostgreSQL/S3 and frontend/Figma integration."
+      "remaining": "Support private PDF verification evidence and verify PostgreSQL/S3 and frontend/Figma integration. New standard and arbitration payout reservations already require a role-matched approved verification case."
     },
     {
       "id": "BE-053",

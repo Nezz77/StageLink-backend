@@ -170,11 +170,17 @@ export class ProfileService {
   }
 }
 
-// P12 executors must call this inside their transaction and also enforce financial/KYC eligibility.
+// Payment authorization must also enforce provider verification and booking eligibility.
 // An approved destination is bound to its exact revision, never to a mutable user-only reference.
 export async function assertReviewedDestination(tx:Tx,userId:string,revision:number){
   await tx.$queryRaw`SELECT id FROM auth_users WHERE id=${userId}::uuid FOR UPDATE`;
   const p=await tx.payoutDestination.findUnique({where:{userId},include:{user:true}});
-  if(!p||p.revision!==revision||p.status!=='approved'||p.user.disabledAt||!p.user.emailVerifiedAt)throw new PublicError(409,'DESTINATION_NOT_APPROVED','The current payout destination needs review.');
+  const approved = p && p.revision === revision && p.status === 'approved' && !p.user.disabledAt && p.user.emailVerifiedAt;
+  const version = approved && await tx.payoutDestinationVersion.findUnique({
+    where: { userId_revision: { userId, revision } }, select: { status: true },
+  });
+  if (!p || !version || version.status !== 'approved') {
+    throw new PublicError(409, 'DESTINATION_NOT_APPROVED', 'The current payout destination needs review.');
+  }
   return{userId:p.userId,revision:p.revision};
 }

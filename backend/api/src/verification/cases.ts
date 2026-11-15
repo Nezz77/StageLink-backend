@@ -143,9 +143,17 @@ export function makeVerificationController(auth: AuthService) {
       const actor = await mutation(req);
       const id = parse(uuid, rawId);
       const input = parse(decision, raw);
+      if (actor.session.activeRole !== 'admin') throw new PublicError(403, 'ROLE_FORBIDDEN', 'Administrator access is required.');
       return db.$transaction(async tx => {
+        const original = await tx.verificationCase.findUnique({ where: { id }, select: { providerId: true } });
+        // Match payout authorization lock order before changing the provider's verification status.
+        const userIds = [...new Set([actor.user.id, original?.providerId ?? actor.user.id])].sort();
+        for (const userId of userIds) {
+          await tx.$queryRaw`SELECT id FROM auth_users WHERE id=${userId}::uuid FOR UPDATE`;
+        }
         const current = await profiles.actor(tx, actor, undefined, true);
         profiles.verified(current);
+        if (!original) throw new PublicError(404, 'VERIFICATION_CASE_NOT_FOUND', 'This verification case is unavailable.');
         if (current.session.createdAt.getTime() < Date.now() - 15 * 60_000) {
           throw new PublicError(403, 'RECENT_LOGIN_REQUIRED', 'Sign in again before reviewing verification evidence.');
         }

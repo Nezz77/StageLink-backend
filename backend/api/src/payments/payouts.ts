@@ -11,6 +11,7 @@ import type { AuthService } from '../auth/service.js';
 import { lockBooking, maxMinor, paymentBlocked } from '../bookings/lifecycle.js';
 import { ProfileService } from '../profiles/service.js';
 import { parse, schema, uuid } from './orders.js';
+import { assertPayoutProvider, providerVerifiedForPayout } from './payout-eligibility.js';
 
 const timestamp = z.iso.datetime();
 const minor = z.number().int().min(0).max(maxMinor);
@@ -50,7 +51,13 @@ const overviewInclude = {
   refundRequest: { select: { status: true } },
   dispute: { select: { dismissedAt: true } },
   provider: {
-    select: { disabledAt: true, emailVerifiedAt: true, payout: { select: { revision: true, status: true } } },
+    select: {
+      disabledAt: true, emailVerifiedAt: true, roles: true, payout: { select: { revision: true, status: true } },
+      verificationCases: {
+        where: { kind: { in: ['artist', 'renter'] } },
+        orderBy: { version: 'desc' }, distinct: ['kind'], select: { kind: true, status: true },
+      },
+    },
   },
   paymentOrders: { orderBy: { purpose: 'asc' }, select: { id: true, purpose: true, amountMinor: true, status: true } },
   payoutOrder: true,
@@ -69,7 +76,8 @@ function presentPayout(row: PayoutOrder, booking: BookingFinance) {
   const paymentReview = booking.paymentOrders.some(order => order.purpose !== 'deposit' && order.status !== 'paid');
   const needsReview = booking.cancelledAt || booking.dispute?.dismissedAt === null || refund === 'requested' || refund === 'approved' || booking.payoutHolds[0]?.held ||
     paymentReview || destination?.revision !== row.destinationRevision || destination.status !== 'approved' ||
-    booking.provider.disabledAt || !booking.provider.emailVerifiedAt;
+    booking.provider.disabledAt || !booking.provider.emailVerifiedAt ||
+    !providerVerifiedForPayout(booking.targetKind, booking.provider.roles, booking.provider.verificationCases);
   const { reservationId: _reservation, createdBy: _creator, ...details } = row;
   return { ...details, createdAt: row.createdAt.toISOString(), currency: 'LKR' as const, status: needsReview ? 'review_required' : 'reserved' };
 }
@@ -214,13 +222,9 @@ export function makePayoutsController(auth: AuthService) {
             }
             return currentPayout(tx, existing);
           }
-          const [report, held, destination, orders] = await Promise.all([
+          const [report, held, orders] = await Promise.all([
             tx.bookingCompletion.findUnique({ where: { bookingId: booking.id } }),
             tx.bookingPayoutHold.findFirst({ where: { bookingId: booking.id }, orderBy: { revision: 'desc' } }),
-            tx.payoutDestination.findUnique({
-              where: { userId: booking.providerId },
-              include: { user: { select: { disabledAt: true, emailVerifiedAt: true } } },
-            }),
             tx.paymentOrder.findMany({
               where: { bookingId: booking.id, ...serviceOrders },
               include: {
@@ -229,16 +233,12 @@ export function makePayoutsController(auth: AuthService) {
               },
             }),
           ]);
-          if (!report?.verifiedAt || held?.held || await paymentBlocked(tx, booking.id) ||
-            destination?.status !== 'approved' || destination.revision !== input.destinationRevision ||
-            destination.user.disabledAt || !destination.user.emailVerifiedAt) notEligible();
-          const version = await tx.payoutDestinationVersion.findUnique({
-            where: { userId_revision: { userId: booking.providerId, revision: destination.revision } },
-          });
+          if (!report?.verifiedAt || held?.held || await paymentBlocked(tx, booking.id)) notEligible();
+          const destinationRevision = await assertPayoutProvider(tx, booking, input.destinationRevision);
           if (orders.some(order => !(order.payhereAttempt?.events[0]?.journalId || order.stripeAttempt?.journalId))) notEligible();
           const advance = orders.find(order => order.purpose === 'advance');
           const balance = orders.find(order => order.purpose === 'balance');
-          if (version?.status !== 'approved' || advance?.status !== 'paid' || advance.amountMinor !== report.advanceMinor ||
+          if (advance?.status !== 'paid' || advance.amountMinor !== report.advanceMinor ||
             (report.balanceMinor > 0 ? balance?.status !== 'paid' || balance.amountMinor !== report.balanceMinor : Boolean(balance))) notEligible();
 
           const id = randomUUID();
@@ -254,7 +254,7 @@ export function makePayoutsController(auth: AuthService) {
           ]);
           const order = await tx.payoutOrder.create({
             data: {
-              id, bookingId: booking.id, providerId: booking.providerId, destinationRevision: destination.revision,
+              id, bookingId: booking.id, providerId: booking.providerId, destinationRevision,
               createdBy: actorId, createdAt: new Date(), grossMinor, platformFeeMinor, netMinor, reservationId,
             },
           });
@@ -265,6 +265,7 @@ export function makePayoutsController(auth: AuthService) {
           return currentPayout(tx, order);
         });
       } catch (error) {
+        if (error instanceof PublicError && error.code === 'DESTINATION_NOT_APPROVED') notEligible();
         const failure = error as { code?: string; meta?: { code?: string } };
         if (failure.code === 'P2010' && failure.meta?.code === 'SL001') notEligible();
         throw error;

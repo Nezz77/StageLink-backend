@@ -47,6 +47,7 @@ A checked box marks implemented backend code. PostgreSQL integration, client wir
 - [x] P15 Top-three event-brief artist recommendations using published listings and versioned catalog weights.
 - [x] P15 Natural-language artist search preview with confirmable catalog filters.
 - [x] P16 Private provider verification submissions, administrative review and resubmission history.
+- [x] P16 Role-specific provider identity approval for sandbox payout and arbitration reservations.
 - [x] P16 Support tickets, member/staff replies, private notes, assignments and reopen history.
 - [x] P16 Booking disputes, private evidence, audited dismissal and atomic arbitration reservations.
 - [x] P17 Durable 24-hour and 2-hour booking email reminder queue with audited controls.
@@ -55,7 +56,7 @@ A checked box marks implemented backend code. PostgreSQL integration, client wir
 - [x] P17 Promotional email opt-in, campaign drafts, verified audience preview, scheduling and cancellation.
 - [x] P17 Opt-in promotional email worker, rolling hourly cap, and administrator delivery counts.
 - [x] P17 One-click promotional email opt-out from supported mail clients.
-- [ ] P15–P17 AI provider calls and output previews, semantic ranking, verification policy enforcement, realtime notifications, arbitration execution, SMS reminders, promotional SMS, and live SMTP campaign verification.
+- [ ] P15–P17 AI provider calls and output previews, semantic ranking, private PDF verification evidence, realtime notifications, arbitration execution, SMS reminders, promotional SMS, and live SMTP campaign verification.
 - [x] P18 Administrator and provider analytics from booking records and posted sandbox journals.
 - [ ] P18 Settled financial analytics, security, accessibility, backup and rollback, and end-to-end release verification.
 

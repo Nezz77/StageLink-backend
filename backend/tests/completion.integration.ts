@@ -203,6 +203,29 @@ test('completion requires a paid advance, provider check-in and resolved overtim
     assert.equal(earnings.data.items[0].payout, null);
     assert.equal((await call('admin/payments', undefined, admin)).data.items.some((item: { bookingId: string }) => item.bookingId === bookingId), true);
 
+    const destination = { userId: provider.user.id, revision: 1, sealedDetails: 'fixture', accountLast4: '1234', status: 'approved' as const };
+    await deps.db.payoutDestination.create({ data: destination });
+    await deps.db.payoutDestinationVersion.create({ data: destination });
+    assert.equal((await call(holdPath, { ...hold, expectedRevision: 1, held: false }, admin)).status, 200);
+    const payout = () => call('admin/payouts', { bookingId, destinationRevision: 1 }, admin);
+    assert.equal((await payout()).data.code, 'PAYOUT_PROVIDER_VERIFICATION_REQUIRED');
+    const verification = {
+      providerId: provider.user.id, subject: 'Identity review', body: 'Review provider identity for sandbox payout.',
+    };
+    await deps.db.verificationCase.create({
+      data: { ...verification, kind: 'renter', version: 1, requestKey: randomUUID(), status: 'approved',
+        decidedBy: admin.user.id, reason: 'Verified the rental identity evidence.', decidedAt: new Date(), createdAt: new Date(Date.now() - 1000) },
+    });
+    assert.equal((await payout()).data.code, 'PAYOUT_PROVIDER_VERIFICATION_REQUIRED');
+    const artistCase = await deps.db.verificationCase.create({
+      data: { ...verification, kind: 'artist', version: 1, requestKey: randomUUID() },
+    });
+    assert.equal((await payout()).data.code, 'PAYOUT_PROVIDER_VERIFICATION_REQUIRED');
+    const approval = { status: 'approved', reason: 'Verified the artist identity evidence.', documentsReviewed: true };
+    assert.equal((await call('admin/verification-cases/' + artistCase.id + '/decisions', approval, admin)).status, 200);
+    assert.equal((await payout()).data.code, 'PAYOUT_NOT_ELIGIBLE', 'Identity approval alone cannot replace captured payment evidence');
+    assert.equal(await deps.db.payoutOrder.count({ where: { bookingId } }), 0);
+
     const disputeInput = { subject: 'Service disagreement', body: 'Please review the work performed at this booking.' };
     assert.equal((await call(path + '/disputes', disputeInput, outsider)).status, 404);
     const dispute = await call(path + '/disputes', disputeInput, customer);
@@ -258,6 +281,7 @@ test('completion requires a paid advance, provider check-in and resolved overtim
         await deps.db.booking.deleteMany({ where: { id: bookingId } });
       }
       if (cancelledBookingId) await deps.db.booking.delete({ where: { id: cancelledBookingId } });
+      await deps.db.verificationCase.deleteMany({ where: { providerId: { in: users } } });
       await deps.db.authUser.deleteMany({ where: { id: { in: users } } });
     } finally {
       await app.close();

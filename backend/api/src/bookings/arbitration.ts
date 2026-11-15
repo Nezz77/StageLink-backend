@@ -9,6 +9,7 @@ import { openAccount, postedBalance, postJournal } from '../../../shared/payment
 import { PublicError } from '../auth/errors.js';
 import type { AuthService } from '../auth/service.js';
 import { parse, schema, uuid } from '../payments/orders.js';
+import { assertPayoutProvider } from '../payments/payout-eligibility.js';
 import { ProfileService } from '../profiles/service.js';
 import { agreementAmounts, completionAmounts, lockBooking, maxMinor } from './lifecycle.js';
 import { member } from './requests.js';
@@ -119,19 +120,6 @@ export function makeArbitrationController(auth: AuthService) {
     const booking = await member(db, parse(uuid, id), actor.user.id);
     const row = await db.bookingDispute.findUnique({ where: { bookingId: booking.id }, include });
     return { dispute: row && present(row, actor.user.id === row.openedBy) };
-  }
-
-  async function verifiedDestination(tx: Prisma.TransactionClient, booking: Booking, revision: number | null) {
-    if (revision === null) unavailable();
-    const destination = await tx.payoutDestination.findUnique({
-      where: { userId: booking.providerId }, include: { user: { select: { disabledAt: true, emailVerifiedAt: true } } },
-    });
-    const version = await tx.payoutDestinationVersion.findUnique({ where: {
-      userId_revision: { userId: booking.providerId, revision },
-    } });
-    if (destination?.revision !== revision || destination.status !== 'approved' ||
-      destination.user.disabledAt || !destination.user.emailVerifiedAt || version?.status !== 'approved') unavailable();
-    return revision;
   }
 
   async function reviewCase(
@@ -295,7 +283,11 @@ export function makeArbitrationController(auth: AuthService) {
           if (!amounts.payoutMinor && input.destinationRevision !== null) {
             throw new PublicError(400, 'INVALID_ARBITRATION_DESTINATION', 'Omit the destination revision when no payout is due.');
           }
-          const destinationRevision = amounts.payoutMinor ? await verifiedDestination(tx, booking, input.destinationRevision) : null;
+          let destinationRevision = null;
+          if (amounts.payoutMinor) {
+            if (input.destinationRevision === null) unavailable();
+            destinationRevision = await assertPayoutProvider(tx, booking, input.destinationRevision);
+          }
           const decisionId = randomUUID();
           const entries = [{ accountId: eligible.accountId, amountMinor: -BigInt(eligible.total) }];
           for (const [recipient, amountMinor] of [['customer', amounts.refundMinor], ['fee', amounts.feeMinor], ['provider', amounts.payoutMinor]] as const) {
@@ -320,6 +312,7 @@ export function makeArbitrationController(auth: AuthService) {
           return presentDecision(decision);
         });
       } catch (error) {
+        if (error instanceof PublicError && error.code === 'DESTINATION_NOT_APPROVED') unavailable();
         const failure = error as { code?: string; meta?: { code?: string } };
         if (failure.code === 'P2010' && failure.meta?.code === 'SL001') unavailable();
         throw error;
