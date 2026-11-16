@@ -97,6 +97,7 @@ model AuthUser {
   notifications Notification[]
   notificationPreferences NotificationPreference?
   reminderActions ReminderAdminAction[]
+  paymentRecoveries PaymentRecoveryAction[]
   openedDisputes BookingDispute[] @relation("DisputeOpener")
   dismissedDisputes BookingDispute[] @relation("DisputeDismisser")
   arbitrationDecisions ArbitrationDecision[] @relation("ArbitrationReviewer")
@@ -782,6 +783,7 @@ model JournalTransaction {
   entries JournalEntry[]
   payhereEvent PayHereEvent?
   stripeAttempt StripeAttempt?
+  paymentRecovery PaymentRecoveryAction?
   refundReservation RefundItem?
   payoutReservation PayoutOrder?
   depositReservation DamageClaim?
@@ -830,11 +832,33 @@ model PaymentOrder {
   booking Booking @relation(fields: [bookingId], references: [id], onDelete: Restrict)
   payhereAttempt PayHereAttempt?
   stripeAttempt StripeAttempt?
+  recoveries PaymentRecoveryAction[]
   refundItems RefundItem[]
   arbitrationSource ArbitrationSource?
   damageClaim DamageClaim?
   @@unique([bookingId, purpose])
   @@map("payment_orders")
+}
+
+model PaymentRecoveryAction {
+  id String @id @default(uuid()) @db.Uuid
+  orderId String @map("order_id") @db.Uuid
+  actorId String @map("actor_id") @db.Uuid
+  requestKey String @map("request_key") @db.Uuid
+  gateway String @db.VarChar(7)
+  attemptId String @map("attempt_id") @db.Uuid
+  providerReference String @map("provider_reference") @db.VarChar(150)
+  reason String @db.VarChar(500)
+  previousStatus PaymentOrderStatus @map("previous_status")
+  outcome String @db.VarChar(8)
+  journalId String? @unique @map("journal_id") @db.Uuid
+  observedAt DateTime @map("observed_at") @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  order PaymentOrder @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  actor AuthUser @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  journal JournalTransaction? @relation(fields: [journalId], references: [id], onDelete: Restrict)
+  @@unique([orderId, requestKey])
+  @@map("payment_recovery_actions")
 }
 
 model PayHereAttempt {
@@ -850,6 +874,7 @@ model PayHereAttempt {
 model PayHereEvent {
   attemptId String @map("attempt_id") @db.Uuid
   statusCode String @map("status_code") @db.VarChar(2)
+  source String @default("webhook") @db.VarChar(12)
   reportedPaymentId String @map("reported_payment_id") @db.VarChar(120)
   receivedAt DateTime @default(now()) @map("received_at") @db.Timestamptz(3)
   journalId String? @unique @map("journal_id") @db.Uuid

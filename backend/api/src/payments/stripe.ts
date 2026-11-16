@@ -1,16 +1,13 @@
-import { notifyUsers } from '../../../shared/notifications.js';
 import { Body, Controller, HttpCode, Param, Post, Req, type RawBodyRequest } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOkResponse, ApiParam, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { z } from 'zod';
-import type { Prisma } from '../../../generated/prisma/client.js';
 import type { Config } from '../../../shared/config.js';
-import { issueDocument } from '../../../shared/booking-documents.js';
-import { openAccount, postJournal } from '../../../shared/payments/journal.js';
 import { createStripeCheckout, stripeEvent, stripeSession, stripeSessionReference, validStripeSignature } from '../../../shared/payments/stripe.js';
 import { checkoutExpiry, lockBooking, paidAdvance, paymentBlocked } from '../bookings/lifecycle.js';
 import { PublicError } from '../auth/errors.js';
 import type { AuthService } from '../auth/service.js';
+import { lockPaymentOrder, recordCapture, updatePaymentStatus } from './capture.js';
 import { parse, paymentAccess, readOrder, schema, uuid } from './orders.js';
 
 const empty = z.object({}).strict();
@@ -27,10 +24,6 @@ function settings(config: Config) {
   const { STRIPE_TEST_SECRET_KEY: key, STRIPE_TEST_WEBHOOK_SECRET: signingSecret } = config;
   if (!key || !signingSecret) throw new PublicError(503, 'STRIPE_UNAVAILABLE', 'Stripe test checkout is unavailable.');
   return { key, signingSecret };
-}
-
-async function lockOrder(tx: Prisma.TransactionClient, orderId: string) {
-  await tx.$queryRaw`SELECT id FROM payment_orders WHERE id=${orderId}::uuid FOR UPDATE`;
 }
 
 function checkoutUnavailable(): never {
@@ -60,7 +53,7 @@ export function makeStripeController(auth: AuthService) {
           throw new PublicError(403, 'PAYMENT_CUSTOMER_REQUIRED', 'Only the booking customer can start checkout.');
         }
         await lockBooking(tx, booking.id);
-        await lockOrder(tx, orderId);
+        await lockPaymentOrder(tx, orderId);
         const order = await tx.paymentOrder.findUniqueOrThrow({
           where: { id: orderId }, include: { stripeAttempt: true, payhereAttempt: { select: { id: true } } },
         });
@@ -92,7 +85,7 @@ export function makeStripeController(auth: AuthService) {
 
       const checkoutSession = await db.$transaction(async tx => {
         await lockBooking(tx, bookingId);
-        await lockOrder(tx, orderId);
+        await lockPaymentOrder(tx, orderId);
         const current = await tx.stripeAttempt.findUniqueOrThrow({ where: { id: attempt.id }, include: { order: true } });
         if (current.sessionId && current.sessionId !== session.id) {
           throw new PublicError(409, 'STRIPE_SESSION_MISMATCH', 'This checkout needs reconciliation.');
@@ -134,7 +127,7 @@ export function makeStripeController(auth: AuthService) {
         const captured = (event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded') &&
           session.status === 'complete' && session.payment_status === 'paid';
         await lockBooking(tx, attempt.order.bookingId);
-        await lockOrder(tx, attempt.orderId);
+        await lockPaymentOrder(tx, attempt.orderId);
         const current = await tx.stripeAttempt.findUniqueOrThrow({ where: { id: attempt.id }, include: { order: true } });
         const { order } = current;
         if ((current.sessionId && current.sessionId !== session.id) ||
@@ -154,34 +147,14 @@ export function makeStripeController(auth: AuthService) {
           const captureNeedsReview = await paymentBlocked(tx, order.bookingId) ||
             (order.purpose === 'balance' && !await paidAdvance(tx, order.bookingId));
           status = event.created * 1000 >= current.expiresAt.getTime() || order.status !== 'pending' || captureNeedsReview ? 'review' : 'paid';
-          const fund = { currency: order.currency, purpose: order.purpose === 'deposit' ? 'deposit' as const : 'service' as const };
-          const clearing = await openAccount(tx, { ...fund, scope: 'gateway:stripe:test', kind: 'clearing' });
-          const destination = await openAccount(tx, {
-            ...fund, scope: status === 'paid' ? 'sandbox:booking:' + order.bookingId : 'sandbox:review:' + order.id,
-            kind: 'available',
-          });
-          journalId = await postJournal(tx, { ...fund, source: 'stripe.test.capture', reference: session.id }, [
-            { accountId: clearing.id, amountMinor: -BigInt(order.amountMinor) },
-            { accountId: destination.id, amountMinor: BigInt(order.amountMinor) },
-          ]);
-          await issueDocument(tx, order.bookingId, journalId, {
-            version: 1, kind: 'receipt', issuedAt: new Date(event.created * 1000).toISOString(), orderId: order.id,
-            purpose: order.purpose, amountMinor: order.amountMinor, gateway: 'Stripe',
-            disposition: status === 'paid' ? 'captured' : 'review',
-          });
+          journalId = await recordCapture(tx, order, 'stripe', session.id, status, new Date(event.created * 1000));
         } else if (!journalId && status === 'pending' && event.type === 'checkout.session.expired' && session.status === 'expired') {
           status = 'cancelled';
         } else if (!journalId && status === 'pending' && event.type === 'checkout.session.async_payment_failed') {
           status = 'failed';
         }
         await tx.stripeAttempt.update({ where: { id: attempt.id }, data: { sessionId: session.id, journalId } });
-        if (status !== order.status) {
-          const orderBooking = await tx.booking.findUniqueOrThrow({
-            where: { id: order.bookingId }, select: { customerId: true, providerId: true },
-          });
-          await tx.paymentOrder.update({ where: { id: order.id }, data: { status } });
-          await notifyUsers(tx, [orderBooking.customerId, orderBooking.providerId], 'payment', order.bookingId, order.id + ':' + status);
-        }
+        await updatePaymentStatus(tx, order, status);
         return { received: true };
       });
     }

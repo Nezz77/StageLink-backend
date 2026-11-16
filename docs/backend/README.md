@@ -107,9 +107,12 @@ The booking customer sends `{}` to `POST /api/v1/payment-orders/:id/sessions/str
 
 ## Sandbox payment reconciliation
 
-A verified administrator can call `GET /api/v1/admin/payment-orders/:id/reconciliation` to compare the current StageLink capture record with gateway evidence. The response reports the gateway status and whether the evidence agrees, needs review or is inconclusive. Missing captures, mismatched amounts and duplicate or reversed PayHere payments need review. The endpoint is read-only. Replaying a verified notification still follows the existing webhook path. Gateway settlement and automatic repair remain separate backlog tasks.
+A verified administrator can call `GET /api/v1/admin/payment-orders/:id/reconciliation` to compare the current StageLink capture record with gateway evidence. The response reports the gateway status and whether the evidence agrees, needs review or is inconclusive. Missing captures, mismatched amounts and duplicate or reversed PayHere payments need review. The check is read-only. Replaying a verified notification follows the existing webhook path.
 
 Stripe uses the existing test key to retrieve the stored Checkout Session. PayHere requires `PAYHERE_SANDBOX_RETRIEVAL_APP_ID` and `PAYHERE_SANDBOX_RETRIEVAL_APP_SECRET` from the sandbox Merchant API settings. StageLink uses those credentials for a short-lived sandbox token. A missing PayHere retrieval result is inconclusive. [Stripe Checkout Session retrieval](https://docs.stripe.com/api/checkout/sessions/retrieve) · [PayHere Retrieval API](https://support.payhere.lk/api-%26-mobile-sdk/retrieval-api)
+
+For a confirmed missing capture, a verified administrator submits `{requestKey, expectedOutcome: "captured", reason}` to `POST /api/v1/admin/payment-orders/:id/reconciliation/recover` with the standard origin and CSRF headers. StageLink retrieves fresh gateway evidence, checks the amount, currency and attempt reference, then records the capture in the sandbox review balance. The action records the administrator, evidence time, reason, and journal transaction. Verified Stripe expiration also supports `expectedOutcome: "expired"` for a pending order. Repeat the original request key to retrieve the saved action. Review recorded actions using `GET /api/v1/admin/payment-orders/:id/reconciliation/recoveries`. Inconclusive, duplicate, mismatched and reversed evidence requires manual review.
+
 
 ## Booking completion
 

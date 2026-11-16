@@ -1,15 +1,13 @@
-import { notifyUsers } from '../../../shared/notifications.js';
 import { Body, Controller, HttpCode, Param, Post, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOkResponse, ApiParam, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { z } from 'zod';
 import type { Config } from '../../../shared/config.js';
-import { issueDocument } from '../../../shared/booking-documents.js';
-import { openAccount, postJournal } from '../../../shared/payments/journal.js';
 import { checkoutHash, formatPayHereAmount, notificationStatus, payHereCheckoutUrl, payHereNotification, verifyNotification } from '../../../shared/payments/payhere.js';
 import type { AuthService } from '../auth/service.js';
 import { checkoutExpiry, lockBooking, paidAdvance, paymentBlocked } from '../bookings/lifecycle.js';
 import { PublicError } from '../auth/errors.js';
+import { lockPaymentOrder, recordCapture, updatePaymentStatus } from './capture.js';
 import { parse, paymentAccess, readOrder, schema, uuid } from './orders.js';
 
 const billing = z.object({
@@ -59,7 +57,7 @@ export function makePayHereController(auth: AuthService) {
         const { booking } = await readOrder(tx, orderId, actor.user.id);
         if (booking.customerId !== actor.user.id) throw new PublicError(403, 'PAYMENT_CUSTOMER_REQUIRED', 'Only the booking customer can start checkout.');
         await lockBooking(tx, booking.id);
-        await tx.$queryRaw`SELECT id FROM payment_orders WHERE id=${orderId}::uuid FOR UPDATE`;
+        await lockPaymentOrder(tx, orderId);
         const order = await tx.paymentOrder.findUniqueOrThrow({ where: { id: orderId }, include: { payhereAttempt: true, stripeAttempt: { select: { id: true } } } });
         const now = new Date();
         if (order.stripeAttempt) throw new PublicError(409, 'CHECKOUT_GATEWAY_SELECTED', 'This order already has a Stripe checkout.');
@@ -112,7 +110,7 @@ export function makePayHereController(auth: AuthService) {
         const attempt = await tx.payHereAttempt.findUnique({ where: { id: event.order_id }, include: { order: { select: { bookingId: true } } } });
         if (!attempt) throw new PublicError(404, 'PAYMENT_ATTEMPT_NOT_FOUND', 'This payment attempt is unavailable.');
         await lockBooking(tx, attempt.order.bookingId);
-        await tx.$queryRaw`SELECT id FROM payment_orders WHERE id=${attempt.orderId}::uuid FOR UPDATE`;
+        await lockPaymentOrder(tx, attempt.orderId);
         const order = await tx.paymentOrder.findUniqueOrThrow({ where: { id: attempt.orderId } });
         const receivedAmount = Number(event.payhere_amount.replace('.', ''));
         if (receivedAmount !== order.amountMinor || order.currency !== event.payhere_currency) {
@@ -124,11 +122,7 @@ export function makePayHereController(auth: AuthService) {
         if (existing) {
           // PayHere's checksum omits payment_id. A changed ID cannot justify a second credit.
           if (event.status_code === '2' && existing.reportedPaymentId !== event.payment_id && order.status !== 'review') {
-            await tx.paymentOrder.update({ where: { id: order.id }, data: { status: 'review' } });
-            const booking = await tx.booking.findUniqueOrThrow({
-              where: { id: order.bookingId }, select: { customerId: true, providerId: true },
-            });
-            await notifyUsers(tx, [booking.customerId, booking.providerId], 'payment', order.bookingId, order.id + ':review');
+            await updatePaymentStatus(tx, order, 'review');
           }
           return { received: true };
         }
@@ -141,30 +135,10 @@ export function makePayHereController(auth: AuthService) {
         const status = notificationStatus(order.status, event.status_code, attempt.expiresAt <= now || captureNeedsReview);
         let journalId: string | undefined;
         if (event.status_code === '2') {
-          const fund = { currency: order.currency, purpose: order.purpose === 'deposit' ? 'deposit' as const : 'service' as const };
-          const clearing = await openAccount(tx, { ...fund, scope: 'gateway:payhere:sandbox', kind: 'clearing' });
-          const destination = await openAccount(tx, {
-            ...fund, scope: status === 'paid' ? 'sandbox:booking:' + order.bookingId : 'sandbox:review:' + order.id,
-            kind: 'available',
-          });
-          journalId = await postJournal(tx, { ...fund, source: 'payhere.sandbox.capture', reference: attempt.id }, [
-            { accountId: clearing.id, amountMinor: -BigInt(order.amountMinor) },
-            { accountId: destination.id, amountMinor: BigInt(order.amountMinor) },
-          ]);
-          await issueDocument(tx, order.bookingId, journalId, {
-            version: 1, kind: 'receipt', issuedAt: now.toISOString(), orderId: order.id,
-            purpose: order.purpose, amountMinor: order.amountMinor, gateway: 'PayHere',
-            disposition: status === 'paid' ? 'captured' : 'review',
-          });
+          journalId = await recordCapture(tx, order, 'payhere', attempt.id, status === 'paid' ? 'paid' : 'review', now);
         }
         await tx.payHereEvent.create({ data: { ...key, reportedPaymentId: event.payment_id, receivedAt: now, journalId } });
-        if (status !== order.status) {
-          const orderBooking = await tx.booking.findUniqueOrThrow({
-            where: { id: order.bookingId }, select: { customerId: true, providerId: true },
-          });
-          await tx.paymentOrder.update({ where: { id: order.id }, data: { status } });
-          await notifyUsers(tx, [orderBooking.customerId, orderBooking.providerId], 'payment', order.bookingId, order.id + ':' + status);
-        }
+        await updatePaymentStatus(tx, order, status);
         return { received: true };
       });
     }

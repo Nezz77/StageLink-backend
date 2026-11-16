@@ -2965,6 +2965,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/payment-orders/{id}/reconciliation/recoveries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["PaymentReconciliationController_history"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payment-orders/{id}/reconciliation/recover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["PaymentReconciliationController_recover"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/earnings": {
         parameters: {
             query?: never;
@@ -18244,6 +18276,100 @@ export interface operations {
                         assessment: "consistent" | "needs_review" | "inconclusive";
                         /** Format: date-time */
                         checkedAt: string;
+                    };
+                };
+            };
+        };
+    };
+    PaymentReconciliationController_history: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            orderId: string;
+                            /** Format: uuid */
+                            actorId: string;
+                            /** @enum {string} */
+                            gateway: "stripe" | "payhere";
+                            reason: string;
+                            /** @enum {string} */
+                            previousStatus: "open" | "pending" | "failed" | "cancelled" | "paid" | "review";
+                            /** @enum {string} */
+                            outcome: "captured" | "expired";
+                            /** Format: uuid */
+                            journalId: string | null;
+                            /** Format: date-time */
+                            observedAt: string;
+                            /** Format: date-time */
+                            createdAt: string;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    PaymentReconciliationController_recover: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    requestKey: string;
+                    /** @enum {string} */
+                    expectedOutcome: "captured" | "expired";
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uuid */
+                        orderId: string;
+                        /** Format: uuid */
+                        actorId: string;
+                        /** @enum {string} */
+                        gateway: "stripe" | "payhere";
+                        reason: string;
+                        /** @enum {string} */
+                        previousStatus: "open" | "pending" | "failed" | "cancelled" | "paid" | "review";
+                        /** @enum {string} */
+                        outcome: "captured" | "expired";
+                        /** Format: uuid */
+                        journalId: string | null;
+                        /** Format: date-time */
+                        observedAt: string;
+                        /** Format: date-time */
+                        createdAt: string;
                     };
                 };
             };

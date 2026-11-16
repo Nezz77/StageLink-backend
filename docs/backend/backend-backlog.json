@@ -1580,7 +1580,7 @@
       "ui_coverage_ids": [
         "UI-034"
       ],
-      "remaining": "Admin sandbox retrieval compares provider and local capture evidence. Verify real checkout, public HTTPS callbacks and Merchant API retrieval, then add audited recovery for review cases."
+      "remaining": "Sandbox retrieval and audited recovery for confirmed missing captures are implemented. Verify hosted checkout, signed callbacks, Merchant API retrieval and recovery with a real sandbox account. Discrepancies remain subject to manual review."
     },
     {
       "id": "BE-045",
@@ -1614,7 +1614,7 @@
       "ui_coverage_ids": [
         "UI-035"
       ],
-      "remaining": "Admin test Checkout retrieval compares provider and local capture evidence. Verify LKR Checkout, callbacks and retrieval with an actual test account. Confirm merchant and Connect eligibility and add auditing, repair, transfers and settlement reconciliation."
+      "remaining": "Test Checkout retrieval and audited recovery for missing captures and expirations are implemented. Verify LKR checkout, callbacks, retrieval and recovery with an actual test account. Confirm merchant and Connect eligibility, then verify transfers and settlement reconciliation."
     },
     {
       "id": "BE-046",
