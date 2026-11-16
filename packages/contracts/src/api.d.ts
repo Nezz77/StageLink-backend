@@ -3205,6 +3205,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/payouts/{id}/stripe-transfer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["StripePayoutTransfersController_read"];
+        put?: never;
+        post: operations["StripePayoutTransfersController_execute"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/refund-requests/{id}/items/{orderId}/stripe-execution": {
         parameters: {
             query?: never;
@@ -18544,6 +18560,8 @@ export interface operations {
                                 currency: "LKR";
                                 /** @enum {string} */
                                 status: "reserved" | "review_required";
+                                /** @enum {string|null} */
+                                stripeTransferStatus: "uncertain" | "transferred" | "review_required" | null;
                             } | null;
                             /** @enum {string} */
                             currency: "LKR";
@@ -18609,6 +18627,8 @@ export interface operations {
                                 currency: "LKR";
                                 /** @enum {string} */
                                 status: "reserved" | "review_required";
+                                /** @enum {string|null} */
+                                stripeTransferStatus: "uncertain" | "transferred" | "review_required" | null;
                             } | null;
                             /** @enum {string} */
                             currency: "LKR";
@@ -18653,6 +18673,8 @@ export interface operations {
                         currency: "LKR";
                         /** @enum {string} */
                         status: "reserved" | "review_required";
+                        /** @enum {string|null} */
+                        stripeTransferStatus: "uncertain" | "transferred" | "review_required" | null;
                     };
                 };
             };
@@ -18734,6 +18756,8 @@ export interface operations {
                         currency: "LKR";
                         /** @enum {string} */
                         status: "reserved" | "review_required";
+                        /** @enum {string|null} */
+                        stripeTransferStatus: "uncertain" | "transferred" | "review_required" | null;
                     };
                 };
             };
@@ -19181,6 +19205,90 @@ export interface operations {
                         /** @enum {string|null} */
                         endKind: "revoke" | "replace" | null;
                         endReason: string | null;
+                    };
+                };
+            };
+        };
+    };
+    StripePayoutTransfersController_read: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        transfer: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            payoutId: string;
+                            /** Format: uuid */
+                            destinationLinkId: string;
+                            amountMinor: number;
+                            /** @enum {string} */
+                            currency: "LKR";
+                            /** @enum {string} */
+                            state: "processing" | "uncertain" | "transferred" | "review_required";
+                            providerTransferId: string | null;
+                            /** Format: date-time */
+                            createdAt: string;
+                            /** Format: date-time */
+                            updatedAt: string;
+                        } | null;
+                    };
+                };
+            };
+        };
+    };
+    StripePayoutTransfersController_execute: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    reconcileOnly?: boolean;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uuid */
+                        payoutId: string;
+                        /** Format: uuid */
+                        destinationLinkId: string;
+                        amountMinor: number;
+                        /** @enum {string} */
+                        currency: "LKR";
+                        /** @enum {string} */
+                        state: "processing" | "uncertain" | "transferred" | "review_required";
+                        providerTransferId: string | null;
+                        /** Format: date-time */
+                        createdAt: string;
+                        /** Format: date-time */
+                        updatedAt: string;
                     };
                 };
             };

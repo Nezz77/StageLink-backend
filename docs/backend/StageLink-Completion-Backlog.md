@@ -54,7 +54,9 @@ A checked box marks implemented backend code. PostgreSQL integration, client wir
 - [x] P12 Execution, reconciliation and journal settlement for approved Stripe test refund items. Failed or uncertain executions retain the reservation for review.
 - [x] P12 Full PayHere sandbox refunds for approved cancellation items, with provider confirmation before journal settlement.
 - [x] P12 Audited Stripe test account links tied to reviewed payout destination revisions.
-- [ ] P12 Hosted Stripe and PayHere refund verification, payout execution, and repair of blocked reservations.
+- [x] P12 Stripe test transfers and reconciliation for eligible payout reservations, with journal posting after provider confirmation.
+- [ ] P12 Hosted Stripe and PayHere refund verification and Stripe test transfer verification with a supported LKR route.
+- [ ] P12 Bank payout execution and confirmation, fee settlement, reversal accounting and repair of blocked reserves.
 - [x] P13 Sandbox invoice, per-capture receipt and payout reservation statement with private server-rendered PDFs.
 - [x] P13 Verified customer reviews, moderated event photos and public rating aggregates.
 - [x] P14 Serialized equipment allocation, private dispatch and return reports, correction history, comparison and stock clearance.

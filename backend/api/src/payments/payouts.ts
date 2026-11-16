@@ -27,6 +27,7 @@ const payout = z.object({
   id: uuid, bookingId: uuid, providerId: uuid, destinationRevision: revision, createdAt: timestamp,
   grossMinor: minor, platformFeeMinor: minor, netMinor: minor, currency: z.literal('LKR'),
   status: z.enum(['reserved', 'review_required']),
+  stripeTransferStatus: z.enum(['uncertain', 'transferred', 'review_required']).nullable(),
 });
 const payment = z.object({
   id: uuid, purpose: z.enum(['advance', 'balance', 'deposit']), amountMinor: minor,
@@ -60,7 +61,7 @@ const overviewInclude = {
     },
   },
   paymentOrders: { orderBy: { purpose: 'asc' }, select: { id: true, purpose: true, amountMinor: true, status: true } },
-  payoutOrder: true,
+  payoutOrder: { include: { stripeTransfer: { select: { status: true } } } },
 } satisfies Prisma.BookingInclude;
 
 function presentHold(row: BookingPayoutHold) {
@@ -78,8 +79,12 @@ function presentPayout(row: PayoutOrder, booking: BookingFinance) {
     paymentReview || destination?.revision !== row.destinationRevision || destination.status !== 'approved' ||
     booking.provider.disabledAt || !booking.provider.emailVerifiedAt ||
     !providerVerifiedForPayout(booking.targetKind, booking.provider.roles, booking.provider.verificationCases);
-  const { reservationId: _reservation, createdBy: _creator, ...details } = row;
-  return { ...details, createdAt: row.createdAt.toISOString(), currency: 'LKR' as const, status: needsReview ? 'review_required' : 'reserved' };
+  const { id, bookingId, providerId, destinationRevision, grossMinor, platformFeeMinor, netMinor, createdAt } = row;
+  return {
+    id, bookingId, providerId, destinationRevision, grossMinor, platformFeeMinor, netMinor,
+    createdAt: createdAt.toISOString(), currency: 'LKR' as const, status: needsReview ? 'review_required' : 'reserved',
+    stripeTransferStatus: booking.payoutOrder?.stripeTransfer?.status ?? null,
+  };
 }
 
 async function currentPayout(tx: Prisma.TransactionClient, row: PayoutOrder) {

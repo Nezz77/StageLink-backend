@@ -140,7 +140,7 @@ A lost or ambiguous submission response retains the reservation for manual revie
 
 Providers can read `GET /api/v1/me/earnings`. Administrators can read `GET /api/v1/admin/payments` and submit `{expectedRevision, held, reason}` to `POST /api/v1/admin/bookings/:id/holds`. Use hold revision `0` for a booking without a prior hold.
 
-`POST /api/v1/admin/payouts` takes `{bookingId, destinationRevision}` and reserves the sandbox service funds once. It requires administrator-verified completion, paid service orders and the current approved destination. `GET /api/v1/payouts/:id` is scoped to the provider and administrators. A reservation status of `review_required` signals a hold, destination change or payment review. Provider submission and reconciliation remain pending.
+`POST /api/v1/admin/payouts` takes `{bookingId, destinationRevision}` and reserves the sandbox service funds once. It requires administrator-verified completion, paid service orders and the current approved destination. `GET /api/v1/payouts/:id` is scoped to the provider and administrators. A reservation status of `review_required` signals a hold, destination change or payment review. `stripeTransferStatus` reports the status of a connected-account transfer separately from reservation eligibility.
 
 ## Stripe test Connect capabilities
 
@@ -151,6 +151,12 @@ A verified administrator can read `GET /api/v1/admin/payments/stripe-capabilitie
 A verified administrator can link a platform-controlled Stripe test account to a provider’s current approved payout destination revision. Use `POST /api/v1/admin/providers/:id/stripe-destination` with `requestKey`, `destinationRevision`, `expectedLinkId`, `accountId` and a review reason. Set `expectedLinkId` to `null` for the first link or to the current link ID for a replacement. The administrator signs in recently, verifies the provider-account match, and includes the standard origin and CSRF headers. Stripe account evidence confirms that the configured test platform controls the account. [Stripe account retrieval](https://docs.stripe.com/api/accounts/retrieve) · [Stripe test balance](https://docs.stripe.com/api/balance/balance_retrieve)
 
 Use `GET` on the same path for the active link, its match to the current approved destination and the latest 20 historical changes. To revoke, send `{expectedLinkId, reason}` to `POST /api/v1/admin/providers/:id/stripe-destination/revoke`. Links record the platform, destination revision, reviewer and reason. A new payout destination revision requires a new link. Payout submission still requires a validated transfer route and current booking and provider eligibility.
+
+## Stripe test payout transfers
+
+`STRIPE_TEST_PAYOUT_TRANSFERS=true` enables submission with the Stripe test settings. The feature defaults off. A verified administrator with a recent sign-in sends `{}` to `POST /api/v1/admin/payouts/:id/stripe-transfer` with the standard origin and CSRF headers. StageLink rechecks booking completion, holds, current provider verification, the approved linked destination, the reservation and the paid Stripe test captures. The connected account must have an active transfer capability and the platform must have enough available LKR card balance.
+
+Use `GET` on the same path to read the saved transfer state. Send `{reconcileOnly:true}` to check an existing attempt against Stripe without initiating a transfer. A retry with `{}` first looks for the original transfer and reuses its idempotency key for at most 23 hours after the initial attempt. A confirmed transfer posts the provider's net amount once to Stripe transfer clearing. `transferred` means Stripe confirmed the movement to the connected account balance. A reversal requires review and preserves the original journal entry. The platform fee stays reserved. Hosted test account verification, bank payout execution and reversal accounting remain open. [Stripe transfers](https://docs.stripe.com/api/transfers) · [Stripe idempotency](https://docs.stripe.com/api/idempotent_requests)
 
 ## Booking documents
 

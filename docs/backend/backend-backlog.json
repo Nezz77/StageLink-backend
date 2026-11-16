@@ -1717,7 +1717,7 @@
       "ui_coverage_ids": [
         "UI-038"
       ],
-      "remaining": "Stripe test destination links pin approved provider revisions and preserve review history. Add payout submission, reconciliation and a recovery path for blocked reservations. Verify hosted capabilities, the payout route and the frontend/Figma wiring."
+      "remaining": "Stripe test transfers move the reserved provider net to a linked account after eligibility checks and reconcile against Stripe. Verify the hosted LKR transfer route and frontend/Figma wiring. Add bank payout confirmation, fee settlement, reversal accounting and repair of blocked reservations."
     },
     {
       "id": "BE-049",

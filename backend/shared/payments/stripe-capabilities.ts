@@ -17,7 +17,10 @@ const countrySpec = z.object({
 });
 const balance = z.object({
   object: z.literal('balance'), livemode: z.literal(false),
-  available: z.array(z.object({ currency, amount: z.number().int() })).max(300),
+  available: z.array(z.object({
+    currency, amount: z.number().int(),
+    source_types: z.object({ card: z.number().int().optional() }).nullish(),
+  })).max(300),
 });
 
 export const stripeCapabilities = z.object({
@@ -46,7 +49,8 @@ function stripeRead(key: string, send: typeof fetch) {
   };
 }
 
-async function readTestAccounts(key: string, destinationId: string | undefined, send: typeof fetch) {
+export async function readStripeTestAccounts(key: string, destinationId?: string, send = fetch) {
+  if (!key.startsWith('sk_test_') || (destinationId !== undefined && !stripeAccountId.safeParse(destinationId).success)) return null;
   const read = stripeRead(key, send);
   const [platform, funds, candidate] = await Promise.all([
     read('account', account), read('balance', balance),
@@ -59,7 +63,7 @@ async function readTestAccounts(key: string, destinationId: string | undefined, 
 
 export async function verifyStripeTestDestination(key: string | undefined, accountId: string, send = fetch) {
   if (!key?.startsWith('sk_test_') || !stripeAccountId.safeParse(accountId).success) return null;
-  const evidence = await readTestAccounts(key, accountId, send);
+  const evidence = await readStripeTestAccounts(key, accountId, send);
   if (!evidence || evidence.destination?.controller?.is_controller !== true) return null;
   return { platformAccountId: evidence.platform.id, stripeAccountId: evidence.destination.id, accountCountry: evidence.destination.country };
 }
@@ -71,7 +75,7 @@ export async function checkStripeCapabilities(key: string | undefined, destinati
     return { status: 'unavailable' as const, ...empty };
   }
 
-  const evidence = await readTestAccounts(key, destinationId, send);
+  const evidence = await readStripeTestAccounts(key, destinationId, send);
   if (!evidence) return { status: 'unavailable' as const, ...empty };
   const { platform, funds, destination } = evidence;
   const read = stripeRead(key, send);

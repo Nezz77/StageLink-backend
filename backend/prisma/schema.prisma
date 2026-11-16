@@ -101,6 +101,7 @@ model AuthUser {
   reminderActions ReminderAdminAction[]
   paymentRecoveries PaymentRecoveryAction[]
   stripeRefundExecutions StripeRefundExecution[]
+  stripePayoutTransfers StripePayoutTransfer[]
   payHereRefundExecutions PayHereRefundExecution[]
   openedDisputes BookingDispute[] @relation("DisputeOpener")
   dismissedDisputes BookingDispute[] @relation("DisputeDismisser")
@@ -302,6 +303,7 @@ model StripePayoutDestinationLink {
   ender AuthUser? @relation("StripeDestinationEnder", fields: [endedBy], references: [id], onDelete: Restrict)
   replaces StripePayoutDestinationLink? @relation("StripeDestinationReplacement", fields: [replacesId], references: [id], onDelete: Restrict)
   replacements StripePayoutDestinationLink[] @relation("StripeDestinationReplacement")
+  transfers StripePayoutTransfer[]
   @@unique([providerId, requestKey])
   @@index([providerId, createdAt(sort: Desc)], map: "stripe_payout_destination_history")
   @@map("stripe_payout_destination_links")
@@ -799,6 +801,7 @@ model FinancialAccount {
   kind JournalAccountKind
   postingRevision BigInt @default(0) @map("posting_revision")
   entries JournalEntry[]
+  stripePayoutTransfers StripePayoutTransfer[]
   @@unique([scope, currency, purpose, kind])
   @@unique([id, currency, purpose])
   @@map("financial_accounts")
@@ -816,6 +819,7 @@ model JournalTransaction {
   stripeAttempt StripeAttempt?
   paymentRecovery PaymentRecoveryAction?
   stripeRefundSettlement StripeRefundExecution?
+  stripePayoutTransfer StripePayoutTransfer?
   payHereRefundSettlement PayHereRefundExecution?
   refundReservation RefundItem?
   payoutReservation PayoutOrder?
@@ -1110,9 +1114,39 @@ model PayoutOrder {
   destination PayoutDestinationVersion @relation(fields: [providerId, destinationRevision], references: [userId, revision], onDelete: Restrict, map: "payout_orders_destination_fkey")
   creator AuthUser @relation(fields: [createdBy], references: [id], onDelete: Restrict)
   reservation JournalTransaction @relation(fields: [reservationId], references: [id], onDelete: Restrict)
+  stripeTransfer StripePayoutTransfer?
   @@index([providerId])
   @@map("payout_orders")
 }
+
+enum StripePayoutTransferState {
+  uncertain
+  transferred
+  review_required
+}
+
+model StripePayoutTransfer {
+  id String @id @default(uuid()) @db.Uuid
+  payoutId String @unique @map("payout_id") @db.Uuid
+  destinationLinkId String @map("destination_link_id") @db.Uuid
+  actorId String @map("actor_id") @db.Uuid
+  reservedAccountId String @map("reserved_account_id") @db.Uuid
+  amountMinor Int @map("amount_minor")
+  status StripePayoutTransferState @default(uncertain)
+  providerTransferId String? @unique @map("provider_transfer_id") @db.VarChar(150)
+  journalId String? @unique @map("journal_id") @db.Uuid
+  leaseId String? @map("lease_id") @db.Uuid
+  leaseUntil DateTime? @map("lease_until") @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
+  payout PayoutOrder @relation(fields: [payoutId], references: [id], onDelete: Restrict)
+  destination StripePayoutDestinationLink @relation(fields: [destinationLinkId], references: [id], onDelete: Restrict)
+  actor AuthUser @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  reservedAccount FinancialAccount @relation(fields: [reservedAccountId], references: [id], onDelete: Restrict)
+  journal JournalTransaction? @relation(fields: [journalId], references: [id], onDelete: Restrict)
+  @@map("stripe_payout_transfers")
+}
+
 
 enum BookingDocumentKind {
   invoice

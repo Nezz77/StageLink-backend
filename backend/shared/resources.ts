@@ -3,7 +3,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { Redis } from 'ioredis';
 import type { Config } from './config.js';
 
-export const MIGRATION = '20261116170000_stripe_payout_destinations';
+export const MIGRATION = '20261116212000_stripe_payout_transfers';
 export function createDb(config: Config) {
   return new PrismaClient({ adapter: new PrismaPg({
     connectionString: config.DATABASE_URL, connectionTimeoutMillis: 3000,
