@@ -3,17 +3,16 @@ import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiParam, ApiTags } from '@nestj
 import { randomUUID } from 'node:crypto';
 import type { Request } from 'express';
 import { z } from 'zod';
-import type { Prisma, StripeRefundExecution } from '../../../generated/prisma/client.js';
-import { notifyUsers } from '../../../shared/notifications.js';
-import { openAccount, postedBalance, postJournal } from '../../../shared/payments/journal.js';
+import type { StripeRefundExecution } from '../../../generated/prisma/client.js';
 import { observeStripe } from '../../../shared/payments/reconciliation.js';
 import { processStripeRefund } from '../../../shared/payments/stripe-refunds.js';
 import { PublicError } from '../auth/errors.js';
-import type { AuthService, Identity } from '../auth/service.js';
+import type { AuthService } from '../auth/service.js';
 import { lockBooking } from '../bookings/lifecycle.js';
 import { ProfileService } from '../profiles/service.js';
 import { lockPaymentOrder } from './capture.js';
 import { parse, schema, uuid } from './orders.js';
+import { refundItem, requireRecentIndependentAdmin, reservedFunds, settleRefund, validApprovedRefund, type Item } from './refund-reservations.js';
 
 const empty = z.object({}).strict();
 const view = z.object({
@@ -21,18 +20,6 @@ const view = z.object({
   state: z.enum(['processing', 'pending', 'uncertain', 'failed', 'succeeded']),
   createdAt: z.iso.datetime(), updatedAt: z.iso.datetime(),
 });
-const includes = {
-  request: { include: { booking: { select: { customerId: true, providerId: true } } } },
-  order: { include: {
-    stripeAttempt: { select: {
-      id: true, sessionId: true, expiresAt: true, journalId: true,
-      journal: { select: { source: true, reference: true, postedAt: true } },
-    } },
-    payhereAttempt: { select: { id: true } },
-  } },
-  stripeExecution: true,
-} satisfies Prisma.RefundItemInclude;
-
 function present(row: StripeRefundExecution) {
   const { id, orderId, requestId, status, amountMinor, createdAt, updatedAt } = row;
   return { id, orderId, requestId, amountMinor, state: row.leaseUntil && row.leaseUntil > new Date() ? 'processing' : status,
@@ -43,49 +30,10 @@ function notEligible() {
   return new PublicError(409, 'STRIPE_REFUND_NOT_ELIGIBLE', 'The approved Stripe refund reservation needs review.');
 }
 
-async function refundItem(tx: Prisma.TransactionClient, requestId: string, orderId: string) {
-  const row = await tx.refundItem.findUnique({
-    where: { requestId_orderId: { requestId, orderId } }, include: includes,
-  });
-  if (!row) throw new PublicError(404, 'REFUND_ITEM_NOT_FOUND', 'This refund line is unavailable.');
-  return row;
-}
-
-type Item = Awaited<ReturnType<typeof refundItem>>;
-type Reserved = { accountId: string; purpose: 'deposit' | 'service' };
-
 function hasValidCapture(item: Item) {
   const stripe = item.order.stripeAttempt;
-  return item.request.status === 'approved' && item.order.bookingId === item.request.bookingId &&
-    !item.order.payhereAttempt && Boolean(stripe?.sessionId && stripe.journal?.postedAt &&
-      stripe.journal.source === 'stripe.test.capture' && stripe.journal.reference === stripe.sessionId) &&
-    item.order.currency === 'LKR' && item.amountMinor === item.order.amountMinor;
-}
-
-async function reservedFunds(tx: Prisma.TransactionClient, item: Item): Promise<Reserved | null> {
-  if (!item.reservationId || !hasValidCapture(item)) return null;
-  const purpose = item.order.purpose === 'deposit' ? 'deposit' : 'service';
-  const amount = BigInt(item.amountMinor);
-  const posting = await tx.journalEntry.findFirst({
-    where: {
-      transactionId: item.reservationId, amountMinor: amount,
-      transaction: { source: 'refund.sandbox.reserve', postedAt: { not: null } },
-      account: { scope: 'sandbox:refund:' + item.requestId + ':' + item.orderId, kind: 'reserved', currency: 'LKR', purpose },
-    },
-    select: { accountId: true },
-  });
-  if (!posting || await postedBalance(tx, posting.accountId) < amount) return null;
-  return { accountId: posting.accountId, purpose };
-}
-
-function requireRecentIndependentAdmin(actor: Identity, item: Item) {
-  const { customerId, providerId } = item.request.booking;
-  if (actor.user.id === customerId || actor.user.id === providerId) {
-    throw new PublicError(403, 'SELF_REVIEW_FORBIDDEN', 'Another administrator must execute this refund.');
-  }
-  if (Date.now() - actor.session.createdAt.getTime() >= 15 * 60_000) {
-    throw new PublicError(403, 'RECENT_LOGIN_REQUIRED', 'Sign in again before executing this refund.');
-  }
+  return validApprovedRefund(item) && !item.order.payhereAttempt && Boolean(stripe?.sessionId && stripe.journal?.postedAt &&
+    stripe.journal.source === 'stripe.test.capture' && stripe.journal.reference === stripe.sessionId);
 }
 
 export function makeStripeRefundExecutionController(auth: AuthService) {
@@ -190,14 +138,7 @@ export function makeStripeRefundExecutionController(auth: AuthService) {
 
         let settlementId: string | undefined;
         if (observation?.status === 'succeeded') {
-          const fund = { currency: 'LKR', purpose: claim.reserved.purpose };
-          const clearing = await openAccount(tx, { ...fund, scope: 'gateway:stripe:test', kind: 'clearing' });
-          const amount = BigInt(current.amountMinor);
-          settlementId = await postJournal(tx, { ...fund, source: 'stripe.test.refund.settle', reference: observation.id }, [
-            { accountId: claim.reserved.accountId, amountMinor: -amount }, { accountId: clearing.id, amountMinor: amount },
-          ]);
-          const { customerId, providerId } = source.request.booking;
-          await notifyUsers(tx, [customerId, providerId], 'payment', source.request.bookingId, 'stripe-refund:' + current.id);
+          settlementId = await settleRefund(tx, source, claim.reserved, 'stripe', observation.id, current.id, current.amountMinor);
         }
         const status = !observation ? 'uncertain' : settlementId ? 'succeeded'
           : observation.status === 'failed' || observation.status === 'canceled' ? 'failed' : 'pending';

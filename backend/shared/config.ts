@@ -48,6 +48,7 @@ const schema = z.object({
   STRIPE_TEST_WEBHOOK_SECRET: optionalSetting(z.string().regex(/^whsec_[A-Za-z0-9_]{1,250}$/)),
   PAYHERE_SANDBOX_MERCHANT_ID: optionalSetting(z.string().regex(/^\d{1,30}$/)),
   PAYHERE_SANDBOX_MERCHANT_SECRET: optionalSetting(z.string().min(1).max(256)),
+  PAYHERE_SANDBOX_REFUND_EXECUTION: z.enum(['true', 'false']).default('false'),
   PAYHERE_SANDBOX_RETRIEVAL_APP_ID: optionalSetting(z.string().regex(/^[A-Za-z0-9_-]{1,128}$/)),
   PAYHERE_SANDBOX_RETRIEVAL_APP_SECRET: optionalSetting(z.string().regex(/^[A-Za-z0-9_-]{1,256}$/)),
   PAYHERE_SANDBOX_NOTIFY_URL: optionalSetting(z.url({ protocol: /^https$/ }).refine(value => {
@@ -70,6 +71,9 @@ const schema = z.object({
   }
   if (config.STRIPE_TEST_REFUND_EXECUTION === 'true' && !config.STRIPE_TEST_SECRET_KEY) {
     ctx.addIssue({ code: 'custom', path: ['STRIPE_TEST_REFUND_EXECUTION'], message: 'Configure Stripe test credentials for refund execution.' });
+  }
+  if (config.PAYHERE_SANDBOX_REFUND_EXECUTION === 'true' && !config.PAYHERE_SANDBOX_RETRIEVAL_APP_ID) {
+    ctx.addIssue({ code: 'custom', path: ['PAYHERE_SANDBOX_REFUND_EXECUTION'], message: 'Configure the PayHere sandbox Merchant API settings.' });
   }
   const payHereSettings = [config.PAYHERE_SANDBOX_MERCHANT_ID, config.PAYHERE_SANDBOX_MERCHANT_SECRET, config.PAYHERE_SANDBOX_NOTIFY_URL];
   if (payHereSettings.some(Boolean) && !payHereSettings.every(Boolean)) {

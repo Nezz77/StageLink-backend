@@ -77,14 +77,15 @@ const payHereStatus = {
   REFUNDED: 'refunded',
   CHARGEBACKED: 'chargeback',
 } as const;
+const payHereReference = z.union([z.string().regex(/^\d{1,120}$/), z.number().int().positive()]).transform(String);
 const payHerePayment = z.object({
-  payment_id: z.union([z.string().regex(/^\d{1,120}$/), z.number().int().positive()]).transform(String),
+  payment_id: payHereReference,
   order_id: z.string(), currency: z.literal('LKR'),
   amount: z.union([z.string(), z.number()]).transform(String).pipe(z.string().regex(/^\d{1,10}(\.\d{1,2})?$/)),
   status: z.enum(['RECEIVED', 'REFUND REQUESTED', 'REFUND PROCESSING', 'REFUNDED', 'CHARGEBACKED']),
 });
 
-export function makePayHereObserver(appId: string | undefined, appSecret: string | undefined, send = fetch) {
+export function makePayHereSandboxClient(appId: string | undefined, appSecret: string | undefined, send = fetch) {
   let cached: { token: string; reuseUntil: number } | undefined;
   let opening: Promise<string> | undefined;
 
@@ -103,19 +104,24 @@ export function makePayHereObserver(appId: string | undefined, appSecret: string
     return cached.token;
   }
 
-  return async function observePayHere(attempt: { id: string; amountMinor: number }): Promise<Observation> {
-    if (!appId || !appSecret) return { status: 'unavailable' };
+  async function merchant(url: string | URL, body?: string) {
+    if (!appId || !appSecret) throw new Error('PayHere sandbox credentials unavailable.');
+    if (!cached || cached.reuseUntil <= Date.now()) opening ??= openToken().finally(() => { opening = undefined; });
+    const token = opening ? await opening : cached!.token;
+    const response = await send(url, {
+      method: body ? 'POST' : 'GET', redirect: 'error', signal: AbortSignal.timeout(8000), body,
+      headers: { Authorization: 'Bearer ' + token, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+    });
+    if (response.status === 401 && cached?.token === token) cached = undefined;
+    if (!response.ok) throw new Error('PayHere sandbox request failed.');
+    return response.json();
+  }
+
+  async function observe(attempt: { id: string; amountMinor: number }): Promise<Observation> {
     try {
-      if (!cached || cached.reuseUntil <= Date.now()) opening ??= openToken().finally(() => { opening = undefined; });
-      const token = opening ? await opening : cached!.token;
       const url = new URL(sandbox + 'payment/search');
       url.searchParams.set('order_id', attempt.id);
-      const response = await send(url, {
-        method: 'GET', redirect: 'error', signal: AbortSignal.timeout(8000), headers: { Authorization: 'Bearer ' + token },
-      });
-      if (response.status === 401 && cached?.token === token) cached = undefined;
-      if (!response.ok) return { status: 'unavailable' };
-      const payload = retrieval.parse(await response.json());
+      const payload = retrieval.parse(await merchant(url));
       if (payload.status !== 1) {
         if (payload.data?.length) return { status: 'mismatch' };
         if (payload.status === -1) return { status: 'not_found' };
@@ -132,5 +138,22 @@ export function makePayHereObserver(appId: string | undefined, appSecret: string
     } catch {
       return { status: 'unavailable' };
     }
-  };
+  }
+
+  async function refund(paymentId: string, executionId: string) {
+    try {
+      const response = z.object({ status: z.number().int(), data: payHereReference.nullable() }).parse(
+        await merchant(sandbox + 'payment/refund', JSON.stringify({
+          payment_id: payHereReference.parse(paymentId), description: 'StageLink booking refund ' + executionId,
+        })),
+      );
+      if (response.status === 1 && response.data) return { status: 'pending' as const, providerRefundId: response.data };
+      if ((response.status === 0 || response.status === -1) && response.data === null) {
+        return { status: 'failed' as const, providerRefundId: null };
+      }
+    } catch { /* The request may have been accepted before the response was lost. */ }
+    return { status: 'uncertain' as const, providerRefundId: null };
+  }
+
+  return { observe, refund };
 }

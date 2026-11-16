@@ -1681,7 +1681,7 @@
       "ui_coverage_ids": [
         "UI-037"
       ],
-      "remaining": "Stripe test refund execution and reconciliation post confirmed refunds from approved reservations. Verify actual Stripe test responses, add PayHere execution and repair of blocked reservations, and connect the existing frontend and Figma flows."
+      "remaining": "Stripe test and PayHere sandbox execution post confirmed full refunds from approved reservations. Verify both hosted providers, add repair of blocked reservations, and connect the existing frontend and Figma flows."
     },
     {
       "id": "BE-048",
@@ -2206,7 +2206,7 @@
       "ui_coverage_ids": [
         "UI-052"
       ],
-      "remaining": "Confirmed Stripe test refund settlements have total and daily analytics. Add other gateway settlements, payout and revenue analytics after execution, verify live totals, and connect the frontend charts and Figma integration."
+      "remaining": "Confirmed Stripe test and PayHere sandbox refund settlements have total and daily analytics. Add payout and revenue analytics after execution, verify live totals, and connect the frontend charts and Figma integration."
     },
     {
       "id": "BE-063",

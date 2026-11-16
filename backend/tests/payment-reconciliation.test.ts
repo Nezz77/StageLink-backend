@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { assessPayment, makePayHereObserver, observeStripe } from '../shared/payments/reconciliation.js';
+import { assessPayment, makePayHereSandboxClient, observeStripe } from '../shared/payments/reconciliation.js';
 
 const id = 'e4a51ba1-3863-44b9-ac18-19f036c75d09';
 const expiresAt = new Date('2030-01-01T00:35:00Z');
@@ -40,7 +40,7 @@ test('PayHere checks exact minor units, reuses sandbox credentials and reports d
   let data: unknown = { status: 1, data: [payment] };
   let tokenRequests = 0;
   const options = { id, amountMinor: 175001 };
-  const observer = makePayHereObserver('fixture-app', 'fixture-secret', async (url, init) => {
+  const { observe: observer } = makePayHereSandboxClient('fixture-app', 'fixture-secret', async (url, init) => {
     const request = new Request(url, init);
     if (request.url.endsWith('/oauth/token')) {
       tokenRequests++;
@@ -79,4 +79,25 @@ test('reconciliation distinguishes absent evidence from capture and posting disc
   assert.equal(assessPayment('cancelled', false, null, { status: 'expired' }), 'consistent');
   assert.equal(assessPayment('paid', true, '1', { status: 'chargeback' }), 'needs_review');
   assert.equal(assessPayment('pending', false, null, { status: 'not_found' }), 'inconclusive');
+});
+
+test('PayHere full refund distinguishes confirmed acceptance from an unknown response', async () => {
+  let refunds = 0;
+  const client = makePayHereSandboxClient('fixture-app', 'fixture-secret', async (url, init) => {
+    const request = new Request(url, init);
+    if (request.url.endsWith('/oauth/token')) {
+      return Response.json({ token_type: 'bearer', expires_in: 599, scope: 'SANDBOX', access_token: 'fixture-token' });
+    }
+    assert.equal(request.url, 'https://sandbox.payhere.lk/merchant/v1/payment/refund');
+    assert.equal(request.method, 'POST');
+    assert.deepEqual(await request.json(), {
+      payment_id: '320025071278', description: 'StageLink booking refund ' + id,
+    });
+    refunds++;
+    return refunds === 1 ? new Response(null, { status: 502 })
+      : Response.json({ status: 1, data: 560034010257 });
+  });
+  assert.deepEqual(await client.refund('320025071278', id), { status: 'uncertain', providerRefundId: null });
+  assert.equal(refunds, 1);
+  assert.deepEqual(await client.refund('320025071278', id), { status: 'pending', providerRefundId: '560034010257' });
 });

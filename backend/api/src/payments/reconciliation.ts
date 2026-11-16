@@ -7,7 +7,7 @@ import type { AuthService } from '../auth/service.js';
 import { PublicError } from '../auth/errors.js';
 import { lockBooking } from '../bookings/lifecycle.js';
 import { ProfileService } from '../profiles/service.js';
-import { assessPayment, makePayHereObserver, observeStripe, providerStatus } from '../../../shared/payments/reconciliation.js';
+import { assessPayment, makePayHereSandboxClient, observeStripe, providerStatus } from '../../../shared/payments/reconciliation.js';
 import { lockPaymentOrder, recordCapture, updatePaymentStatus } from './capture.js';
 import { parse, schema, uuid } from './orders.js';
 
@@ -71,7 +71,7 @@ export function makePaymentReconciliationController(auth: AuthService) {
   const db = auth.deps.db;
   const profiles = new ProfileService(auth);
   const config = auth.config;
-  const payHere = makePayHereObserver(config.PAYHERE_SANDBOX_RETRIEVAL_APP_ID, config.PAYHERE_SANDBOX_RETRIEVAL_APP_SECRET);
+  const payHere = makePayHereSandboxClient(config.PAYHERE_SANDBOX_RETRIEVAL_APP_ID, config.PAYHERE_SANDBOX_RETRIEVAL_APP_SECRET);
 
   async function assertAdmin(req: Request) {
     const actor = await auth.authenticate(req.get('Authorization'));
@@ -91,7 +91,7 @@ export function makePaymentReconciliationController(auth: AuthService) {
     if (order.stripeAttempt) {
       return observeStripe(config.STRIPE_TEST_SECRET_KEY, { ...order.stripeAttempt, amountMinor: order.amountMinor });
     }
-    return payHere({ id: order.payhereAttempt!.id, amountMinor: order.amountMinor });
+    return payHere.observe({ id: order.payhereAttempt!.id, amountMinor: order.amountMinor });
   }
 
   async function prior(

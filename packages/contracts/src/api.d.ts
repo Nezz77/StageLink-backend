@@ -3109,6 +3109,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/refund-requests/{id}/items/{orderId}/payhere-execution": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["PayHereRefundExecutionController_status"];
+        put?: never;
+        post: operations["PayHereRefundExecutionController_execute"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/payment-orders/{id}/sessions/stripe": {
         parameters: {
             query?: never;
@@ -16315,6 +16331,8 @@ export interface operations {
                                 reserved: boolean;
                                 /** @enum {string|null} */
                                 stripeExecutionStatus: "uncertain" | "pending" | "failed" | "succeeded" | null;
+                                /** @enum {string|null} */
+                                payHereExecutionStatus: "uncertain" | "pending" | "failed" | "succeeded" | null;
                             }[];
                         } | null;
                     };
@@ -16366,6 +16384,8 @@ export interface operations {
                             reserved: boolean;
                             /** @enum {string|null} */
                             stripeExecutionStatus: "uncertain" | "pending" | "failed" | "succeeded" | null;
+                            /** @enum {string|null} */
+                            payHereExecutionStatus: "uncertain" | "pending" | "failed" | "succeeded" | null;
                         }[];
                     };
                 };
@@ -16411,6 +16431,8 @@ export interface operations {
                                 reserved: boolean;
                                 /** @enum {string|null} */
                                 stripeExecutionStatus: "uncertain" | "pending" | "failed" | "succeeded" | null;
+                                /** @enum {string|null} */
+                                payHereExecutionStatus: "uncertain" | "pending" | "failed" | "succeeded" | null;
                             }[];
                         }[];
                         /** Format: uuid */
@@ -16466,6 +16488,8 @@ export interface operations {
                             reserved: boolean;
                             /** @enum {string|null} */
                             stripeExecutionStatus: "uncertain" | "pending" | "failed" | "succeeded" | null;
+                            /** @enum {string|null} */
+                            payHereExecutionStatus: "uncertain" | "pending" | "failed" | "succeeded" | null;
                         }[];
                     };
                 };
@@ -18750,6 +18774,84 @@ export interface operations {
                     "application/json": {
                         /** @enum {boolean} */
                         received: true;
+                    };
+                };
+            };
+        };
+    };
+    PayHereRefundExecutionController_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                orderId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        execution: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            orderId: string;
+                            /** Format: uuid */
+                            requestId: string;
+                            amountMinor: number;
+                            /** @enum {string} */
+                            state: "pending" | "uncertain" | "failed" | "succeeded";
+                            /** Format: date-time */
+                            createdAt: string;
+                            /** Format: date-time */
+                            updatedAt: string;
+                        } | null;
+                    };
+                };
+            };
+        };
+    };
+    PayHereRefundExecutionController_execute: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                orderId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uuid */
+                        orderId: string;
+                        /** Format: uuid */
+                        requestId: string;
+                        amountMinor: number;
+                        /** @enum {string} */
+                        state: "pending" | "uncertain" | "failed" | "succeeded";
+                        /** Format: date-time */
+                        createdAt: string;
+                        /** Format: date-time */
+                        updatedAt: string;
                     };
                 };
             };

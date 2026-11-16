@@ -118,6 +118,13 @@ async function financialFacts(tx: Prisma.TransactionClient, period: Period, prov
       JOIN financial_accounts a ON a.id = e.account_id AND a.kind = 'clearing' AND a.scope = 'gateway:stripe:test'
       WHERE j.source = 'stripe.test.refund.settle' AND r.status = 'succeeded'
       UNION ALL
+      SELECT j.posted_at, o.booking_id, 'refundedMinor', e.amount_minor
+      FROM journal j JOIN payhere_refund_executions r ON r.settlement_id = j.id
+      JOIN payment_orders o ON o.id = r.order_id
+      JOIN journal_entries e ON e.transaction_id = j.id AND e.amount_minor > 0
+      JOIN financial_accounts a ON a.id = e.account_id AND a.kind = 'clearing' AND a.scope = 'gateway:payhere:sandbox'
+      WHERE j.source = 'payhere.sandbox.refund.settle' AND r.status = 'succeeded'
+      UNION ALL
       SELECT j.posted_at, d.booking_id, split.metric, split.minor
       FROM journal j JOIN damage_claims d ON d.reservation_id = j.id
       CROSS JOIN LATERAL (VALUES ('refundReservedMinor', d.refund_minor), ('payoutReservedMinor', d.deduction_minor)) AS split(metric, minor)
