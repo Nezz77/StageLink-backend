@@ -1132,6 +1132,7 @@ model StripePayoutTransfer {
   actorId String @map("actor_id") @db.Uuid
   reservedAccountId String @map("reserved_account_id") @db.Uuid
   amountMinor Int @map("amount_minor")
+  reversedMinor Int @default(0) @map("reversed_minor")
   status StripePayoutTransferState @default(uncertain)
   providerTransferId String? @unique @map("provider_transfer_id") @db.VarChar(150)
   journalId String? @unique @map("journal_id") @db.Uuid

@@ -19237,6 +19237,7 @@ export interface operations {
                             amountMinor: number;
                             /** @enum {string} */
                             currency: "LKR";
+                            reversedMinor: number;
                             /** @enum {string} */
                             state: "processing" | "uncertain" | "transferred" | "review_required";
                             providerTransferId: string | null;
@@ -19282,6 +19283,7 @@ export interface operations {
                         amountMinor: number;
                         /** @enum {string} */
                         currency: "LKR";
+                        reversedMinor: number;
                         /** @enum {string} */
                         state: "processing" | "uncertain" | "transferred" | "review_required";
                         providerTransferId: string | null;

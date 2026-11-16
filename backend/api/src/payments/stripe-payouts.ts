@@ -17,6 +17,7 @@ import { assertPayoutProvider } from './payout-eligibility.js';
 const command = z.object({ reconcileOnly: z.boolean().optional() }).strict();
 const view = z.object({
   id: uuid, payoutId: uuid, destinationLinkId: uuid, amountMinor: z.number().int().positive(), currency: z.literal('LKR'),
+  reversedMinor: z.number().int().nonnegative(),
   state: z.enum(['processing', 'uncertain', 'transferred', 'review_required']),
   providerTransferId: z.string().nullable(), createdAt: z.iso.datetime(), updatedAt: z.iso.datetime(),
 });
@@ -27,9 +28,9 @@ const payoutInclude = {
 } satisfies Prisma.PayoutOrderInclude;
 
 function present(row: StripePayoutTransfer) {
-  const { id, payoutId, destinationLinkId, amountMinor, status, providerTransferId, createdAt, updatedAt } = row;
+  const { id, payoutId, destinationLinkId, amountMinor, reversedMinor, status, providerTransferId, createdAt, updatedAt } = row;
   return {
-    id, payoutId, destinationLinkId, amountMinor, currency: 'LKR' as const, providerTransferId,
+    id, payoutId, destinationLinkId, amountMinor, reversedMinor, currency: 'LKR' as const, providerTransferId,
     state: row.leaseUntil && row.leaseUntil > new Date() ? 'processing' : status,
     createdAt: createdAt.toISOString(), updatedAt: updatedAt.toISOString(),
   };
@@ -221,19 +222,33 @@ export function makeStripePayoutTransfersController(auth: AuthService) {
         const current = await tx.stripePayoutTransfer.findUniqueOrThrow({ where: { id: claim.record.id } });
         if (current.leaseId !== claim.leaseId) return present(current);
 
+        const confirmed = result && result.reversedMinor >= current.reversedMinor &&
+          (current.status !== 'review_required' || result.reversedMinor > 0) ? result : null;
+        const reversedMinor = confirmed?.reversedMinor ?? current.reversedMinor;
+        const returned = reversedMinor - current.reversedMinor;
         let journalId = current.journalId;
-        if (result && !result.reversed && current.status === 'uncertain') {
+        if (confirmed && (!journalId || returned > 0)) {
           const fund = { currency: 'LKR', purpose: 'service' } as const;
           const clearing = await openAccount(tx, { ...fund, scope: 'gateway:stripe:test', kind: 'clearing' });
-          const amount = BigInt(current.amountMinor);
-          journalId = await postJournal(tx, { ...fund, source: 'stripe.test.payout.transfer', reference: result.id }, [
-            { accountId: current.reservedAccountId, amountMinor: -amount }, { accountId: clearing.id, amountMinor: amount },
-          ]);
+          if (!journalId) {
+            const amount = BigInt(current.amountMinor);
+            journalId = await postJournal(tx, { ...fund, source: 'stripe.test.payout.transfer', reference: confirmed.id }, [
+              { accountId: current.reservedAccountId, amountMinor: -amount }, { accountId: clearing.id, amountMinor: amount },
+            ]);
+          }
+          if (returned > 0) {
+            const amount = BigInt(returned);
+            await postJournal(tx, {
+              ...fund, source: 'stripe.test.payout.transfer_reversal', reference: current.id + ':' + reversedMinor,
+            }, [
+              { accountId: clearing.id, amountMinor: -amount }, { accountId: current.reservedAccountId, amountMinor: amount },
+            ]);
+          }
         }
-        const status = result?.reversed ? 'review_required' : journalId && current.status === 'uncertain' ? 'transferred' : current.status;
+        const status = confirmed ? reversedMinor > 0 ? 'review_required' : 'transferred' : current.status;
         return present(await tx.stripePayoutTransfer.update({
           where: { id: current.id }, data: {
-            status, journalId, providerTransferId: result?.id ?? current.providerTransferId,
+            status, journalId, reversedMinor, providerTransferId: confirmed?.id ?? current.providerTransferId,
             leaseId: null, leaseUntil: null, updatedAt: new Date(),
           },
         }));

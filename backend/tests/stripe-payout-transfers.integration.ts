@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { test } from 'node:test';
+import { test, type TestContext } from 'node:test';
 import { SignJWT } from 'jose';
 import { createApp } from '../api/src/app.js';
 import { csrfFor } from '../api/src/auth/security.js';
@@ -17,7 +17,12 @@ if (config.NODE_ENV !== 'test' || !new URL(config.DATABASE_URL).pathname.endsWit
   throw new Error('Stripe payout transfers require an isolated *_test database.');
 }
 
-test('approved Stripe transfers reconcile exactly once, including after a hold and a later reversal', async t => {
+test('approved Stripe transfers reconcile exactly once, including after a hold and a later reversal', t =>
+  checkPayoutReconciliation(t, 0));
+test('a transfer already partially reversed at first confirmation records both journal movements', t =>
+  checkPayoutReconciliation(t, 1000));
+
+async function checkPayoutReconciliation(t: TestContext, initialReversedMinor: number) {
   const localFetch = globalThis.fetch;
   const sessions = new Map<string, object>();
   const stripeId = 'acct_' + randomUUID().replaceAll('-', '');
@@ -77,13 +82,14 @@ test('approved Stripe transfers reconcile exactly once, including after a hold a
       await waitForResponse;
       return new Response(null, { status: 500 });
     }
+    const observedTransfer = { ...transfer, amount_reversed: reversedMinor, reversed: reversedMinor === 95000 };
     if (url.pathname === '/v1/transfers') {
       assert.equal(url.searchParams.get('transfer_group'), transfer?.transfer_group);
       assert.equal(url.searchParams.get('destination'), stripeId);
-      return Response.json({ object: 'list', has_more: false, data: transfer ? [transfer] : [] });
+      return Response.json({ object: 'list', has_more: false, data: transfer ? [observedTransfer] : [] });
     }
     assert.equal(url.pathname, '/v1/transfers/' + transfer?.id);
-    return Response.json({ ...transfer, amount_reversed: reversedMinor });
+    return Response.json(observedTransfer);
   });
 
   const deps = resources(config);
@@ -192,20 +198,23 @@ test('approved Stripe transfers reconcile exactly once, including after a hold a
     } finally { release(); }
     assert.equal((await (await first).json()).state, 'uncertain');
 
+    reversedMinor = initialReversedMinor;
     const reconciliation = await submit(admin, { reconcileOnly: true });
     assert.equal(reconciliation.status, 200);
     const saved = await reconciliation.json();
-    assert.equal(saved.state, 'transferred');
+    const expectedState = initialReversedMinor ? 'review_required' : 'transferred';
+    assert.equal(saved.state, expectedState);
     assert.equal(saved.destinationLinkId, link.id);
     assert.equal(saved.amountMinor, 95000);
+    assert.equal(saved.reversedMinor, initialReversedMinor);
     assert.equal(submissions, 1);
-    assert.equal(await postedBalance(deps.db, reserved.account.id), 5000n);
+    assert.equal(await postedBalance(deps.db, reserved.account.id), 5000n + BigInt(initialReversedMinor));
     const view = await fetch(base + 'payouts/' + payoutId, provider);
-    assert.equal((await view.json()).stripeTransferStatus, 'transferred');
+    assert.equal((await view.json()).stripeTransferStatus, expectedState);
     const earnings = await fetch(base + 'me/earnings', provider);
     const summary = (await earnings.json()).items[0].payout;
     assert.equal(summary.id, payoutId);
-    assert.equal(summary.stripeTransferStatus, 'transferred');
+    assert.equal(summary.stripeTransferStatus, expectedState);
     assert.equal(Object.hasOwn(summary, 'stripeTransfer'), false);
     assert.deepEqual(await (await fetch(path, admin)).json(), { transfer: saved });
     assert.deepEqual(await (await submit()).json(), saved);
@@ -213,8 +222,26 @@ test('approved Stripe transfers reconcile exactly once, including after a hold a
     assert.equal(stored.journal?.source, 'stripe.test.payout.transfer');
 
     reversedMinor = 1000;
-    assert.equal((await (await submit(admin, { reconcileOnly: true })).json()).state, 'review_required');
-    assert.equal(await postedBalance(deps.db, reserved.account.id), 5000n);
+    const partial = await (await submit(admin, { reconcileOnly: true })).json();
+    assert.equal(partial.state, 'review_required');
+    assert.equal(partial.reversedMinor, 1000);
+    assert.equal(await postedBalance(deps.db, reserved.account.id), 6000n);
+
+    assert.equal((await (await submit(admin, { reconcileOnly: true })).json()).reversedMinor, 1000);
+    reversedMinor = 500;
+    assert.equal((await (await submit(admin, { reconcileOnly: true })).json()).reversedMinor, 1000);
+    assert.equal(await postedBalance(deps.db, reserved.account.id), 6000n);
+
+    reversedMinor = 95000;
+    const full = await (await submit(admin, { reconcileOnly: true })).json();
+    assert.equal(full.state, 'review_required');
+    assert.equal(full.reversedMinor, 95000);
+    assert.equal(await postedBalance(deps.db, reserved.account.id), 100000n);
+    const reversalPostings = await deps.db.journalEntry.findMany({
+      where: { accountId: reserved.account.id, transaction: { source: 'stripe.test.payout.transfer_reversal' } },
+      orderBy: { amountMinor: 'asc' },
+    });
+    assert.deepEqual(reversalPostings.map(posting => posting.amountMinor), [1000n, 94000n]);
     assert.equal((await deps.db.stripePayoutTransfer.findUniqueOrThrow({ where: { payoutId } })).journalId, stored.journalId);
     assert.equal(submissions, 1);
   } finally {
@@ -237,4 +264,4 @@ test('approved Stripe transfers reconcile exactly once, including after a hold a
       await deps.db.authUser.deleteMany({ where: { id: { in: users } } });
     } finally { await app.close(); }
   }
-});
+}

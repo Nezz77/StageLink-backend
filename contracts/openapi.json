@@ -49102,6 +49102,11 @@
                             "LKR"
                           ]
                         },
+                        "reversedMinor": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
                         "state": {
                           "type": "string",
                           "enum": [
@@ -49132,6 +49137,7 @@
                         "destinationLinkId",
                         "amountMinor",
                         "currency",
+                        "reversedMinor",
                         "state",
                         "providerTransferId",
                         "createdAt",
@@ -49222,6 +49228,11 @@
                         "LKR"
                       ]
                     },
+                    "reversedMinor": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
                     "state": {
                       "type": "string",
                       "enum": [
@@ -49252,6 +49263,7 @@
                     "destinationLinkId",
                     "amountMinor",
                     "currency",
+                    "reversedMinor",
                     "state",
                     "providerTransferId",
                     "createdAt",

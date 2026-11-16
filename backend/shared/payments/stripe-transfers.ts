@@ -9,7 +9,7 @@ const transfer = z.object({
   amount: z.number().int().positive(), destination: stripeAccountId,
   transfer_group: z.string(), metadata: z.object({ stagelink_payout_transfer: z.uuid() }),
   reversed: z.boolean(), amount_reversed: z.number().int().nonnegative(),
-}).refine(value => value.amount_reversed <= value.amount);
+}).refine(value => value.amount_reversed <= value.amount && value.reversed === (value.amount_reversed === value.amount));
 const page = z.object({ object: z.literal('list'), has_more: z.boolean(), data: z.array(z.unknown()).max(2) });
 const paymentIntent = z.object({
   object: z.literal('payment_intent'), id: z.string(), livemode: z.literal(false), currency: z.literal('lkr'),
@@ -60,7 +60,7 @@ export async function processStripePayoutTransfer(
     if (!success || data.transfer_group !== group || data.metadata.stagelink_payout_transfer !== expected.id ||
       data.destination !== expected.stripeAccountId || data.amount !== expected.amountMinor ||
       (expected.providerTransferId && data.id !== expected.providerTransferId)) return null;
-    return { id: data.id, reversed: data.reversed || data.amount_reversed > 0 };
+    return { id: data.id, reversedMinor: data.amount_reversed };
   }
   try {
     if (expected.providerTransferId) {

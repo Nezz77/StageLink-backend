@@ -37,6 +37,7 @@ test('Stripe transfer reconciliation requires exact test evidence and reports pa
   for (const patch of [
     { livemode: true }, { amount: 95001 }, { currency: 'usd' }, { destination: 'acct_wrong' },
     { metadata: {} }, { transfer_group: 'unrelated' },
+    { amount_reversed: 95001 }, { amount_reversed: 95000 }, { reversed: true },
   ]) {
     assert.equal(await processStripePayoutTransfer('sk_test_fixture', expected, false, async (_url, init) => {
       assert.equal(init?.method, 'GET');
@@ -44,9 +45,12 @@ test('Stripe transfer reconciliation requires exact test evidence and reports pa
     }), null);
   }
   assert.deepEqual(await processStripePayoutTransfer('sk_test_fixture', expected, false, async () =>
-    Response.json({ object: 'list', has_more: false, data: [response] })), { id: response.id, reversed: false });
+    Response.json({ object: 'list', has_more: false, data: [response] })), { id: response.id, reversedMinor: 0 });
   assert.deepEqual(await processStripePayoutTransfer('sk_test_fixture', { ...expected, providerTransferId: response.id }, false, async url => {
     assert.equal(String(url), 'https://api.stripe.com/v1/transfers/tr_fixture');
     return Response.json({ ...response, amount_reversed: 1000 });
-  }), { id: response.id, reversed: true });
+  }), { id: response.id, reversedMinor: 1000 });
+  assert.deepEqual(await processStripePayoutTransfer('sk_test_fixture', { ...expected, providerTransferId: response.id }, false, async () =>
+    Response.json({ ...response, reversed: true, amount_reversed: expected.amountMinor })),
+    { id: response.id, reversedMinor: expected.amountMinor });
 });
