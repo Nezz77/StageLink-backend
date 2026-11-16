@@ -84,7 +84,7 @@ A checked box marks implemented backend code. PostgreSQL integration, client wir
 
 - [x] GitHub CI passed through `78705a3` using PostgreSQL, Redis, Mailpit and S3Mock. See [run 43754928062](https://github.com/Nezz77/StageLink-backend/actions/runs/43754928062).
 - [x] Local listing-embedding checks passed with all migrations applied to isolated PGlite, Redis, mocked model calls, 37 Node unit tests and 21 FastAPI tests.
-- [ ] Run the full dependency-backed suite in GitHub CI for the new listing-embedding migration and API.
+- [x] GitHub CI passed for listing embeddings at `0abecf3`. It applied the migrations twice and passed PostgreSQL, Redis, Mailpit and S3Mock integration, contract regeneration and both container builds. See [run 43807860434](https://github.com/Nezz77/StageLink-backend/actions/runs/43807860434).
 - [ ] Reconcile the [team frontend](https://github.com/Nezz77/StageLink) with the current backend contracts. Update the corresponding StageLink Figma screens and flows during each UI task.
 - [ ] Verify hosted model calls, signed sandbox payment callbacks, gateway reconciliation and two-account booking flows in staging.
 
