@@ -2949,6 +2949,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/payment-orders/{id}/reconciliation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["PaymentReconciliationController_check"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/earnings": {
         parameters: {
             query?: never;
@@ -18193,6 +18209,41 @@ export interface operations {
                         status: "open" | "pending" | "failed" | "cancelled" | "paid" | "review";
                         /** Format: date-time */
                         createdAt: string;
+                    };
+                };
+            };
+        };
+    };
+    PaymentReconciliationController_check: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        orderId: string;
+                        /** @enum {string|null} */
+                        gateway: "stripe" | "payhere" | null;
+                        /** @enum {string} */
+                        localStatus: "open" | "pending" | "failed" | "cancelled" | "paid" | "review";
+                        localCaptureRecorded: boolean;
+                        /** @enum {string} */
+                        providerStatus: "not_started" | "unavailable" | "not_found" | "pending" | "expired" | "captured" | "refund_pending" | "refunded" | "chargeback" | "mismatch" | "multiple_payments";
+                        /** @enum {string} */
+                        assessment: "consistent" | "needs_review" | "inconclusive";
+                        /** Format: date-time */
+                        checkedAt: string;
                     };
                 };
             };

@@ -9,7 +9,7 @@ Updated 16 November 2026. Scope comes from the final proposal, sections 4, 5 and
 | Accounts and onboarding | Registration, email verification, recovery, role-scoped sessions, provider profiles and approvals, and private media with publication review |
 | Marketplace and discovery | Published artist gigs and packages, equipment, venues and bundles, serialized inventory, galleries, deposit policies, filtered search, public feed, saved items, private event briefs, drafts and inquiries |
 | Booking and communication | Availability calendars, renewable holds, booking and quote revisions, authenticated agreements, persistent chat and attachments, completion, and verified reviews |
-| Payments and rentals | Sandbox checkout and signed notification handlers, immutable financial journal, refund and payout reservations, sandbox invoices and receipts, inspections, deposit claims and arbitration reservations |
+| Payments and rentals | Sandbox checkout and signed notification handlers, administrator checkout reconciliation, immutable financial journal, refund and payout reservations, sandbox invoices and receipts, inspections, deposit claims and arbitration reservations |
 | AI | Weighted top-three recommendations, matching weight and prompt versioning, model usage, private artist writing suggestions, approved-source equipment lookups, versioned gig embeddings, and opt-in semantic reranking |
 | Administration and operations | Provider verification history, support, dispute review, in-app notifications, email reminder queues, consent-based email campaigns, announcements, maintenance controls and sandbox analytics |
 
@@ -17,7 +17,7 @@ Updated 16 November 2026. Scope comes from the final proposal, sections 4, 5 and
 
 | Order | Task | Completion criteria |
 | --- | --- | --- |
-| 1 | Sandbox payments and reconciliation, P11–P14 | Verify real PayHere and Stripe test callbacks with merchant accounts, confirm supported LKR and Connect capabilities, and reconcile duplicate, delayed and missing gateway events. |
+| 1 | Sandbox payments and reconciliation, P11–P14 | Verify real PayHere and Stripe test callbacks and retrieval with merchant accounts, confirm supported LKR and Connect capabilities, and add audited recovery for missing gateway events identified by the reconciliation check. |
 | 2 | Refunds, payouts and arbitration, P12–P16 | Execute approved money movements through the gateways and record settlements, retries and failure recovery. Use settled data for production documents and P18 financial analytics. |
 | 3 | Equipment references and verification evidence, P15–P16 | Populate the equipment catalog from approved manufacturer sources and add protected PDF evidence upload and access. These tasks can run alongside payment work. |
 | 4 | Hosted communication, P10 and P17 | Verify live SMTP reminders and campaigns, add consent-based SMS and delivery reconciliation, and verify WebSocket upgrades and multi-instance booking chat. |
@@ -42,7 +42,8 @@ A checked box marks implemented backend code. PostgreSQL integration, client wir
 - [x] P11 server-priced advance and deposit orders with participant-only status reads.
 - [x] P11 PayHere sandbox hosted checkout and signed notification intake for advances and deposits.
 - [x] P11 Stripe test-mode hosted Checkout and signed notification intake for advances and deposits.
-- [ ] P11 Verify real PayHere and Stripe sandbox callbacks, confirm Stripe merchant LKR support and Connect eligibility, and reconcile gateway outcomes.
+- [x] P11 Administrator read-only checkout reconciliation using Stripe test Checkout retrieval and PayHere sandbox Merchant API evidence.
+- [ ] P11 Verify real PayHere and Stripe sandbox callbacks and retrieval, confirm Stripe merchant LKR support and Connect eligibility, and add audited recovery for mismatched outcomes.
 - [x] P12 provider check-in, counterparty overtime decisions, completion reporting and admin verification.
 - [x] P12 final balance from the accepted agreement and approved overtime, with sandbox checkout after reported completion.
 - [x] P12 cancellation, refund request review and atomic refund fund reservation.
@@ -85,6 +86,7 @@ A checked box marks implemented backend code. PostgreSQL integration, client wir
 - [x] GitHub CI passed through `78705a3` using PostgreSQL, Redis, Mailpit and S3Mock. See [run 43754928062](https://github.com/Nezz77/StageLink-backend/actions/runs/43754928062).
 - [x] Local listing-embedding checks passed with all migrations applied to isolated PGlite, Redis, mocked model calls, 37 Node unit tests and 21 FastAPI tests.
 - [x] GitHub CI passed for listing embeddings at `0abecf3`. It applied the migrations twice and passed PostgreSQL, Redis, Mailpit and S3Mock integration, contract regeneration and both container builds. See [run 43807860434](https://github.com/Nezz77/StageLink-backend/actions/runs/43807860434).
+- [x] GitHub CI passed for semantic recommendations at `564940c`. See [run 43809837950](https://github.com/Nezz77/StageLink-backend/actions/runs/43809837950).
 - [ ] Reconcile the [team frontend](https://github.com/Nezz77/StageLink) with the current backend contracts. Update the corresponding StageLink Figma screens and flows during each UI task.
 - [ ] Verify hosted model calls, signed sandbox payment callbacks, gateway reconciliation and two-account booking flows in staging.
 

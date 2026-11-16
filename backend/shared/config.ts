@@ -47,6 +47,8 @@ const schema = z.object({
   STRIPE_TEST_WEBHOOK_SECRET: optionalSetting(z.string().regex(/^whsec_[A-Za-z0-9_]{1,250}$/)),
   PAYHERE_SANDBOX_MERCHANT_ID: optionalSetting(z.string().regex(/^\d{1,30}$/)),
   PAYHERE_SANDBOX_MERCHANT_SECRET: optionalSetting(z.string().min(1).max(256)),
+  PAYHERE_SANDBOX_RETRIEVAL_APP_ID: optionalSetting(z.string().regex(/^[A-Za-z0-9_-]{1,128}$/)),
+  PAYHERE_SANDBOX_RETRIEVAL_APP_SECRET: optionalSetting(z.string().regex(/^[A-Za-z0-9_-]{1,256}$/)),
   PAYHERE_SANDBOX_NOTIFY_URL: optionalSetting(z.url({ protocol: /^https$/ }).refine(value => {
     const url = new URL(value);
     return !url.username && !url.password && !url.search && !url.hash &&
@@ -61,6 +63,9 @@ const schema = z.object({
 }).superRefine((config, ctx) => {
   if (Boolean(config.STRIPE_TEST_SECRET_KEY) !== Boolean(config.STRIPE_TEST_WEBHOOK_SECRET)) {
     ctx.addIssue({ code: 'custom', path: ['STRIPE_TEST_SECRET_KEY'], message: 'Configure both Stripe test settings together.' });
+  }
+  if (Boolean(config.PAYHERE_SANDBOX_RETRIEVAL_APP_ID) !== Boolean(config.PAYHERE_SANDBOX_RETRIEVAL_APP_SECRET)) {
+    ctx.addIssue({ code: 'custom', path: ['PAYHERE_SANDBOX_RETRIEVAL_APP_ID'], message: 'Configure both PayHere retrieval settings together.' });
   }
   const payHereSettings = [config.PAYHERE_SANDBOX_MERCHANT_ID, config.PAYHERE_SANDBOX_MERCHANT_SECRET, config.PAYHERE_SANDBOX_NOTIFY_URL];
   if (payHereSettings.some(Boolean) && !payHereSettings.every(Boolean)) {

@@ -105,6 +105,12 @@ Set `STRIPE_TEST_SECRET_KEY` and `STRIPE_TEST_WEBHOOK_SECRET` together to enable
 
 The booking customer sends `{}` to `POST /api/v1/payment-orders/:id/sessions/stripe` for an eligible advance, deposit or balance order and opens the returned URL. Advance and deposit sessions require more than 30 minutes before the booking starts. Fetch the payment order after returning for the state recorded by the webhook. Each order stays with the first gateway selected. Expired or ambiguous attempts require reconciliation before replacement. Test account LKR support, actual webhook delivery and Connect settlement still need verification.
 
+## Sandbox payment reconciliation
+
+A verified administrator can call `GET /api/v1/admin/payment-orders/:id/reconciliation` to compare the current StageLink capture record with gateway evidence. The response reports the gateway status and whether the evidence agrees, needs review or is inconclusive. Missing captures, mismatched amounts and duplicate or reversed PayHere payments need review. The endpoint is read-only. Replaying a verified notification still follows the existing webhook path. Gateway settlement and automatic repair remain separate backlog tasks.
+
+Stripe uses the existing test key to retrieve the stored Checkout Session. PayHere requires `PAYHERE_SANDBOX_RETRIEVAL_APP_ID` and `PAYHERE_SANDBOX_RETRIEVAL_APP_SECRET` from the sandbox Merchant API settings. StageLink uses those credentials for a short-lived sandbox token. A missing PayHere retrieval result is inconclusive. [Stripe Checkout Session retrieval](https://docs.stripe.com/api/checkout/sessions/retrieve) · [PayHere Retrieval API](https://support.payhere.lk/api-%26-mobile-sdk/retrieval-api)
+
 ## Booking completion
 
 Booking participants can read `GET /api/v1/bookings/:id/journey`. The provider submits `{"confirmed":true}` to the booking's `check-ins` route during its scheduled window and to its `completion` route after the scheduled and approved overtime end. Both require a paid advance. A check-in records the provider's manual confirmation. Either gig participant can propose overtime after check-in, and the other participant must resolve the proposal before completion.

@@ -1580,7 +1580,7 @@
       "ui_coverage_ids": [
         "UI-034"
       ],
-      "remaining": "Run a real PayHere sandbox checkout and public HTTPS callback, and reconcile review cases. Balance checkout is implemented in BE-046."
+      "remaining": "Admin sandbox retrieval compares provider and local capture evidence. Verify real checkout, public HTTPS callbacks and Merchant API retrieval, then add audited recovery for review cases."
     },
     {
       "id": "BE-045",
@@ -1614,7 +1614,7 @@
       "ui_coverage_ids": [
         "UI-035"
       ],
-      "remaining": "Verify LKR Checkout and signed webhook delivery with an actual Stripe test account. Confirm merchant and Connect eligibility before implementing capability status, transfers and settlement reconciliation."
+      "remaining": "Admin test Checkout retrieval compares provider and local capture evidence. Verify LKR Checkout, callbacks and retrieval with an actual test account. Confirm merchant and Connect eligibility and add auditing, repair, transfers and settlement reconciliation."
     },
     {
       "id": "BE-046",
