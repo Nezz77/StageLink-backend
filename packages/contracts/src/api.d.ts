@@ -5438,6 +5438,7 @@ export interface operations {
                     /** Format: uuid */
                     requestKey: string;
                     expectedRevision: number;
+                    useSemantic?: boolean;
                     genres?: string[];
                 };
             };
@@ -5456,7 +5457,16 @@ export interface operations {
                         briefRevision: number;
                         weightsRevision: number;
                         /** @enum {string} */
-                        method: "weighted_catalog_v1";
+                        method: "weighted_catalog_v1" | "semantic_hybrid_v1";
+                        semantic?: {
+                            model: string;
+                            /** @enum {string} */
+                            listingInputVersion: "published_gig_v1";
+                            /** @enum {string} */
+                            briefInputVersion: "brief_title_description_v1";
+                            /** @enum {number} */
+                            semanticWeight: 30;
+                        };
                         /** @enum {string} */
                         currency: "LKR";
                         /** Format: date-time */
@@ -5501,7 +5511,16 @@ export interface operations {
                         briefRevision: number;
                         weightsRevision: number;
                         /** @enum {string} */
-                        method: "weighted_catalog_v1";
+                        method: "weighted_catalog_v1" | "semantic_hybrid_v1";
+                        semantic?: {
+                            model: string;
+                            /** @enum {string} */
+                            listingInputVersion: "published_gig_v1";
+                            /** @enum {string} */
+                            briefInputVersion: "brief_title_description_v1";
+                            /** @enum {number} */
+                            semanticWeight: 30;
+                        };
                         /** @enum {string} */
                         currency: "LKR";
                         /** Format: date-time */

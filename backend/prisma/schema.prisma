@@ -1330,6 +1330,9 @@ model RecommendationRun {
   genres Json
   method String @db.VarChar(24)
   results Json
+  semanticRequested Boolean @default(false) @map("semantic_requested")
+  semanticPendingUntil DateTime? @map("semantic_pending_until") @db.Timestamptz(3)
+  semanticProvenance Json? @map("semantic_provenance")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   brief EventBrief @relation(fields: [briefId], references: [id], onDelete: Cascade)
   weights MatchingVersion @relation(fields: [weightsRevision], references: [revision], onDelete: Restrict)

@@ -177,7 +177,15 @@ Verified renters can submit `requestKey`, `model` and optionally `manufacturer` 
 
 Set `AI_EMBEDDING_MODEL` to `text-embedding-3-small` or `text-embedding-3-large` on both the API and private FastAPI service. Configure the shared `AI_INTERNAL_TOKEN` and set `AI_OPENAI_API_KEY` on FastAPI. The API requires `AI_SERVICE_ORIGIN` in host development. Indexing is disabled by default. The shared 24-hour quota defaults to 20 provider requests through `AI_EMBEDDING_DAILY_LIMIT`.
 
-Verified administrators can send `POST /api/v1/admin/ai/listing-embeddings/:gigId` with the current published `expectedVersion` and the normal origin and CSRF headers. The provider receives the public title and description. Repeating an in-progress or completed request returns its status. An expired attempt can be retried after 30 seconds. `GET` on the same path reports the state for the currently published version and configured model. Vectors remain in PostgreSQL. Recommendation ranking still uses the published catalog weights.
+Verified administrators can send `POST /api/v1/admin/ai/listing-embeddings/:gigId` with the current published `expectedVersion` and the normal origin and CSRF headers. The provider receives the public title and description. Repeating an in-progress or completed request returns its status. An expired attempt can be retried after 30 seconds. `GET` on the same path reports the state for the currently published version and configured model. Vectors remain in PostgreSQL. Recommendations use the weighted catalog by default.
+
+## Semantic recommendations
+
+Set `AI_SEMANTIC_RECOMMENDATIONS=true` on the API to allow an opt-in request. Send `useSemantic: true` with a new recommendation request key to authorize sending the current private brief title and description to the configured OpenAI embedding model. Brief requirements and account data stay in StageLink. Repeating a request key reuses its saved result and requires the same opt-in setting. If the first request is still running, the API returns `RECOMMENDATION_PROCESSING` and the caller can retry with the same key.
+
+The API applies the original budget, publication, provider approval and full-day blackout checks before scoring up to 30 weighted candidates. When at least two candidates have compatible embeddings for their current published revision, it blends the weighted catalog score (70%) with nonnegative cosine similarity (30%). Candidates without an embedding retain their weighted score. Insufficient coverage, provider failure and exhausted quotas return weighted results. Rankings remain based on the published weight revision recorded with each run. The semantic result records the embedding model and formats plus candidate scores and listing embedding attempts. The run stores neither the query vector nor another copy of the brief text.
+
+Semantic calls are limited to five per customer per 24 hours and `AI_SEMANTIC_DAILY_LIMIT` across customers (default 20). The feature defaults to off. The deterministic `semantic-ranking.test.ts` evaluation compares reciprocal ranks on three labeled synthetic briefs. Representative catalog evaluation and a live model smoke test remain part of staging verification.
 
 ## Provider verification
 

@@ -39,6 +39,8 @@ const schema = z.object({
   AI_GENERATION_DAILY_LIMIT: z.coerce.number().int().min(1).max(500).default(20),
   AI_EMBEDDING_MODEL: optionalSetting(z.enum(['text-embedding-3-small', 'text-embedding-3-large'])),
   AI_EMBEDDING_DAILY_LIMIT: z.coerce.number().int().min(1).max(500).default(20),
+  AI_SEMANTIC_RECOMMENDATIONS: z.enum(['true', 'false']).default('false'),
+  AI_SEMANTIC_DAILY_LIMIT: z.coerce.number().int().min(1).max(500).default(20),
   AI_PREVIEW_DAILY_LIMIT: z.coerce.number().int().min(1).max(200).default(20),
   WORKER_HEALTH_PORT: z.coerce.number().int().min(1).max(65535).default(4001),
   STRIPE_TEST_SECRET_KEY: optionalSetting(z.string().regex(/^sk_test_[A-Za-z0-9_]{1,250}$/)),

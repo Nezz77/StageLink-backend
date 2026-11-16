@@ -10,19 +10,18 @@ Updated 16 November 2026. Scope comes from the final proposal, sections 4, 5 and
 | Marketplace and discovery | Published artist gigs and packages, equipment, venues and bundles, serialized inventory, galleries, deposit policies, filtered search, public feed, saved items, private event briefs, drafts and inquiries |
 | Booking and communication | Availability calendars, renewable holds, booking and quote revisions, authenticated agreements, persistent chat and attachments, completion, and verified reviews |
 | Payments and rentals | Sandbox checkout and signed notification handlers, immutable financial journal, refund and payout reservations, sandbox invoices and receipts, inspections, deposit claims and arbitration reservations |
-| AI | Weighted top-three recommendations, matching weight and prompt versioning, model usage, private artist writing suggestions, approved-source equipment lookups, and versioned embeddings for currently published gig text |
+| AI | Weighted top-three recommendations, matching weight and prompt versioning, model usage, private artist writing suggestions, approved-source equipment lookups, versioned gig embeddings, and opt-in semantic reranking |
 | Administration and operations | Provider verification history, support, dispute review, in-app notifications, email reminder queues, consent-based email campaigns, announcements, maintenance controls and sandbox analytics |
 
 ## Remaining work in order
 
 | Order | Task | Completion criteria |
 | --- | --- | --- |
-| 1 | Semantic recommendations, P15 | Add semantic reranking behind a configuration switch, with opt-in handling for private brief text, existing eligibility gates, recorded embedding provenance, a weighted fallback and repeatable quality checks. Run a live embedding smoke test before enabling it in staging. |
-| 2 | Sandbox payments and reconciliation, P11–P14 | Verify real PayHere and Stripe test callbacks with merchant accounts, confirm supported LKR and Connect capabilities, and reconcile duplicate, delayed and missing gateway events. |
-| 3 | Refunds, payouts and arbitration, P12–P16 | Execute approved money movements through the gateways and record settlements, retries and failure recovery. Use settled data for production documents and P18 financial analytics. |
-| 4 | Equipment references and verification evidence, P15–P16 | Populate the equipment catalog from approved manufacturer sources and add protected PDF evidence upload and access. These tasks can run alongside payment work. |
-| 5 | Hosted communication, P10 and P17 | Verify live SMTP reminders and campaigns, add consent-based SMS and delivery reconciliation, and verify WebSocket upgrades and multi-instance booking chat. |
-| 6 | Frontend and release, all phases | Connect each supported workflow in the frontend and update its Figma flow. Run staging end-to-end, access control, accessibility, load, backup restore and rollback checks. |
+| 1 | Sandbox payments and reconciliation, P11–P14 | Verify real PayHere and Stripe test callbacks with merchant accounts, confirm supported LKR and Connect capabilities, and reconcile duplicate, delayed and missing gateway events. |
+| 2 | Refunds, payouts and arbitration, P12–P16 | Execute approved money movements through the gateways and record settlements, retries and failure recovery. Use settled data for production documents and P18 financial analytics. |
+| 3 | Equipment references and verification evidence, P15–P16 | Populate the equipment catalog from approved manufacturer sources and add protected PDF evidence upload and access. These tasks can run alongside payment work. |
+| 4 | Hosted communication, P10 and P17 | Verify live SMTP reminders and campaigns, add consent-based SMS and delivery reconciliation, and verify WebSocket upgrades and multi-instance booking chat. |
+| 5 | Frontend and release, all phases | Connect each supported workflow in the frontend and update its Figma flow. Run staging end-to-end, access control, accessibility, load, backup restore and rollback checks. |
 
 ## Backend build order
 
@@ -62,7 +61,8 @@ A checked box marks implemented backend code. PostgreSQL integration, client wir
 - [x] P15 Top-three event-brief artist recommendations using published listings and versioned catalog weights.
 - [x] P15 Natural-language artist search preview with confirmable catalog filters.
 - [x] P15 Administrator indexing and status checks for versioned public gig embeddings.
-- [ ] P15 Semantic reranking, recommendation provenance, repeatable evaluation and live model verification.
+- [x] P15 Opt-in semantic reranking, weighted fallback, embedding provenance and repeatable synthetic ranking evaluation.
+- [ ] P15 Live model smoke test and ranking evaluation against a representative catalog and event briefs.
 - [ ] P15 Populate approved manufacturer references.
 - [x] P16 Private provider verification submissions, administrative review and resubmission history.
 - [x] P16 Role-specific provider identity approval for sandbox payout and arbitration reservations.

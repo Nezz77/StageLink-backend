@@ -5933,6 +5933,9 @@
                     "exclusiveMinimum": true,
                     "maximum": 2147483647
                   },
+                  "useSemantic": {
+                    "type": "boolean"
+                  },
                   "genres": {
                     "maxItems": 10,
                     "type": "array",
@@ -5985,8 +5988,42 @@
                     "method": {
                       "type": "string",
                       "enum": [
-                        "weighted_catalog_v1"
+                        "weighted_catalog_v1",
+                        "semantic_hybrid_v1"
                       ]
+                    },
+                    "semantic": {
+                      "type": "object",
+                      "properties": {
+                        "model": {
+                          "type": "string"
+                        },
+                        "listingInputVersion": {
+                          "type": "string",
+                          "enum": [
+                            "published_gig_v1"
+                          ]
+                        },
+                        "briefInputVersion": {
+                          "type": "string",
+                          "enum": [
+                            "brief_title_description_v1"
+                          ]
+                        },
+                        "semanticWeight": {
+                          "type": "number",
+                          "enum": [
+                            30
+                          ]
+                        }
+                      },
+                      "required": [
+                        "model",
+                        "listingInputVersion",
+                        "briefInputVersion",
+                        "semanticWeight"
+                      ],
+                      "additionalProperties": false
                     },
                     "currency": {
                       "type": "string",
@@ -6132,8 +6169,42 @@
                     "method": {
                       "type": "string",
                       "enum": [
-                        "weighted_catalog_v1"
+                        "weighted_catalog_v1",
+                        "semantic_hybrid_v1"
                       ]
+                    },
+                    "semantic": {
+                      "type": "object",
+                      "properties": {
+                        "model": {
+                          "type": "string"
+                        },
+                        "listingInputVersion": {
+                          "type": "string",
+                          "enum": [
+                            "published_gig_v1"
+                          ]
+                        },
+                        "briefInputVersion": {
+                          "type": "string",
+                          "enum": [
+                            "brief_title_description_v1"
+                          ]
+                        },
+                        "semanticWeight": {
+                          "type": "number",
+                          "enum": [
+                            30
+                          ]
+                        }
+                      },
+                      "required": [
+                        "model",
+                        "listingInputVersion",
+                        "briefInputVersion",
+                        "semanticWeight"
+                      ],
+                      "additionalProperties": false
                     },
                     "currency": {
                       "type": "string",
