@@ -68,7 +68,7 @@ const overviewInclude = {
     },
   },
   paymentOrders: { orderBy: { purpose: 'asc' }, select: { id: true, purpose: true, amountMinor: true, status: true } },
-  payoutOrder: { include: { stripeTransfer: { select: { status: true } } } },
+  payoutOrder: { include: { stripeTransfers: { orderBy: { attempt: 'desc' }, take: 1, select: { status: true } } } },
 } satisfies Prisma.BookingInclude;
 
 function presentHold(row: BookingPayoutHold) {
@@ -92,7 +92,7 @@ function presentPayout(row: PayoutOrder, booking: BookingFinance) {
   return {
     id, bookingId, providerId, destinationRevision, grossMinor, platformFeeMinor, netMinor,
     createdAt: createdAt.toISOString(), currency: 'LKR' as const, status: needsReview ? 'review_required' : 'reserved',
-    stripeTransferStatus: booking.payoutOrder?.stripeTransfer?.status ?? null,
+    stripeTransferStatus: booking.payoutOrder?.stripeTransfers[0]?.status ?? null,
   };
 }
 
@@ -296,7 +296,8 @@ export function makePayoutsController(auth: AuthService) {
       const input = parse(repairInput, raw);
       return adminWrite(req, parse(uuid, id), async (tx, booking, actorId) => {
         const order = await tx.payoutOrder.findUnique({
-          where: { bookingId: booking.id }, include: { stripeTransfer: { select: { id: true } } },
+          where: { bookingId: booking.id },
+          include: { stripeTransfers: { where: { retryAuthorizedAt: null }, select: { id: true }, take: 1 } },
         });
         if (!order) throw new PublicError(404, 'PAYOUT_NOT_FOUND', 'This payout reservation is unavailable.');
         const prior = await tx.payoutDestinationRepair.findUnique({
@@ -312,7 +313,7 @@ export function makePayoutsController(auth: AuthService) {
         if (order.destinationRevision !== input.expectedDestinationRevision) {
           throw new PublicError(409, 'PAYOUT_DESTINATION_CHANGED', 'Reload the payout reservation and review its current destination.');
         }
-        if (order.stripeTransfer) {
+        if (order.stripeTransfers.length) {
           throw new PublicError(409, 'PAYOUT_TRANSFER_STARTED', 'This payout is tied to a transfer attempt. Review it from the Stripe transfer endpoint.');
         }
         if (order.providerId !== booking.providerId) notEligible();

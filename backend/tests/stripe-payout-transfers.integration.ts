@@ -18,7 +18,7 @@ if (config.NODE_ENV !== 'test' || !new URL(config.DATABASE_URL).pathname.endsWit
   throw new Error('Stripe payout transfers require an isolated *_test database.');
 }
 
-test('repaired payout reserves transfer once and block destination changes after submission', t =>
+test('a fully reversed test transfer can authorize one new attempt using the original reserve', t =>
   checkPayoutReconciliation(t, 0));
 test('a transfer already partially reversed at first confirmation records both journal movements', t =>
   checkPayoutReconciliation(t, 1000));
@@ -32,6 +32,7 @@ async function checkPayoutReconciliation(t: TestContext, initialReversedMinor: n
   let reversedMinor = 0;
   let transfer: Record<string, unknown> | null = null;
   let submissions = 0;
+  const idempotencyKeys = new Set<string>();
   let sent!: () => void;
   let release!: () => void;
   const sending = new Promise<void>(resolve => { sent = resolve; });
@@ -72,13 +73,16 @@ async function checkPayoutReconciliation(t: TestContext, initialReversedMinor: n
       const executionId = body.get('metadata[stagelink_payout_transfer]')!;
       assert.equal(body.get('amount'), '95000');
       assert.equal(body.get('destination'), stripeId);
-      assert.equal(new Headers(init.headers).get('Idempotency-Key'), 'stagelink-payout-' + executionId);
+      const key = new Headers(init.headers).get('Idempotency-Key');
+      assert.equal(key, 'stagelink-payout-' + executionId);
+      idempotencyKeys.add(key!);
       submissions++;
       transfer = {
         id: 'tr_' + executionId.replaceAll('-', ''), object: 'transfer', amount: 95000, currency: 'lkr',
         destination: stripeId, transfer_group: body.get('transfer_group'), livemode: false,
         metadata: { stagelink_payout_transfer: executionId }, reversed: false, amount_reversed: 0,
       };
+      if (submissions > 1) return Response.json(transfer);
       sent();
       await waitForResponse;
       return new Response(null, { status: 500 });
@@ -183,6 +187,10 @@ async function checkPayoutReconciliation(t: TestContext, initialReversedMinor: n
     payoutId = reserved.payout.id;
     const path = base + 'admin/payouts/' + payoutId + '/stripe-transfer';
     const submit = (actor = admin, body: object = {}) => fetch(path, { method: 'POST', headers: actor.headers, body: JSON.stringify(body) });
+    const retryReason = 'Reviewed the fully returned Stripe test funds.';
+    const authorize = (transferId: string, actor = admin, reason = retryReason) => fetch(path + '/retry-authorizations', {
+      method: 'POST', headers: actor.headers, body: JSON.stringify({ transferId, reason }),
+    });
     const repairPath = base + 'admin/bookings/' + booking.id + '/payout-destination-repairs';
     const repairInput = {
       requestKey: randomUUID(), expectedDestinationRevision: 1, destinationRevision: 2, reason: 'Reviewed the updated payout destination.',
@@ -263,7 +271,9 @@ async function checkPayoutReconciliation(t: TestContext, initialReversedMinor: n
         bookingId: booking.id, revision: holdRevision, held: true, reason: 'Manual review hold fixture', actorId: admin.id, createdAt: now,
       } });
     } finally { release(); }
-    assert.equal((await (await first).json()).state, 'uncertain');
+    const uncertain = await (await first).json();
+    assert.equal(uncertain.state, 'uncertain');
+    assert.equal((await (await authorize(uncertain.id)).json()).code, 'STRIPE_RETRY_NOT_ELIGIBLE');
 
     reversedMinor = initialReversedMinor;
     const reconciliation = await submit(admin, { reconcileOnly: true });
@@ -285,7 +295,7 @@ async function checkPayoutReconciliation(t: TestContext, initialReversedMinor: n
     assert.equal(Object.hasOwn(summary, 'stripeTransfer'), false);
     assert.deepEqual(await (await fetch(path, admin)).json(), { transfer: saved });
     assert.deepEqual(await (await submit()).json(), saved);
-    const stored = await deps.db.stripePayoutTransfer.findUniqueOrThrow({ where: { payoutId }, include: { journal: true } });
+    const stored = await deps.db.stripePayoutTransfer.findUniqueOrThrow({ where: { id: saved.id }, include: { journal: true } });
     assert.equal(stored.journal?.source, 'stripe.test.payout.transfer');
 
     reversedMinor = 1000;
@@ -293,6 +303,7 @@ async function checkPayoutReconciliation(t: TestContext, initialReversedMinor: n
     assert.equal(partial.state, 'review_required');
     assert.equal(partial.reversedMinor, 1000);
     assert.equal(await postedBalance(deps.db, reserved.account.id), 6000n);
+    assert.equal((await (await authorize(partial.id)).json()).code, 'STRIPE_RETRY_NOT_ELIGIBLE');
 
     assert.equal((await (await submit(admin, { reconcileOnly: true })).json()).reversedMinor, 1000);
     reversedMinor = 500;
@@ -309,8 +320,64 @@ async function checkPayoutReconciliation(t: TestContext, initialReversedMinor: n
       orderBy: { amountMinor: 'asc' },
     });
     assert.deepEqual(reversalPostings.map(posting => posting.amountMinor), [1000n, 94000n]);
-    assert.equal((await deps.db.stripePayoutTransfer.findUniqueOrThrow({ where: { payoutId } })).journalId, stored.journalId);
+    assert.equal((await deps.db.stripePayoutTransfer.findUniqueOrThrow({ where: { id: saved.id } })).journalId, stored.journalId);
     assert.equal(submissions, 1);
+
+    if (!initialReversedMinor) {
+      const retryCommand = { retryOfTransferId: full.id };
+      assert.equal((await (await submit(admin, retryCommand)).json()).code, 'STRIPE_RETRY_NOT_AUTHORIZED');
+      assert.equal((await authorize(full.id, provider)).status, 403);
+      const [approved, approvalReplay] = await Promise.all([authorize(full.id), authorize(full.id)]);
+      assert.equal(approved.status, 200);
+      assert.equal(approvalReplay.status, 200);
+      const decision = await approved.json();
+      assert.deepEqual(await approvalReplay.json(), decision);
+      assert.equal(decision.actorId, admin.id);
+      assert.equal(decision.transferId, full.id);
+      assert.equal((await (await authorize(full.id, admin, 'A different review reason for this attempt.')).json()).code,
+        'STRIPE_RETRY_ALREADY_AUTHORIZED');
+      assert.equal((await (await submit()).json()).id, full.id);
+      assert.equal((await submit(admin, retryCommand)).status, 409);
+      assert.equal(submissions, 1);
+      assert.equal(await postedBalance(deps.db, reserved.account.id), 100000n);
+
+      await deps.db.bookingPayoutHold.create({ data: {
+        bookingId, revision: holdRevision + 1, held: false, reason: 'Full reversal confirmed.', actorId: admin.id, createdAt: now,
+      } });
+      const newer = { ...dest, revision: 3 };
+      await deps.db.payoutDestinationVersion.create({
+        data: { ...newer, reviewerId: admin.id, reviewedAt: now, reviewReason: retryReason },
+      });
+      await deps.db.payoutDestination.update({ where: { userId: provider.id }, data: newer });
+      assert.equal((await repair({
+        ...repairInput, requestKey: randomUUID(), expectedDestinationRevision: 2, destinationRevision: 3,
+      })).status, 200);
+      const replacement = await fetch(base + 'admin/providers/' + provider.id + '/stripe-destination', {
+        method: 'POST', headers: admin.headers, body: JSON.stringify({
+          requestKey: randomUUID(), expectedLinkId: activeLinkId, destinationRevision: 3, accountId: stripeId, reason: retryReason,
+        }),
+      });
+      assert.equal(replacement.status, 200);
+      const newLink = await replacement.json();
+      const retries = await Promise.all([submit(admin, retryCommand), submit(admin, retryCommand)]);
+      assert.ok(retries.every(response => response.status === 200));
+      const [retry, duplicate] = await Promise.all(retries.map(response => response.json()));
+      assert.equal(retry.id, duplicate.id);
+      assert.notEqual(retry.id, full.id);
+      assert.equal(retry.attempt, 2);
+      assert.equal(retry.destinationLinkId, newLink.id);
+      const latest = (await (await fetch(path, admin)).json()).transfer;
+      assert.equal(latest.state, 'transferred');
+      assert.equal(latest.reversedMinor, 0);
+      assert.equal((await (await submit(admin, retryCommand)).json()).id, retry.id);
+      assert.deepEqual(await (await authorize(full.id)).json(), decision);
+      const history = await (await fetch(path + '/attempts', admin)).json();
+      assert.deepEqual(history.attempts, [latest, { ...full, retryAuthorization: decision }]);
+      assert.equal(submissions, 2);
+      assert.equal(idempotencyKeys.size, 2);
+      assert.equal(await postedBalance(deps.db, reserved.account.id), 5000n);
+      assert.equal(await deps.db.payoutOrder.count({ where: { bookingId } }), 1);
+    }
   } finally {
     release();
     try {

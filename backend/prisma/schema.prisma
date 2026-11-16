@@ -101,7 +101,8 @@ model AuthUser {
   reminderActions ReminderAdminAction[]
   paymentRecoveries PaymentRecoveryAction[]
   stripeRefundExecutions StripeRefundExecution[]
-  stripePayoutTransfers StripePayoutTransfer[]
+  stripePayoutTransfers StripePayoutTransfer[] @relation("StripeTransferSubmitter")
+  stripePayoutRetryApprovals StripePayoutTransfer[] @relation("StripeTransferRetryReviewer")
   payoutDestinationRepairs PayoutDestinationRepair[]
   payHereRefundExecutions PayHereRefundExecution[]
   openedDisputes BookingDispute[] @relation("DisputeOpener")
@@ -1115,7 +1116,7 @@ model PayoutOrder {
   destination PayoutDestinationVersion @relation(fields: [providerId, destinationRevision], references: [userId, revision], onDelete: Restrict, map: "payout_orders_destination_fkey")
   creator AuthUser @relation(fields: [createdBy], references: [id], onDelete: Restrict)
   reservation JournalTransaction @relation(fields: [reservationId], references: [id], onDelete: Restrict)
-  stripeTransfer StripePayoutTransfer?
+  stripeTransfers StripePayoutTransfer[]
   destinationRepairs PayoutDestinationRepair[]
   @@index([providerId])
   @@map("payout_orders")
@@ -1145,7 +1146,8 @@ enum StripePayoutTransferState {
 
 model StripePayoutTransfer {
   id String @id @default(uuid()) @db.Uuid
-  payoutId String @unique @map("payout_id") @db.Uuid
+  payoutId String @map("payout_id") @db.Uuid
+  attempt Int @default(1)
   destinationLinkId String @map("destination_link_id") @db.Uuid
   actorId String @map("actor_id") @db.Uuid
   reservedAccountId String @map("reserved_account_id") @db.Uuid
@@ -1156,13 +1158,18 @@ model StripePayoutTransfer {
   journalId String? @unique @map("journal_id") @db.Uuid
   leaseId String? @map("lease_id") @db.Uuid
   leaseUntil DateTime? @map("lease_until") @db.Timestamptz(3)
+  retryAuthorizedAt DateTime? @map("retry_authorized_at") @db.Timestamptz(3)
+  retryAuthorizedBy String? @map("retry_authorized_by") @db.Uuid
+  retryReason String? @map("retry_reason") @db.VarChar(500)
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
   payout PayoutOrder @relation(fields: [payoutId], references: [id], onDelete: Restrict)
   destination StripePayoutDestinationLink @relation(fields: [destinationLinkId], references: [id], onDelete: Restrict)
-  actor AuthUser @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  actor AuthUser @relation("StripeTransferSubmitter", fields: [actorId], references: [id], onDelete: Restrict)
+  retryReviewer AuthUser? @relation("StripeTransferRetryReviewer", fields: [retryAuthorizedBy], references: [id], onDelete: Restrict)
   reservedAccount FinancialAccount @relation(fields: [reservedAccountId], references: [id], onDelete: Restrict)
   journal JournalTransaction? @relation(fields: [journalId], references: [id], onDelete: Restrict)
+  @@unique([payoutId, attempt])
   @@map("stripe_payout_transfers")
 }
 

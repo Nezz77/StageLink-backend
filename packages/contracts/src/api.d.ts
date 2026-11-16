@@ -3237,6 +3237,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/payouts/{id}/stripe-transfer/attempts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["StripePayoutTransfersController_attempts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payouts/{id}/stripe-transfer/retry-authorizations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["StripePayoutTransfersController_authorizeRetry"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/refund-requests/{id}/items/{orderId}/stripe-execution": {
         parameters: {
             query?: never;
@@ -19298,6 +19330,18 @@ export interface operations {
                             amountMinor: number;
                             /** @enum {string} */
                             currency: "LKR";
+                            attempt: number;
+                            retryAuthorization: {
+                                /** Format: uuid */
+                                transferId: string;
+                                /** Format: uuid */
+                                payoutId: string;
+                                /** Format: uuid */
+                                actorId: string;
+                                reason: string;
+                                /** Format: date-time */
+                                createdAt: string;
+                            } | null;
                             reversedMinor: number;
                             /** @enum {string} */
                             state: "processing" | "uncertain" | "transferred" | "review_required";
@@ -19325,6 +19369,8 @@ export interface operations {
             content: {
                 "application/json": {
                     reconcileOnly?: boolean;
+                    /** Format: uuid */
+                    retryOfTransferId?: string;
                 };
             };
         };
@@ -19344,6 +19390,18 @@ export interface operations {
                         amountMinor: number;
                         /** @enum {string} */
                         currency: "LKR";
+                        attempt: number;
+                        retryAuthorization: {
+                            /** Format: uuid */
+                            transferId: string;
+                            /** Format: uuid */
+                            payoutId: string;
+                            /** Format: uuid */
+                            actorId: string;
+                            reason: string;
+                            /** Format: date-time */
+                            createdAt: string;
+                        } | null;
                         reversedMinor: number;
                         /** @enum {string} */
                         state: "processing" | "uncertain" | "transferred" | "review_required";
@@ -19352,6 +19410,98 @@ export interface operations {
                         createdAt: string;
                         /** Format: date-time */
                         updatedAt: string;
+                    };
+                };
+            };
+        };
+    };
+    StripePayoutTransfersController_attempts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        attempts: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            payoutId: string;
+                            /** Format: uuid */
+                            destinationLinkId: string;
+                            amountMinor: number;
+                            /** @enum {string} */
+                            currency: "LKR";
+                            attempt: number;
+                            retryAuthorization: {
+                                /** Format: uuid */
+                                transferId: string;
+                                /** Format: uuid */
+                                payoutId: string;
+                                /** Format: uuid */
+                                actorId: string;
+                                reason: string;
+                                /** Format: date-time */
+                                createdAt: string;
+                            } | null;
+                            reversedMinor: number;
+                            /** @enum {string} */
+                            state: "processing" | "uncertain" | "transferred" | "review_required";
+                            providerTransferId: string | null;
+                            /** Format: date-time */
+                            createdAt: string;
+                            /** Format: date-time */
+                            updatedAt: string;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    StripePayoutTransfersController_authorizeRetry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    transferId: string;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        transferId: string;
+                        /** Format: uuid */
+                        payoutId: string;
+                        /** Format: uuid */
+                        actorId: string;
+                        reason: string;
+                        /** Format: date-time */
+                        createdAt: string;
                     };
                 };
             };

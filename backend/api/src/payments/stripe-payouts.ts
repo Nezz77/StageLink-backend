@@ -14,23 +14,37 @@ import { ProfileService } from '../profiles/service.js';
 import { parse, schema, uuid } from './orders.js';
 import { assertPayoutProvider, payoutReservationAccount } from './payout-eligibility.js';
 
-const command = z.object({ reconcileOnly: z.boolean().optional() }).strict();
+const command = z.object({
+  reconcileOnly: z.boolean().optional(), retryOfTransferId: uuid.optional(),
+}).strict().refine(input => !input.reconcileOnly || !input.retryOfTransferId, 'Choose reconciliation or an authorized retry.');
+const authorizeCommand = z.object({ transferId: uuid, reason: z.string().trim().min(10).max(500) }).strict();
+const authorizationView = z.object({ transferId: uuid, payoutId: uuid, actorId: uuid, reason: z.string(), createdAt: z.iso.datetime() });
 const view = z.object({
   id: uuid, payoutId: uuid, destinationLinkId: uuid, amountMinor: z.number().int().positive(), currency: z.literal('LKR'),
+  attempt: z.number().int().positive(), retryAuthorization: authorizationView.nullable(),
   reversedMinor: z.number().int().nonnegative(),
   state: z.enum(['processing', 'uncertain', 'transferred', 'review_required']),
   providerTransferId: z.string().nullable(), createdAt: z.iso.datetime(), updatedAt: z.iso.datetime(),
 });
 
 const payoutInclude = {
-  stripeTransfer: { include: { destination: true } },
+  stripeTransfers: { include: { destination: true }, orderBy: { attempt: 'desc' }, take: 2 },
   booking: { select: { customerId: true, providerId: true, targetKind: true } },
 } satisfies Prisma.PayoutOrderInclude;
 
-function present(row: StripePayoutTransfer) {
-  const { id, payoutId, destinationLinkId, amountMinor, reversedMinor, status, providerTransferId, createdAt, updatedAt } = row;
+function presentAuthorization(row: StripePayoutTransfer) {
+  if (!row.retryAuthorizedAt || !row.retryAuthorizedBy || !row.retryReason) return null;
   return {
-    id, payoutId, destinationLinkId, amountMinor, reversedMinor, currency: 'LKR' as const, providerTransferId,
+    transferId: row.id, payoutId: row.payoutId, actorId: row.retryAuthorizedBy,
+    reason: row.retryReason, createdAt: row.retryAuthorizedAt.toISOString(),
+  };
+}
+
+function present(row: StripePayoutTransfer) {
+  const { id, payoutId, destinationLinkId, amountMinor, attempt, reversedMinor, status, providerTransferId, createdAt, updatedAt } = row;
+  return {
+    id, payoutId, destinationLinkId, amountMinor, attempt, retryAuthorization: presentAuthorization(row),
+    reversedMinor, currency: 'LKR' as const, providerTransferId,
     state: row.leaseUntil && row.leaseUntil > new Date() ? 'processing' : status,
     createdAt: createdAt.toISOString(), updatedAt: updatedAt.toISOString(),
   };
@@ -47,6 +61,19 @@ async function loadPayout(tx: Prisma.TransactionClient, id: string) {
 }
 
 type Payout = Awaited<ReturnType<typeof loadPayout>>;
+
+function transferTarget(payout: Payout, retryOfTransferId?: string) {
+  const [latest, previous] = payout.stripeTransfers;
+  if (!retryOfTransferId) return { existing: latest, retryOf: null };
+  if (latest?.id === retryOfTransferId && latest.retryAuthorizedAt) return { existing: null, retryOf: latest };
+  if (previous?.id === retryOfTransferId && previous.retryAuthorizedAt) return { existing: latest, retryOf: null };
+  throw new PublicError(409, 'STRIPE_RETRY_NOT_AUTHORIZED', 'Review the latest transfer attempt before retrying.');
+}
+
+function returnWithoutClaim(row: StripePayoutTransfer, input: z.infer<typeof command>) {
+  return row.retryAuthorizedAt !== null || (row.leaseUntil !== null && row.leaseUntil > new Date()) ||
+    (!input.reconcileOnly && (row.status !== 'uncertain' || (row.attempt > 1 && !input.retryOfTransferId)));
+}
 
 function requireOperator(actor: Identity, payout: Payout) {
   if ([payout.booking.customerId, payout.providerId].includes(actor.user.id)) {
@@ -114,6 +141,27 @@ export function makeStripePayoutTransfersController(auth: AuthService) {
     return actor;
   }
 
+  async function operatorRequest(req: Request) {
+    if (req.get('Origin') !== config.WEB_ORIGIN || req.get('Sec-Fetch-Site') === 'cross-site' || !req.is('application/json')) {
+      throw new PublicError(403, 'ORIGIN_REJECTED', 'Open StageLink in its own browser tab and try again.');
+    }
+    const actor = await admin(req);
+    profiles.checkCsrf(actor, req.get('X-CSRF-Token'));
+    return actor;
+  }
+
+  async function lockPayout(tx: Prisma.TransactionClient, source: Payout, actor: Identity) {
+    for (const userId of [...new Set([actor.user.id, source.providerId])].sort()) {
+      await tx.$queryRaw`SELECT id FROM auth_users WHERE id=${userId}::uuid FOR UPDATE`;
+    }
+    const operator = await profiles.actor(tx, actor, undefined, true);
+    profiles.verified(operator);
+    await lockBooking(tx, source.bookingId);
+    const payout = await loadPayout(tx, source.id);
+    requireOperator(operator, payout);
+    return { payout, operator };
+  }
+
   @ApiTags('Stripe test payout transfers')
   @ApiBearerAuth()
   @Controller('admin/payouts/:id/stripe-transfer')
@@ -124,7 +172,58 @@ export function makeStripePayoutTransfersController(auth: AuthService) {
     async read(@Req() req: Request, @Param('id') rawId: string) {
       await admin(req);
       const payout = await loadPayout(db, parse(uuid, rawId));
-      return { transfer: payout.stripeTransfer ? present(payout.stripeTransfer) : null };
+      const latest = payout.stripeTransfers[0];
+      return { transfer: latest ? present(latest) : null };
+    }
+
+    @Get('attempts')
+    @ApiParam({ name: 'id', format: 'uuid' })
+    @ApiOkResponse({ schema: schema(z.object({ attempts: z.array(view) })) })
+    async attempts(@Req() req: Request, @Param('id') rawId: string) {
+      await admin(req);
+      const payout = await loadPayout(db, parse(uuid, rawId));
+      const attempts = await db.stripePayoutTransfer.findMany({
+        where: { payoutId: payout.id }, orderBy: { attempt: 'desc' }, take: 20,
+      });
+      return { attempts: attempts.map(present) };
+    }
+
+    @Post('retry-authorizations')
+    @HttpCode(200)
+    @ApiParam({ name: 'id', format: 'uuid' })
+    @ApiBody({ schema: schema(authorizeCommand) })
+    @ApiOkResponse({ schema: schema(authorizationView) })
+    async authorizeRetry(@Req() req: Request, @Param('id') rawId: string, @Body() body: unknown) {
+      const actor = await operatorRequest(req);
+      const { transferId, reason } = parse(authorizeCommand, body);
+      const source = await loadPayout(db, parse(uuid, rawId));
+      requireOperator(actor, source);
+      return db.$transaction(async tx => {
+        const { payout, operator } = await lockPayout(tx, source, actor);
+        const attempt = await tx.stripePayoutTransfer.findFirst({ where: { id: transferId, payoutId: payout.id } });
+        if (!attempt) throw new PublicError(404, 'STRIPE_TRANSFER_NOT_FOUND', 'This transfer attempt is unavailable.');
+        const previous = presentAuthorization(attempt);
+        if (previous) {
+          if (previous.actorId !== operator.user.id || previous.reason !== reason) {
+            throw new PublicError(409, 'STRIPE_RETRY_ALREADY_AUTHORIZED', 'This transfer already has a recorded retry authorization.');
+          }
+          return previous;
+        }
+        if (payout.stripeTransfers[0]?.id !== attempt.id || attempt.status !== 'review_required' ||
+          attempt.reversedMinor !== payout.netMinor || attempt.amountMinor !== payout.netMinor || !attempt.journalId ||
+          (attempt.leaseUntil && attempt.leaseUntil > new Date())) {
+          throw new PublicError(409, 'STRIPE_RETRY_NOT_ELIGIBLE', 'Reconcile a full reversal before authorizing a new transfer.');
+        }
+        const account = await payoutReservationAccount(tx, payout);
+        if (!account || account !== attempt.reservedAccountId || await postedBalance(tx, account) !== BigInt(payout.grossMinor)) {
+          throw new PublicError(409, 'STRIPE_RETRY_NOT_ELIGIBLE', 'The full original payout reserve must be available.');
+        }
+        const updated = await tx.stripePayoutTransfer.update({
+          where: { id: attempt.id },
+          data: { retryAuthorizedBy: operator.user.id, retryAuthorizedAt: new Date(), retryReason: reason, leaseId: null, leaseUntil: null },
+        });
+        return presentAuthorization(updated)!;
+      });
     }
 
     @Post()
@@ -133,19 +232,15 @@ export function makeStripePayoutTransfersController(auth: AuthService) {
     @ApiBody({ schema: schema(command) })
     @ApiOkResponse({ schema: schema(view) })
     async execute(@Req() req: Request, @Param('id') rawId: string, @Body() body: unknown) {
-      if (req.get('Origin') !== config.WEB_ORIGIN || req.get('Sec-Fetch-Site') === 'cross-site' || !req.is('application/json')) {
-        throw new PublicError(403, 'ORIGIN_REJECTED', 'Open StageLink in its own browser tab and try again.');
-      }
-      const actor = await admin(req);
-      profiles.checkCsrf(actor, req.get('X-CSRF-Token'));
-      const { reconcileOnly } = parse(command, body);
+      const actor = await operatorRequest(req);
+      const input = parse(command, body);
+      const { reconcileOnly } = input;
+      const retryOfTransferId = input.retryOfTransferId?.toLowerCase();
       const id = parse(uuid, rawId);
       const source = await loadPayout(db, id);
       requireOperator(actor, source);
-      const prior = source.stripeTransfer;
-      if (prior && ((!reconcileOnly && prior.status !== 'uncertain') || (prior.leaseUntil && prior.leaseUntil > new Date()))) {
-        return present(prior);
-      }
+      const { existing: prior } = transferTarget(source, retryOfTransferId);
+      if (prior && returnWithoutClaim(prior, input)) return present(prior);
       if (!prior && reconcileOnly) throw new PublicError(409, 'STRIPE_TRANSFER_NOT_STARTED', 'Start the transfer before reconciling it.');
       const key = config.STRIPE_TEST_SECRET_KEY;
       const enabled = config.STRIPE_TEST_PAYOUT_TRANSFERS === 'true';
@@ -169,17 +264,9 @@ export function makeStripePayoutTransfersController(auth: AuthService) {
         (await Promise.all(candidate.captures.map(capture => verifyStripeTransferCapture(key, capture)))).every(Boolean));
 
       const claim = await db.$transaction(async tx => {
-        for (const userId of [...new Set([actor.user.id, source.providerId])].sort()) {
-          await tx.$queryRaw`SELECT id FROM auth_users WHERE id=${userId}::uuid FOR UPDATE`;
-        }
-        const operator = await profiles.actor(tx, actor, undefined, true);
-        profiles.verified(operator);
-        await lockBooking(tx, source.bookingId);
-        const payout = await loadPayout(tx, id);
-        requireOperator(operator, payout);
-        const existing = payout.stripeTransfer;
-        const now = new Date();
-        if (existing && ((!reconcileOnly && existing.status !== 'uncertain') || (existing.leaseUntil && existing.leaseUntil > now))) {
+        const { payout, operator } = await lockPayout(tx, source, actor);
+        const { existing, retryOf } = transferTarget(payout, retryOfTransferId);
+        if (existing && (returnWithoutClaim(existing, input) || (reconcileOnly && existing.id !== prior?.id))) {
           return { response: present(existing) };
         }
         if (existing && existing.destinationLinkId !== destination.id) throw notEligible();
@@ -188,15 +275,20 @@ export function makeStripePayoutTransfersController(auth: AuthService) {
         const same = current && candidate && current.link.id === destination.id &&
           JSON.stringify(current.captures) === JSON.stringify(candidate.captures);
         const account = same && await validProvider(tx, payout) ? await payoutReservationAccount(tx, payout) : null;
-        const reserved = account && await postedBalance(tx, account) >= BigInt(payout.netMinor) ? account : null;
+        const balance = account ? await postedBalance(tx, account) : 0n;
+        const sufficient = retryOf
+          ? account === retryOf.reservedAccountId && balance === BigInt(payout.grossMinor)
+          : balance >= BigInt(payout.netMinor);
+        const reserved = sufficient ? account : null;
         const allowSubmission = Boolean(reserved && (!existing || reserved === existing.reservedAccountId));
         if (!existing && !reserved) throw notEligible();
 
+        const now = new Date();
         const lease = { leaseId: randomUUID(), leaseUntil: new Date(now.getTime() + 30_000), updatedAt: now };
         const record = existing
           ? await tx.stripePayoutTransfer.update({ where: { id: existing.id }, data: lease })
           : await tx.stripePayoutTransfer.create({ data: {
-            payoutId: id, destinationLinkId: destination.id, actorId: operator.user.id,
+            payoutId: id, attempt: (retryOf?.attempt ?? 0) + 1, destinationLinkId: destination.id, actorId: operator.user.id,
             reservedAccountId: reserved!, amountMinor: payout.netMinor, ...lease,
           } });
         return { record, leaseId: lease.leaseId, submission: allowSubmission ? existing ? 'retry' as const : 'first' as const : false as const };

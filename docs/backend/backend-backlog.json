@@ -1717,7 +1717,7 @@
       "ui_coverage_ids": [
         "UI-038"
       ],
-      "remaining": "Administrators can repair a stale payout destination against the current approved revision before a transfer attempt. Stripe test transfers and confirmed reversals reconcile into the sandbox journal. Verify the hosted LKR route and frontend/Figma wiring. Add bank payout confirmation, fee settlement and recovery of funds held after a failed or reversed transfer attempt."
+      "remaining": "Administrators can repair a stale payout destination and authorize a new Stripe test transfer after a full reversal restores the gross reserve. Prior attempts and journal entries remain available for audit. Verify the hosted LKR route and frontend/Figma wiring. Add bank payout confirmation, fee settlement and recovery of funds after a failed or unresolved transfer."
     },
     {
       "id": "BE-049",
