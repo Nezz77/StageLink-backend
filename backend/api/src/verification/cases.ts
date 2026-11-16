@@ -103,11 +103,14 @@ export function makeVerificationController(auth: AuthService) {
         for (const assetId of [...assetIds].sort()) {
           await tx.$queryRaw`SELECT id FROM assets WHERE id=${assetId}::uuid FOR UPDATE`;
           const asset = await tx.asset.findFirst({
-            where: { id: assetId, ownerId: providerId, purpose: 'verification', status: 'ready' }, select: { variants: true },
+            where: { id: assetId, ownerId: providerId, purpose: 'verification', status: 'ready' }, select: { mime: true, variants: true },
           });
           const display = (asset?.variants as { display?: { mime?: string } } | undefined)?.display;
-          if (display?.mime !== 'image/webp') {
-            throw new PublicError(409, 'VERIFICATION_EVIDENCE_UNAVAILABLE', 'Choose validated private verification images.');
+          const eligible = asset?.mime === 'application/pdf'
+            ? display?.mime === 'application/pdf'
+            : asset?.mime.startsWith('image/') && display?.mime === 'image/webp';
+          if (!eligible) {
+            throw new PublicError(409, 'VERIFICATION_EVIDENCE_UNAVAILABLE', 'Choose validated private verification images or PDFs.');
           }
         }
         return present(await tx.verificationCase.create({

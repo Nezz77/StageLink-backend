@@ -1,12 +1,16 @@
 import {z} from 'zod';
-export const mime=z.enum(['image/jpeg','image/png','image/webp','audio/mpeg','audio/wav','video/mp4','video/webm']);
+export const mime=z.enum(['image/jpeg','image/png','image/webp','audio/mpeg','audio/wav','video/mp4','video/webm','application/pdf']);
 export const purpose=z.enum(['avatar','portfolio','equipment','evidence','chat','review','inspection','verification','support']);
 export const upload=z.object({purpose,filename:z.string().trim().min(1).max(120).regex(/^[^\x00-\x1f\x7f/\\]+$/),mime,bytes:z.number().int().positive().max(40*1024*1024),sha256:z.string().regex(/^[0-9a-f]{64}$/)}).strict().superRefine((v,ctx)=>{
  const limit=['verification','support'].includes(v.purpose)?5:v.mime.startsWith('image/')?8:v.mime.startsWith('audio/')?20:40;
  if(v.bytes>limit*1024*1024)ctx.addIssue({code:'custom',path:['bytes'],message:'File too large'});
- if(['avatar','equipment','evidence','chat','review','inspection','verification','support'].includes(v.purpose)&&!v.mime.startsWith('image/'))ctx.addIssue({code:'custom',path:['mime'],message:'Images required for this purpose'});
+ if (v.mime === 'application/pdf') {
+  if (v.purpose !== 'verification') ctx.addIssue({ code: 'custom', path: ['mime'], message: 'PDFs are limited to private verification evidence' });
+ } else if (['avatar','equipment','evidence','chat','review','inspection','verification','support'].includes(v.purpose) && !v.mime.startsWith('image/')) {
+  ctx.addIssue({ code: 'custom', path: ['mime'], message: 'Images required for this purpose' });
+ }
 });
-export const metadata=z.object({width:z.number().int().positive().optional(),height:z.number().int().positive().optional(),duration:z.number().positive().optional(),previewDuration:z.number().positive().max(30).optional(),waveform:z.array(z.number().min(0).max(1)).max(80).optional()});
+export const metadata=z.object({width:z.number().int().positive().optional(),height:z.number().int().positive().optional(),pages:z.number().int().min(1).max(8).optional(),duration:z.number().positive().optional(),previewDuration:z.number().positive().max(30).optional(),waveform:z.array(z.number().min(0).max(1)).max(80).optional()});
 export const variant=z.enum(['display','preview','poster']);
 export const asset=z.object({id:z.string().uuid(),purpose,status:z.enum(['pending','uploading','staged','uploaded','processing','ready','rejected','deleted','purged']),filename:z.string(),mime,bytes:z.number(),reason:z.string().nullable(),createdAt:z.string(),metadata,variants:z.array(variant)});
 export const library=z.object({assets:z.array(asset),avatarAssetId:z.string().uuid().nullable()});

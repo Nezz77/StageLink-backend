@@ -1856,7 +1856,7 @@
       "ui_coverage_ids": [
         "UI-042"
       ],
-      "remaining": "Support private PDF verification evidence and verify PostgreSQL/S3 and frontend/Figma integration. New standard and arbitration payout reservations already require a role-matched approved verification case."
+      "remaining": "Private verification PDFs have size and page bounds, rendered downloads, and pending-case access controls. Verify hosted storage and the frontend/Figma workflow. New standard and arbitration payout reservations already require a role-matched approved verification case."
     },
     {
       "id": "BE-053",

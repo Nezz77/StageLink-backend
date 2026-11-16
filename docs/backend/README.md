@@ -89,9 +89,9 @@ Authenticated clients use the `/api/v1/me` routes to manage profile data, submit
 
 Authenticated media routes provide uploads and private asset access. The worker validates uploads and builds derivatives. Portfolio items require administrator review and an approved provider profile before public access.
 
-The local Compose stack includes persistent S3Mock on loopback port 59090 (test: 59091). Host configuration uses `MEDIA_DRIVER=local-s3`, `S3_BUCKET=stagelink-media`, `S3_REGION=us-east-1` and `S3_ENDPOINT=http://127.0.0.1:59090`. Production must use `MEDIA_DRIVER=aws`, the intended private bucket/region and the AWS credential chain; do not use the emulator for real hosted evidence. Live AWS has not been configured/tested. FFmpeg/FFprobe are required for the host worker/tests and included in the backend image. CI installs them explicitly.
+The local Compose stack includes persistent S3Mock on loopback port 59090 (test: 59091). Host configuration uses `MEDIA_DRIVER=local-s3`, `S3_BUCKET=stagelink-media`, `S3_REGION=us-east-1` and `S3_ENDPOINT=http://127.0.0.1:59090`. Production must use `MEDIA_DRIVER=aws`, the intended private bucket/region and the AWS credential chain; do not use the emulator for real hosted evidence. Live AWS has not been configured/tested. Host workers and tests use FFmpeg/FFprobe and Poppler’s `pdfinfo` and `pdftoppm`. Linux workers also use `prlimit` for PDF processing bounds. The backend image and CI include those dependencies.
 
-Images: JPEG/PNG/WebP ≤8 MiB and 16 MP. Artist audio: MP3/WAV ≤20 MiB. Artist video: MP4/WebM ≤40 MiB. Audio/video ≤10 minutes, with actual previews up to 30 seconds. PDF/SVG/archive/executable formats are not accepted. See [ADR 004](ADR-004-media.md) for processing, retention, capability and future business-reference boundaries.
+Images: JPEG/PNG/WebP ≤8 MiB and 16 MP. Artist audio: MP3/WAV ≤20 MiB. Artist video: MP4/WebM ≤40 MiB. Audio/video ≤10 minutes, with actual previews up to 30 seconds. The verification upload purpose also accepts private PDFs up to 5 MiB and eight pages. SVG, archives and executables are rejected. See [ADR 004](ADR-004-media.md) for processing, retention, capability and future business-reference boundaries.
 
 ## PayHere sandbox
 
@@ -214,7 +214,9 @@ Semantic calls are limited to five per customer per 24 hours and `AI_SEMANTIC_DA
 
 ## Provider verification
 
-Providers submit two to five validated private images with `POST /api/v1/verification-cases`. Upload them with purpose `verification`, then pass their asset IDs in the case. Providers read their own history at `GET /api/v1/me/verification`. Administrators review pending cases at `GET /api/v1/admin/verification-cases` and record a reasoned decision at `POST /api/v1/admin/verification-cases/:id/decisions`. A rejected provider can submit a new version.
+Providers submit two to five validated private images or PDFs with `POST /api/v1/verification-cases`. Upload them with purpose `verification`, then pass their asset IDs in the case. Providers read their own history at `GET /api/v1/me/verification`. Administrators review pending cases at `GET /api/v1/admin/verification-cases` and record a reasoned decision at `POST /api/v1/admin/verification-cases/:id/decisions`. A rejected provider can submit a new version.
+
+The worker renders each PDF page and reconstructs the download from the resulting images. The rendered copy preserves the visible pages. Embedded text, interactive content and digital signatures are discarded. The PDF download uses a short-lived asset capability checked at download time. The owner can access their copy. A verified administrator can access the copy while it is attached to a pending verification case. The original remains in private asset storage under the existing retention rules.
 
 ## Support cases
 

@@ -9928,13 +9928,14 @@ export interface operations {
                             status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                             filename: string;
                             /** @enum {string} */
-                            mime: "image/jpeg" | "image/png" | "image/webp" | "audio/mpeg" | "audio/wav" | "video/mp4" | "video/webm";
+                            mime: "image/jpeg" | "image/png" | "image/webp" | "audio/mpeg" | "audio/wav" | "video/mp4" | "video/webm" | "application/pdf";
                             bytes: number;
                             reason: string | null;
                             createdAt: string;
                             metadata: {
                                 width?: number;
                                 height?: number;
+                                pages?: number;
                                 duration?: number;
                                 previewDuration?: number;
                                 waveform?: number[];
@@ -10069,7 +10070,7 @@ export interface operations {
                     purpose: "avatar" | "portfolio" | "equipment" | "evidence" | "chat" | "review" | "inspection" | "verification" | "support";
                     filename: string;
                     /** @enum {string} */
-                    mime: "image/jpeg" | "image/png" | "image/webp" | "audio/mpeg" | "audio/wav" | "video/mp4" | "video/webm";
+                    mime: "image/jpeg" | "image/png" | "image/webp" | "audio/mpeg" | "audio/wav" | "video/mp4" | "video/webm" | "application/pdf";
                     bytes: number;
                     sha256: string;
                 };
@@ -10090,13 +10091,14 @@ export interface operations {
                         status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                         filename: string;
                         /** @enum {string} */
-                        mime: "image/jpeg" | "image/png" | "image/webp" | "audio/mpeg" | "audio/wav" | "video/mp4" | "video/webm";
+                        mime: "image/jpeg" | "image/png" | "image/webp" | "audio/mpeg" | "audio/wav" | "video/mp4" | "video/webm" | "application/pdf";
                         bytes: number;
                         reason: string | null;
                         createdAt: string;
                         metadata: {
                             width?: number;
                             height?: number;
+                            pages?: number;
                             duration?: number;
                             previewDuration?: number;
                             waveform?: number[];
@@ -10930,13 +10932,14 @@ export interface operations {
                                 status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                                 filename: string;
                                 /** @enum {string} */
-                                mime: "image/jpeg" | "image/png" | "image/webp" | "audio/mpeg" | "audio/wav" | "video/mp4" | "video/webm";
+                                mime: "image/jpeg" | "image/png" | "image/webp" | "audio/mpeg" | "audio/wav" | "video/mp4" | "video/webm" | "application/pdf";
                                 bytes: number;
                                 reason: string | null;
                                 createdAt: string;
                                 metadata: {
                                     width?: number;
                                     height?: number;
+                                    pages?: number;
                                     duration?: number;
                                     previewDuration?: number;
                                     waveform?: number[];
@@ -11109,13 +11112,14 @@ export interface operations {
                                 status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                                 filename: string;
                                 /** @enum {string} */
-                                mime: "image/jpeg" | "image/png" | "image/webp" | "audio/mpeg" | "audio/wav" | "video/mp4" | "video/webm";
+                                mime: "image/jpeg" | "image/png" | "image/webp" | "audio/mpeg" | "audio/wav" | "video/mp4" | "video/webm" | "application/pdf";
                                 bytes: number;
                                 reason: string | null;
                                 createdAt: string;
                                 metadata: {
                                     width?: number;
                                     height?: number;
+                                    pages?: number;
                                     duration?: number;
                                     previewDuration?: number;
                                     waveform?: number[];
@@ -11291,13 +11295,14 @@ export interface operations {
                                 status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                                 filename: string;
                                 /** @enum {string} */
-                                mime: "image/jpeg" | "image/png" | "image/webp" | "audio/mpeg" | "audio/wav" | "video/mp4" | "video/webm";
+                                mime: "image/jpeg" | "image/png" | "image/webp" | "audio/mpeg" | "audio/wav" | "video/mp4" | "video/webm" | "application/pdf";
                                 bytes: number;
                                 reason: string | null;
                                 createdAt: string;
                                 metadata: {
                                     width?: number;
                                     height?: number;
+                                    pages?: number;
                                     duration?: number;
                                     previewDuration?: number;
                                     waveform?: number[];
@@ -11465,13 +11470,14 @@ export interface operations {
                                 status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                                 filename: string;
                                 /** @enum {string} */
-                                mime: "image/jpeg" | "image/png" | "image/webp" | "audio/mpeg" | "audio/wav" | "video/mp4" | "video/webm";
+                                mime: "image/jpeg" | "image/png" | "image/webp" | "audio/mpeg" | "audio/wav" | "video/mp4" | "video/webm" | "application/pdf";
                                 bytes: number;
                                 reason: string | null;
                                 createdAt: string;
                                 metadata: {
                                     width?: number;
                                     height?: number;
+                                    pages?: number;
                                     duration?: number;
                                     previewDuration?: number;
                                     waveform?: number[];
@@ -11639,13 +11645,14 @@ export interface operations {
                                 status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                                 filename: string;
                                 /** @enum {string} */
-                                mime: "image/jpeg" | "image/png" | "image/webp" | "audio/mpeg" | "audio/wav" | "video/mp4" | "video/webm";
+                                mime: "image/jpeg" | "image/png" | "image/webp" | "audio/mpeg" | "audio/wav" | "video/mp4" | "video/webm" | "application/pdf";
                                 bytes: number;
                                 reason: string | null;
                                 createdAt: string;
                                 metadata: {
                                     width?: number;
                                     height?: number;
+                                    pages?: number;
                                     duration?: number;
                                     previewDuration?: number;
                                     waveform?: number[];
@@ -11805,13 +11812,14 @@ export interface operations {
                                 status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                                 filename: string;
                                 /** @enum {string} */
-                                mime: "image/jpeg" | "image/png" | "image/webp" | "audio/mpeg" | "audio/wav" | "video/mp4" | "video/webm";
+                                mime: "image/jpeg" | "image/png" | "image/webp" | "audio/mpeg" | "audio/wav" | "video/mp4" | "video/webm" | "application/pdf";
                                 bytes: number;
                                 reason: string | null;
                                 createdAt: string;
                                 metadata: {
                                     width?: number;
                                     height?: number;
+                                    pages?: number;
                                     duration?: number;
                                     previewDuration?: number;
                                     waveform?: number[];
@@ -12112,13 +12120,14 @@ export interface operations {
                                 status: "pending" | "uploading" | "staged" | "uploaded" | "processing" | "ready" | "rejected" | "deleted" | "purged";
                                 filename: string;
                                 /** @enum {string} */
-                                mime: "image/jpeg" | "image/png" | "image/webp" | "audio/mpeg" | "audio/wav" | "video/mp4" | "video/webm";
+                                mime: "image/jpeg" | "image/png" | "image/webp" | "audio/mpeg" | "audio/wav" | "video/mp4" | "video/webm" | "application/pdf";
                                 bytes: number;
                                 reason: string | null;
                                 createdAt: string;
                                 metadata: {
                                     width?: number;
                                     height?: number;
+                                    pages?: number;
                                     duration?: number;
                                     previewDuration?: number;
                                     waveform?: number[];

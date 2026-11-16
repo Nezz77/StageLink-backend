@@ -1,7 +1,8 @@
 import sharp from 'sharp';
+import { jsPDF } from 'jspdf';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
-import {mkdtemp,writeFile,readFile,rm} from 'node:fs/promises';
+import {mkdtemp,writeFile,readFile,rm,readdir,stat} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createHash,randomUUID} from 'node:crypto';
@@ -12,6 +13,7 @@ const exec=promisify(execFile);
 export class InvalidMedia extends Error {}
 export type Derived={variants:Record<string,{mime:string;bytes:Buffer}>;metadata:Record<string,number|number[]>};
 function magic(b:Buffer,mime:string){
+ if(mime==='application/pdf')return b.toString('ascii',0,5)==='%PDF-';
  if(mime==='image/jpeg')return b.subarray(0,3).equals(Buffer.from([255,216,255]));
  if(mime==='image/png')return b.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]));
  if(mime==='image/webp')return b.toString('ascii',0,4)==='RIFF'&&b.toString('ascii',8,12)==='WEBP';
@@ -24,8 +26,92 @@ function magic(b:Buffer,mime:string){
 async function mediaCommand(program:string,args:string[],timeout=45000,maxBuffer=1024*1024){
  try{return await exec(program,args,{timeout,maxBuffer,windowsHide:true,env:{PATH:process.env.PATH,HOME:tmpdir()}});}catch{throw new InvalidMedia('The media could not be decoded within processing limits.');}
 }
-export async function deriveMedia(input:Buffer,mime:string):Promise<Derived>{
+const pdfPageLimit = 8;
+const pdfInputLimit = 5 * 1024 * 1024;
+const pdfDerivativeLimit = 9 * 1024 * 1024;
+
+async function pdfTool(tool: 'pdfinfo' | 'pdftoppm', args: string[], dir: string) {
+  const bounded = process.platform === 'linux';
+  const command = bounded ? 'prlimit' : tool;
+  const parameters = bounded
+    ? ['--as=536870912', '--cpu=10', '--fsize=12582912', '--nofile=64', '--core=0', '--', tool, ...args] : args;
+  try {
+    return await exec(command, parameters, {
+      cwd: dir, timeout: 15_000, killSignal: 'SIGKILL', maxBuffer: 65_536,
+      env: { PATH: process.env.PATH, HOME: dir, LC_ALL: 'C' },
+    });
+  } catch {
+    throw new InvalidMedia('Upload a readable, unencrypted verification PDF within processing limits.');
+  }
+}
+
+async function deriveVerificationPdf(input: Buffer): Promise<Derived> {
+  if (input.length > pdfInputLimit) throw new InvalidMedia('Verification PDFs must be no larger than 5 MiB.');
+  const dir = await mkdtemp(join(tmpdir(), 'stagelink-evidence-'));
+  try {
+    const original = join(dir, 'source.pdf');
+    const pagesPrefix = join(dir, 'page');
+    await writeFile(original, input, { mode: 0o600 });
+    const { stdout } = await pdfTool('pdfinfo', [original], dir);
+    const counts = [...stdout.matchAll(/^Pages:[ \t]+([0-9]+)[ \t]*$/gm)];
+    const encryption = [...stdout.matchAll(/^Encrypted:[ \t]+(yes|no)\b.*$/gm)];
+    const pages = Number(counts[0]?.[1]);
+    if (counts.length !== 1 || pages < 1 || pages > pdfPageLimit || encryption.length !== 1 || encryption[0]?.[1] !== 'no') {
+      throw new InvalidMedia('Upload an unencrypted PDF with one to eight pages.');
+    }
+    await pdfTool('pdftoppm', [
+      '-f', '1', '-l', String(pages), '-cropbox', '-scale-to', '2200',
+      '-jpeg', '-jpegopt', 'quality=88,optimize=y', original, pagesPrefix,
+    ], dir);
+
+    const rendered = (await readdir(dir)).flatMap(name => {
+      const pageNumber = /^page-([0-9]+)\.jpg$/.exec(name)?.[1];
+      return pageNumber ? [{ name, page: Number(pageNumber) }] : [];
+    }).sort((a, b) => a.page - b.page);
+    if (rendered.length !== pages || rendered.some(({ page }, index) => page !== index + 1)) {
+      throw new InvalidMedia('The verification PDF could not be rendered in full.');
+    }
+
+    let document: jsPDF | undefined;
+    let poster: Buffer | undefined;
+    let pageBytes = 0;
+    for (const { name } of rendered) {
+      const file = join(dir, name);
+      pageBytes += (await stat(file)).size;
+      if (pageBytes > pdfDerivativeLimit) throw new InvalidMedia('The rendered verification PDF is too large.');
+      const bytes = await readFile(file);
+      const image = sharp(bytes, { limitInputPixels: 5_000_000, failOn: 'warning' }).timeout({ seconds: 5 });
+      const { width, height, format } = await image.metadata();
+      if (format !== 'jpeg' || !width || !height || Math.max(width, height) > 2201) {
+        throw new InvalidMedia('The verification PDF contains an unreadable page.');
+      }
+      const size: [number, number] = [width / 2, height / 2];
+      const orientation = width > height ? 'landscape' : 'portrait';
+      if (document) {
+        document.addPage(size, orientation);
+      } else {
+        document = new jsPDF({ unit: 'pt', format: size, orientation, compress: true });
+        poster = await image.resize(360, 360, { fit: 'inside', withoutEnlargement: true }).webp({ quality: 75 }).toBuffer();
+      }
+      document.addImage(bytes, 'JPEG', 0, 0, ...size);
+    }
+    if (!document || !poster) throw new InvalidMedia('The verification PDF has no readable pages.');
+    const pdf = Buffer.from(document.output('arraybuffer'));
+    if (pdf.length > pdfDerivativeLimit) throw new InvalidMedia('The rendered verification PDF is too large.');
+    return {
+      metadata: { pages }, variants: { display: { mime: 'application/pdf', bytes: pdf }, poster: { mime: 'image/webp', bytes: poster } },
+    };
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
+export async function deriveMedia(input:Buffer,mime:string,purpose?:Asset['purpose']):Promise<Derived>{
  if(!magic(input,mime))throw new InvalidMedia('File contents do not match the selected file type.');
+ if (mime === 'application/pdf') {
+  if (purpose !== 'verification') throw new InvalidMedia('PDFs are limited to private verification evidence.');
+  return deriveVerificationPdf(input);
+ }
  if(mime.startsWith('image/')){
   try{
    const image=sharp(input,{limitInputPixels:16_000_000,failOn:'warning'}).timeout({seconds:5}),meta=await image.metadata();
@@ -69,7 +155,7 @@ export async function processMediaBatch(deps:Resources,store:MediaStore){
  try{
   const original=await store.get(originalKey(asset.id));
   if(original.length!==asset.bytes||createHash('sha256').update(original).digest('hex')!==asset.sha256)throw new InvalidMedia('Stored file integrity check failed.');
-  const derived=await deriveMedia(original,asset.mime),variants:Record<string,{mime:string;bytes:number}>={};
+  const derived=await deriveMedia(original,asset.mime,asset.purpose),variants:Record<string,{mime:string;bytes:number}>={};
   for(const [key,value]of Object.entries(derived.variants)){await store.put(derivativeKey(asset.id,key),value.bytes,value.mime);variants[key]={mime:value.mime,bytes:value.bytes.length};}
   await deps.db.asset.updateMany({where:{id:asset.id,status:'processing',leaseOwner:lease},data:{status:'ready',variants,metadata:derived.metadata,leaseOwner:null,leaseUntil:null,reason:null}});
  }catch(error){

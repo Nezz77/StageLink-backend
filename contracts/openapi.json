@@ -18826,7 +18826,8 @@
                               "audio/mpeg",
                               "audio/wav",
                               "video/mp4",
-                              "video/webm"
+                              "video/webm",
+                              "application/pdf"
                             ]
                           },
                           "bytes": {
@@ -18853,6 +18854,11 @@
                                 "minimum": 0,
                                 "exclusiveMinimum": true,
                                 "maximum": 9007199254740991
+                              },
+                              "pages": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 8
                               },
                               "duration": {
                                 "type": "number",
@@ -19229,7 +19235,8 @@
                       "audio/mpeg",
                       "audio/wav",
                       "video/mp4",
-                      "video/webm"
+                      "video/webm",
+                      "application/pdf"
                     ]
                   },
                   "bytes": {
@@ -19308,7 +19315,8 @@
                         "audio/mpeg",
                         "audio/wav",
                         "video/mp4",
-                        "video/webm"
+                        "video/webm",
+                        "application/pdf"
                       ]
                     },
                     "bytes": {
@@ -19335,6 +19343,11 @@
                           "minimum": 0,
                           "exclusiveMinimum": true,
                           "maximum": 9007199254740991
+                        },
+                        "pages": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 8
                         },
                         "duration": {
                           "type": "number",
@@ -21362,7 +21375,8 @@
                                   "audio/mpeg",
                                   "audio/wav",
                                   "video/mp4",
-                                  "video/webm"
+                                  "video/webm",
+                                  "application/pdf"
                                 ]
                               },
                               "bytes": {
@@ -21389,6 +21403,11 @@
                                     "minimum": 0,
                                     "exclusiveMinimum": true,
                                     "maximum": 9007199254740991
+                                  },
+                                  "pages": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 8
                                   },
                                   "duration": {
                                     "type": "number",
@@ -21900,7 +21919,8 @@
                                   "audio/mpeg",
                                   "audio/wav",
                                   "video/mp4",
-                                  "video/webm"
+                                  "video/webm",
+                                  "application/pdf"
                                 ]
                               },
                               "bytes": {
@@ -21927,6 +21947,11 @@
                                     "minimum": 0,
                                     "exclusiveMinimum": true,
                                     "maximum": 9007199254740991
+                                  },
+                                  "pages": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 8
                                   },
                                   "duration": {
                                     "type": "number",
@@ -22456,7 +22481,8 @@
                                   "audio/mpeg",
                                   "audio/wav",
                                   "video/mp4",
-                                  "video/webm"
+                                  "video/webm",
+                                  "application/pdf"
                                 ]
                               },
                               "bytes": {
@@ -22483,6 +22509,11 @@
                                     "minimum": 0,
                                     "exclusiveMinimum": true,
                                     "maximum": 9007199254740991
+                                  },
+                                  "pages": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 8
                                   },
                                   "duration": {
                                     "type": "number",
@@ -22976,7 +23007,8 @@
                                   "audio/mpeg",
                                   "audio/wav",
                                   "video/mp4",
-                                  "video/webm"
+                                  "video/webm",
+                                  "application/pdf"
                                 ]
                               },
                               "bytes": {
@@ -23003,6 +23035,11 @@
                                     "minimum": 0,
                                     "exclusiveMinimum": true,
                                     "maximum": 9007199254740991
+                                  },
+                                  "pages": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 8
                                   },
                                   "duration": {
                                     "type": "number",
@@ -23496,7 +23533,8 @@
                                   "audio/mpeg",
                                   "audio/wav",
                                   "video/mp4",
-                                  "video/webm"
+                                  "video/webm",
+                                  "application/pdf"
                                 ]
                               },
                               "bytes": {
@@ -23523,6 +23561,11 @@
                                     "minimum": 0,
                                     "exclusiveMinimum": true,
                                     "maximum": 9007199254740991
+                                  },
+                                  "pages": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 8
                                   },
                                   "duration": {
                                     "type": "number",
@@ -23985,7 +24028,8 @@
                                   "audio/mpeg",
                                   "audio/wav",
                                   "video/mp4",
-                                  "video/webm"
+                                  "video/webm",
+                                  "application/pdf"
                                 ]
                               },
                               "bytes": {
@@ -24012,6 +24056,11 @@
                                     "minimum": 0,
                                     "exclusiveMinimum": true,
                                     "maximum": 9007199254740991
+                                  },
+                                  "pages": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 8
                                   },
                                   "duration": {
                                     "type": "number",
@@ -24830,7 +24879,8 @@
                                   "audio/mpeg",
                                   "audio/wav",
                                   "video/mp4",
-                                  "video/webm"
+                                  "video/webm",
+                                  "application/pdf"
                                 ]
                               },
                               "bytes": {
@@ -24857,6 +24907,11 @@
                                     "minimum": 0,
                                     "exclusiveMinimum": true,
                                     "maximum": 9007199254740991
+                                  },
+                                  "pages": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 8
                                   },
                                   "duration": {
                                     "type": "number",

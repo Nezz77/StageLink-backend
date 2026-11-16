@@ -20,7 +20,7 @@ The existing Node worker scans media rows independently from its BullMQ/outbox a
 
 Sharp decodes image bytes, limits input to 16 million pixels and one frame, applies orientation and produces WebP display/thumbnail derivatives without embedded EXIF metadata. FFprobe/FFmpeg receive a fixed demuxer and `file,pipe` protocols only, with bounded subprocess time/output, CPU thread counts and dimensions. Input audio/video may be at most ten minutes. The worker creates an actual preview of up to thirty seconds, measured preview duration, video poster and audio waveform derived from decoded samples. No claimed duration, waveform or fallback performance is fabricated.
 
-Validation/re-encoding is not an antivirus guarantee. Executable/archive/SVG and PDF uploads are not accepted. Document handling and any extra evidence formats must be added when their owning verification/chat/support phases become live. Production worker isolation/resource limits and malware policy remain deployment work.
+The verification purpose accepts private PDFs. The worker limits document size and page count, bounds the Linux renderer, and reconstructs a download from rendered page images. The owner and verified administrators on pending verification cases receive the derivative through the private capability flow. SVG, archives and executables are rejected. Production worker isolation and malware policy remain deployment work. [OWASP file upload guidance](https://cheatsheetseries.owasp.org/cheatsheets/File_Upload_Cheat_Sheet.html)
 
 ## Ownership, access and retention
 

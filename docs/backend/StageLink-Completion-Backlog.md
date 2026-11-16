@@ -19,7 +19,7 @@ Updated 16 November 2026. Scope comes from the final proposal, sections 4, 5 and
 | --- | --- | --- |
 | 1 | Sandbox payments and reconciliation, P11–P14 | Verify PayHere and Stripe test callbacks, retrieval and audited recovery with merchant accounts. Confirm supported LKR and Connect capabilities. |
 | 2 | Refunds, payouts and arbitration, P12–P16 | Execute approved money movements through the gateways and record settlements, retries and failure recovery. Use settled data for production documents and P18 financial analytics. |
-| 3 | Equipment references and verification evidence, P15–P16 | Populate the equipment catalog from approved manufacturer sources and add protected PDF evidence upload and access. These tasks can run alongside payment work. |
+| 3 | Equipment references and verification evidence, P15–P16 | Populate the equipment catalog from approved manufacturer sources and verify private PDF evidence handling on staging storage. |
 | 4 | Hosted communication, P10 and P17 | Verify live SMTP reminders and campaigns, add consent-based SMS and delivery reconciliation, and verify WebSocket upgrades and booking chat on the hosted proxy. |
 | 5 | Frontend and release, all phases | Connect each supported workflow in the frontend and update its Figma flow. Run staging end-to-end, access control, accessibility, load, backup restore and rollback checks. |
 
@@ -81,7 +81,8 @@ A checked box marks implemented backend code. PostgreSQL integration, client wir
 - [x] P17 Promotional email opt-in, campaign drafts, verified audience preview, scheduling and cancellation.
 - [x] P17 Opt-in promotional email worker, rolling hourly cap, and administrator delivery counts.
 - [x] P17 One-click promotional email opt-out from supported mail clients.
-- [ ] P16 Private PDF verification evidence and gateway execution of arbitration awards.
+- [x] P16 Private verification PDF upload, rendered derivatives, and owner and pending-case administrator access.
+- [ ] P16 Hosted verification PDF access and gateway execution of arbitration awards.
 - [ ] P17 Live SMTP reminder and campaign verification, SMS reminders and promotional SMS.
 - [x] P18 Administrator and provider analytics from booking records and posted sandbox journals.
 - [x] P18 Stripe test and PayHere sandbox refund settlements in administrator and provider analytics, with daily totals.
@@ -96,6 +97,7 @@ A checked box marks implemented backend code. PostgreSQL integration, client wir
 - [x] GitHub CI passed for sandbox reconciliation at `0d26c4e` and cross-replica chat at `678ec3c`. See [run 43811076875](https://github.com/Nezz77/StageLink-backend/actions/runs/43811076875).
 - [x] GitHub CI passed for audited checkout recovery at `e451baa`, including the PostgreSQL journal suite. See [run 43812388181](https://github.com/Nezz77/StageLink-backend/actions/runs/43812388181).
 - [x] GitHub CI passed for Stripe test refund execution at `329f025`. See [run 43813265782](https://github.com/Nezz77/StageLink-backend/actions/runs/43813265782).
+- [x] GitHub CI passed for sandbox refund analytics at `276b20f` and PayHere sandbox refund execution at `1608785`. See [run 43814251179](https://github.com/Nezz77/StageLink-backend/actions/runs/43814251179).
 - [ ] Reconcile the [team frontend](https://github.com/Nezz77/StageLink) with the current backend contracts. Update the corresponding StageLink Figma screens and flows during each UI task.
 - [ ] Verify hosted model calls, signed sandbox payment callbacks, gateway reconciliation and two-account booking flows in staging.
 

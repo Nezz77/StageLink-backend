@@ -4,10 +4,11 @@ import {randomUUID,createHash} from 'node:crypto';
 import {spawn,type ChildProcess,execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import {once} from 'node:events';
-import {mkdtemp,readFile,rm} from 'node:fs/promises';
+import {mkdtemp,readFile,rm,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import sharp from 'sharp';
+import { jsPDF } from 'jspdf';
 import {SignJWT} from 'jose';
 import {createApp} from '../api/src/app.js';
 import {readConfig} from '../shared/config.js';
@@ -26,7 +27,7 @@ test('persistent private uploads, real derivatives, publication, capabilities, r
  async function call(path:string,body?:unknown,auth?:Login,method?:string,headers:Record<string,string>={}){const r=await fetch(base+'/api/v1/'+path,{method:method??(body===undefined?'GET':'POST'),headers:{'Content-Type':'application/json',Origin:config.WEB_ORIGIN,...(auth?{Authorization:'Bearer '+auth.accessToken,'X-CSRF-Token':auth.csrfToken,Cookie:auth.cookie}:{}),...headers},...(body===undefined?{}:{body:JSON.stringify(body)})});const t=await r.text();return{status:r.status,data:t?JSON.parse(t):null,headers:r.headers};}
  async function fixture(label:string,roles:('customer'|'artist'|'renter'|'admin')[]){const u=await deps.db.authUser.create({data:{email:`${label}-${suffix}@stagelink.test`,displayName:label,passwordHash:await hashPassword(password),roles,emailVerifiedAt:new Date()}});ids.push(u.id);const r=await call('auth/login',{email:u.email,password});assert.equal(r.status,200);return{...r.data,cookie:r.headers.get('set-cookie')!.split(';')[0]!}as Login;}
  const image=await sharp({create:{width:100,height:80,channels:3,background:'#7c3aed'}}).png().toBuffer();
- async function intent(bytes:Buffer,mime='image/png',purpose='portfolio',a?:Login){const r=await call('assets/uploads',{filename:'fixture.'+(mime==='image/png'?'png':mime==='audio/wav'?'wav':'mp4'),bytes:bytes.length,mime,purpose,sha256:createHash('sha256').update(bytes).digest('hex')},a);assert.equal(r.status,200,JSON.stringify(r.data));return r.data.id as string;}
+ async function intent(bytes:Buffer,mime='image/png',purpose='portfolio',a?:Login){const r=await call('assets/uploads',{filename:'fixture.'+(mime==='image/png'?'png':mime==='audio/wav'?'wav':mime==='application/pdf'?'pdf':'mp4'),bytes:bytes.length,mime,purpose,sha256:createHash('sha256').update(bytes).digest('hex')},a);assert.equal(r.status,200,JSON.stringify(r.data));return r.data.id as string;}
  async function send(id:string,bytes:Buffer,a:Login,headers:Record<string,string>={}){return fetch(base+`/api/v1/assets/${id}/content`,{method:'PUT',headers:{Origin:config.WEB_ORIGIN,'Content-Type':'application/octet-stream',Authorization:'Bearer '+a.accessToken,'X-CSRF-Token':a.csrfToken,...headers},body:new Uint8Array(bytes)});}
  async function upload(bytes:Buffer,a:Login,mime='image/png',purpose='portfolio'){const id=await intent(bytes,mime,purpose,a);assert.equal((await send(id,bytes,a)).status,200);assert.equal((await call(`assets/${id}/finalize`,{},a)).status,200);return id;}
  try{
@@ -67,6 +68,56 @@ test('persistent private uploads, real derivatives, publication, capabilities, r
   const decisions=await Promise.all([call(`admin/media/${p.id}/decision`,decision,admin),call(`admin/media/${p.id}/decision`,decision,admin)]);assert.deepEqual(decisions.map(x=>x.status).sort(),[200,409]);
   assert.equal((await call(`public/providers/${a.user.id}/artist/media`)).status,404,'Provider profile must also be approved');
   await deps.db.providerProfile.create({data:{userId:a.user.id,kind:'artist',displayName:'Fixture approved provider',bio:'Fixture',city:'Colombo',serviceRadiusKm:20,address:'private',category:'Singer',genres:[],experienceYears:1,baseRateMinor:0,equipmentCategories:[],operatingHours:[],rentalTerms:'',approvedRevision:1,approvedSnapshot:{}}});
+  const maliciousPdf = new jsPDF();
+  maliciousPdf.text('Synthetic identity evidence page one', 15, 25);
+  maliciousPdf.addPage().text('Synthetic identity evidence page two', 15, 25);
+  maliciousPdf.addJS('app.alert("test-active-content")');
+  const original = Buffer.from(maliciousPdf.output('arraybuffer'));
+  assert.ok(original.includes(Buffer.from('/JavaScript')));
+  const fixtureUpload = { filename: 'fixture.pdf', mime: 'application/pdf', bytes: original.length, sha256: createHash('sha256').update(original).digest('hex') };
+  assert.equal((await call('assets/uploads', { ...fixtureUpload, purpose: 'portfolio' }, a)).status, 400);
+  const pdfId = await upload(original, a, 'application/pdf', 'verification');
+  const imageId = await upload(image, a, 'image/png', 'verification');
+  await processMediaBatch(deps, store);
+  await processMediaBatch(deps, store);
+  const evidence = await deps.db.asset.findUniqueOrThrow({ where: { id: pdfId } });
+  assert.equal(evidence.status, 'ready', String(evidence.reason));
+  assert.deepEqual(evidence.metadata, { pages: 2 });
+  const ownerPdf = await call(`assets/${pdfId}/access`, { variant: 'display' }, a);
+  assert.equal(ownerPdf.status, 200);
+  assert.equal((await call(`assets/${pdfId}/access`, { variant: 'display' }, b)).status, 404);
+  assert.equal((await call(`assets/${pdfId}/access`, { variant: 'display' }, admin)).status, 404);
+  const downloaded = await fetch(base + ownerPdf.data.url);
+  assert.equal(downloaded.status, 200);
+  assert.equal(downloaded.headers.get('Content-Type'), 'application/pdf');
+  assert.equal(downloaded.headers.get('Content-Disposition'), 'attachment; filename="verification-evidence.pdf"');
+  const derivative = Buffer.from(await downloaded.arrayBuffer());
+  assert.ok(derivative.subarray(0, 5).equals(Buffer.from('%PDF-')));
+  assert.ok(!derivative.equals(original));
+  assert.ok(!derivative.includes(Buffer.from('/JavaScript')));
+  const renderedFile = join(dir, 'download.pdf');
+  await writeFile(renderedFile, derivative);
+  assert.match((await exec('pdfinfo', [renderedFile])).stdout, /^Pages:\s+2$/m);
+
+  const submitted = await call('verification-cases', {
+    kind: 'artist', subject: 'Private identity documents', body: 'Test identity evidence and role verification details.',
+    requestKey: randomUUID(), assetIds: [pdfId, imageId],
+  }, a);
+  assert.equal(submitted.status, 200, JSON.stringify(submitted.data));
+  assert.equal(submitted.data.documents[0].mime, 'application/pdf');
+  const reviewCap = await call(`assets/${pdfId}/access`, { variant: 'display' }, admin);
+  assert.equal(reviewCap.status, 200);
+  assert.equal((await fetch(base + reviewCap.data.url)).status, 200);
+  assert.equal((await call(`assets/${pdfId}/remove`, {}, a)).status, 409);
+  const reviewed = await call(`admin/verification-cases/${submitted.data.id}/decisions`, {
+    status: 'approved', reason: 'The protected fixture evidence was reviewed.', documentsReviewed: true,
+  }, admin);
+  assert.equal(reviewed.status, 200, JSON.stringify(reviewed.data));
+  assert.equal((await fetch(base + reviewCap.data.url)).status, 401);
+
+  const fakePdf = await upload(Buffer.from('%PDF-1.7\nInvalid fixture'), a, 'application/pdf', 'verification');
+  await processMediaBatch(deps, store);
+  assert.equal((await deps.db.asset.findUniqueOrThrow({ where: { id: fakePdf } })).status, 'rejected');
   const publicItems=await call(`public/providers/${a.user.id}/artist/media`);assert.equal(publicItems.status,200);assert.equal(publicItems.data.items.length,1);
   const publicCap=await call(`public/media/${p.id}/access?variant=display`);assert.equal(publicCap.status,200);assert.equal((await fetch(base+publicCap.data.url)).status,200);
   const published=await deps.db.portfolioItem.findUniqueOrThrow({where:{id:p.id}});await call(`me/portfolio/${p.id}`,{...item,caption:'Private revised caption',revision:published.revision},a,'PATCH');
@@ -89,7 +140,7 @@ test('persistent private uploads, real derivatives, publication, capabilities, r
   const lateCap=await call(`assets/${id}/access`,{variant:'display'},a);await call('auth/logout',{},a);assert.equal((await fetch(base+lateCap.data.url)).status,401,'Revoking a session also revokes its media capabilities');
  }finally{
   await stop();const assets=await deps.db.asset.findMany({where:{ownerId:{in:ids}}});for(const a of assets)for(const key of[originalKey(a.id),...['display','preview','poster'].map(v=>derivativeKey(a.id,v))])await store.remove(key).catch(()=>{});
-  await deps.db.$transaction(async tx=>{await tx.profileAudit.deleteMany({where:{targetUserId:{in:ids}}});await tx.assetHold.deleteMany({where:{assetId:{in:assets.map(a=>a.id)}}});await tx.avatarBinding.deleteMany({where:{ownerId:{in:ids}}});await tx.portfolioItem.deleteMany({where:{ownerId:{in:ids}}});await tx.asset.deleteMany({where:{ownerId:{in:ids}}});await tx.authUser.deleteMany({where:{id:{in:ids}}});});
+  await deps.db.$transaction(async tx=>{await tx.profileAudit.deleteMany({where:{targetUserId:{in:ids}}});await tx.assetHold.deleteMany({where:{assetId:{in:assets.map(a=>a.id)}}});await tx.avatarBinding.deleteMany({where:{ownerId:{in:ids}}});await tx.portfolioItem.deleteMany({where:{ownerId:{in:ids}}});await tx.verificationDocument.deleteMany({where:{case:{providerId:{in:ids}}}});await tx.verificationCase.deleteMany({where:{providerId:{in:ids}}});await tx.asset.deleteMany({where:{ownerId:{in:ids}}});await tx.authUser.deleteMany({where:{id:{in:ids}}});});
   store.close();await rm(dir,{recursive:true,force:true});await app.close();
  }
 });
