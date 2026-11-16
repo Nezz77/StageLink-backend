@@ -18,6 +18,7 @@ test('verified administrators can compare sandbox checkout evidence without muta
   const originalFetch = globalThis.fetch;
   let matches = true;
   let gatewayReads = 0;
+  let capabilitiesReads = 0;
   const deps = resources(config);
   const users: string[] = [];
   let bookingId: string | undefined;
@@ -28,6 +29,20 @@ test('verified administrators can compare sandbox checkout evidence without muta
       gatewayReads++;
       assert.equal(init?.method, 'GET');
       return Promise.resolve(Response.json({ ...stripePayload, amount_total: matches ? 150000 : 100 }));
+    }
+    if (typeof input === 'string' && input.startsWith('https://api.stripe.com/v1/')) {
+      capabilitiesReads++;
+      assert.equal(init?.method, 'GET');
+      if (input.endsWith('/account')) return Promise.resolve(Response.json({
+        object: 'account', id: 'acct_platform', country: 'US', charges_enabled: true, payouts_enabled: true,
+      }));
+      if (input.endsWith('/balance')) return Promise.resolve(Response.json({
+        object: 'balance', livemode: false, available: [{ currency: 'lkr', amount: 250000 }],
+      }));
+      if (input.endsWith('/country_specs/US')) return Promise.resolve(Response.json({
+        object: 'country_spec', id: 'US', supported_payment_currencies: ['lkr'], supported_bank_account_currencies: {},
+      }));
+      return Promise.resolve(new Response(null, { status: 404 }));
     }
     return originalFetch(input, init);
   });
@@ -66,6 +81,20 @@ test('verified administrators can compare sandbox checkout evidence without muta
     const order = await deps.db.paymentOrder.create({ data: { bookingId, purpose: 'advance', amountMinor: 150000 } });
     orderId = order.id;
     const endpoint = base + order.id + '/reconciliation';
+    const readiness = (await app.getUrl()) + '/api/v1/admin/payments/stripe-capabilities';
+    assert.equal((await fetch(readiness, customer)).status, 403);
+    assert.equal((await fetch(readiness, unverified)).status, 403);
+    assert.equal((await fetch(readiness + '?connectedAccountId=invalid', admin)).status, 400);
+    assert.equal(capabilitiesReads, 0);
+    const capabilities = await fetch(readiness, admin);
+    assert.equal(capabilities.status, 200);
+    const evidence = await capabilities.json();
+    assert.equal(evidence.status, 'checked');
+    assert.deepEqual(evidence.platform, {
+      country: 'US', chargesEnabled: true, lkrChargeCurrencyListed: true, availableLkrMinor: '250000',
+    });
+    assert.equal(evidence.connectedAccount, null);
+    assert.equal(capabilitiesReads, 3);
     assert.equal((await fetch(endpoint)).status, 401);
     assert.equal((await fetch(endpoint, customer)).status, 403);
     assert.equal((await fetch(endpoint, unverified)).status, 403);

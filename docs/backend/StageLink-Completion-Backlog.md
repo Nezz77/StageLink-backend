@@ -45,6 +45,7 @@ A checked box marks implemented backend code. PostgreSQL integration, client wir
 - [x] P11 Stripe test-mode hosted Checkout and signed notification intake for advances and deposits.
 - [x] P11 Administrator read-only checkout reconciliation using Stripe test Checkout retrieval and PayHere sandbox Merchant API evidence.
 - [x] P11 Verified-administrator recovery for confirmed missing sandbox captures and expired Stripe Checkout sessions. Recovery preserves the audit record and deduplicates later webhooks.
+- [x] P11 Read-only Stripe test capability checks for platform LKR and candidate connected destinations.
 - [ ] P11 Verify real PayHere and Stripe sandbox callbacks, retrieval and audited recovery. Confirm Stripe merchant LKR support and Connect eligibility.
 - [x] P12 provider check-in, counterparty overtime decisions, completion reporting and admin verification.
 - [x] P12 final balance from the accepted agreement and approved overtime, with sandbox checkout after reported completion.

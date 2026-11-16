@@ -1,0 +1,83 @@
+import { z } from 'zod';
+
+export const stripeAccountId = z.string().max(150).regex(/^acct_[A-Za-z0-9]+$/);
+const country = z.string().regex(/^[A-Z]{2}$/);
+const currency = z.string().regex(/^[a-z]{3}$/);
+const account = z.object({
+  object: z.literal('account'), id: stripeAccountId, country,
+  charges_enabled: z.boolean(), payouts_enabled: z.boolean(),
+  controller: z.object({ is_controller: z.boolean().optional() }).nullish(),
+  capabilities: z.object({ transfers: z.string().max(30).optional() }).nullish(),
+});
+const countrySpec = z.object({
+  object: z.literal('country_spec'), id: country,
+  supported_payment_currencies: z.array(currency).max(300),
+  supported_bank_account_currencies: z.record(currency, z.array(country).max(300)),
+  supported_transfer_countries: z.array(country).max(300).optional(),
+});
+const balance = z.object({
+  object: z.literal('balance'), livemode: z.literal(false),
+  available: z.array(z.object({ currency, amount: z.number().int() })).max(300),
+});
+
+export const stripeCapabilities = z.object({
+  status: z.enum(['unconfigured', 'unavailable', 'checked']),
+  platform: z.object({
+    country, chargesEnabled: z.boolean(), lkrChargeCurrencyListed: z.boolean().nullable(),
+    availableLkrMinor: z.string().regex(/^-?\d+$/).nullable(),
+  }).nullable(),
+  connectedAccount: z.object({
+    id: stripeAccountId, country, platformControlsAccount: z.boolean().nullable(),
+    transfersCapability: z.string().nullable(), payoutsEnabled: z.boolean(),
+    lkrBankCurrencyListed: z.boolean().nullable(), destinationCountryListed: z.boolean().nullable(),
+  }).nullable(),
+});
+
+export async function checkStripeCapabilities(key: string | undefined, destinationId?: string, send = fetch) {
+  const empty = { platform: null, connectedAccount: null };
+  if (!key?.startsWith('sk_test_')) return { status: 'unconfigured' as const, ...empty };
+  if (destinationId !== undefined && !stripeAccountId.safeParse(destinationId).success) {
+    return { status: 'unavailable' as const, ...empty };
+  }
+
+  async function read<T>(path: string, schema: z.ZodType<T>) {
+    try {
+      const response = await send('https://api.stripe.com/v1/' + path, {
+        method: 'GET', redirect: 'error', signal: AbortSignal.timeout(4000), headers: { Authorization: 'Bearer ' + key },
+      });
+      if (!response.ok) return null;
+      const parsed = schema.safeParse(await response.json());
+      return parsed.success ? parsed.data : null;
+    } catch { return null; }
+  }
+
+  const [platform, funds, candidate] = await Promise.all([
+    read('account', account), read('balance', balance),
+    destinationId ? read('accounts/' + destinationId, account) : null,
+  ]);
+  if (!platform || !funds) return { status: 'unavailable' as const, ...empty };
+  const destination = candidate && candidate.id === destinationId && candidate.id !== platform.id ? candidate : null;
+  const platformCountry = read('country_specs/' + platform.country, countrySpec);
+  const [origin, location] = await Promise.all([
+    platformCountry,
+    destination ? destination.country === platform.country ? platformCountry : read('country_specs/' + destination.country, countrySpec) : null,
+  ]);
+  const originSpec = origin?.id === platform.country ? origin : null;
+  const destinationSpec = location?.id === destination?.country ? location : null;
+  return {
+    status: 'checked' as const,
+    platform: {
+      country: platform.country, chargesEnabled: platform.charges_enabled,
+      lkrChargeCurrencyListed: originSpec?.supported_payment_currencies.includes('lkr') ?? null,
+      availableLkrMinor: funds.available.find(row => row.currency === 'lkr')?.amount.toString() ?? null,
+    },
+    connectedAccount: destination ? {
+      id: destination.id, country: destination.country,
+      platformControlsAccount: destination.controller?.is_controller ?? null,
+      transfersCapability: destination.capabilities?.transfers ?? null,
+      payoutsEnabled: destination.payouts_enabled,
+      lkrBankCurrencyListed: destinationSpec ? Boolean(destinationSpec.supported_bank_account_currencies.lkr?.length) : null,
+      destinationCountryListed: originSpec?.supported_transfer_countries?.includes(destination.country) ?? null,
+    } : null,
+  };
+}

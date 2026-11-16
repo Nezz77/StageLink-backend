@@ -142,6 +142,10 @@ Providers can read `GET /api/v1/me/earnings`. Administrators can read `GET /api/
 
 `POST /api/v1/admin/payouts` takes `{bookingId, destinationRevision}` and reserves the sandbox service funds once. It requires administrator-verified completion, paid service orders and the current approved destination. `GET /api/v1/payouts/:id` is scoped to the provider and administrators. A reservation status of `review_required` signals a hold, destination change or payment review. Provider submission and reconciliation remain pending.
 
+## Stripe test Connect capabilities
+
+A verified administrator can read `GET /api/v1/admin/payments/stripe-capabilities` using the configured Stripe test key. It reports whether the platform country lists LKR for payments and whether the account has an available LKR balance. With `connectedAccountId=acct_…`, it also reports the account controller relationship, transfer capability, payout status and the available country-spec evidence for LKR bank settlement and destinations. Missing evidence appears as `null`. The report is a read-only diagnostic. Hosted validation still needs a test platform, the actual connected account and a supported transfer route for the chosen payout. [Stripe Accounts](https://docs.stripe.com/api/accounts/retrieve) · [Country specs](https://docs.stripe.com/api/country_specs/retrieve) · [Connect transfers](https://docs.stripe.com/connect/separate-charges-and-transfers)
+
 ## Booking documents
 
 List documents at `GET /api/v1/bookings/:id/documents`, preview a snapshot at `GET /api/v1/documents/:id`, and download the worker-rendered PDF at `GET /api/v1/documents/:id/download`. The worker must be running with access to the private object store. A failed render can be queued again with `POST /api/v1/documents/:id/render-retry`.

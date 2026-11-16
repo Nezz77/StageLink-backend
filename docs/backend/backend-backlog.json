@@ -1614,7 +1614,7 @@
       "ui_coverage_ids": [
         "UI-035"
       ],
-      "remaining": "Test Checkout retrieval and audited recovery for missing captures and expirations are implemented. Verify LKR checkout, callbacks, retrieval and recovery with an actual test account. Confirm merchant and Connect eligibility, then verify transfers and settlement reconciliation."
+      "remaining": "Test Checkout retrieval and audited recovery for missing captures and expirations are implemented. Verify LKR checkout, callbacks, retrieval and recovery with an actual test account. Use the Stripe test account and country-spec diagnostic to confirm merchant and Connect capability evidence, then verify transfers and settlement reconciliation."
     },
     {
       "id": "BE-046",

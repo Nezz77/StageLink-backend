@@ -3157,6 +3157,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/payments/stripe-capabilities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["StripeCapabilitiesController_check"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/refund-requests/{id}/items/{orderId}/stripe-execution": {
         parameters: {
             query?: never;
@@ -18904,6 +18920,47 @@ export interface operations {
                     "application/json": {
                         /** @enum {boolean} */
                         received: true;
+                    };
+                };
+            };
+        };
+    };
+    StripeCapabilitiesController_check: {
+        parameters: {
+            query?: {
+                connectedAccountId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        status: "unconfigured" | "unavailable" | "checked";
+                        platform: {
+                            country: string;
+                            chargesEnabled: boolean;
+                            lkrChargeCurrencyListed: boolean | null;
+                            availableLkrMinor: string | null;
+                        } | null;
+                        connectedAccount: {
+                            id: string;
+                            country: string;
+                            platformControlsAccount: boolean | null;
+                            transfersCapability: string | null;
+                            payoutsEnabled: boolean;
+                            lkrBankCurrencyListed: boolean | null;
+                            destinationCountryListed: boolean | null;
+                        } | null;
+                        /** Format: date-time */
+                        checkedAt: string;
                     };
                 };
             };
