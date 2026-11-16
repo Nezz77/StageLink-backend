@@ -2206,7 +2206,7 @@
       "ui_coverage_ids": [
         "UI-052"
       ],
-      "remaining": "Add verified live and settled refund, payout and revenue analytics after gateway reconciliation, and verify the frontend charts and Figma integration."
+      "remaining": "Confirmed Stripe test refund settlements have total and daily analytics. Add other gateway settlements, payout and revenue analytics after execution, verify live totals, and connect the frontend charts and Figma integration."
     },
     {
       "id": "BE-063",

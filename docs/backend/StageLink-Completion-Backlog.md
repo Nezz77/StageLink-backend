@@ -82,7 +82,8 @@ A checked box marks implemented backend code. PostgreSQL integration, client wir
 - [ ] P16 Private PDF verification evidence and gateway execution of arbitration awards.
 - [ ] P17 Live SMTP reminder and campaign verification, SMS reminders and promotional SMS.
 - [x] P18 Administrator and provider analytics from booking records and posted sandbox journals.
-- [ ] P18 Settled financial analytics, security, accessibility, backup and rollback, and end-to-end release verification.
+- [x] P18 Stripe test refund settlements in administrator and provider analytics, with daily totals.
+- [ ] P18 Settled payout and fee analytics, supported live financial totals, and release verification for security, accessibility, backup and rollback.
 
 ## Verification and client integration
 

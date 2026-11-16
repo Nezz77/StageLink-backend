@@ -87,6 +87,7 @@ test('approved Stripe refunds settle reserved funds once after exact authenticat
     const old = await fixture('admin', false);
     const customer = await fixture('customer');
     const artist = await fixture('artist');
+    const outsider = await fixture('artist');
     const startsAt = new Date(Date.now() + 3600_000);
     const booking = await deps.db.booking.create({ data: {
       customerId: customer.id, providerId: artist.id, requestKey: randomUUID(), requestDigest: '0'.repeat(64),
@@ -131,6 +132,15 @@ test('approved Stripe refunds settle reserved funds once after exact authenticat
     assert.equal((await submit(advance.id, customer)).status, 403);
     assert.equal((await (await submit(advance.id, old)).json()).code, 'RECENT_LOGIN_REQUIRED');
     assert.equal((await (await fetch(path(advance.id), admin)).json()).execution, null);
+    const now = Date.now();
+    const periodStart = new Date(now - 86_400_000).toISOString().slice(0, 10);
+    const periodEnd = new Date(now + 2 * 86_400_000).toISOString().slice(0, 10);
+    const selection = '?from=' + periodStart + '&to=' + periodEnd;
+    const dashboard = async (actor = artist, environment = 'sandbox') => {
+      const response = await fetch(base + 'me/analytics' + selection + '&environment=' + environment, actor);
+      assert.equal(response.status, 200);
+      return response.json();
+    };
 
     const waiting = submit(advance.id);
     await Promise.race([awaitingStripe, waiting.then(async response => assert.fail(await response.clone().text()))]);
@@ -139,6 +149,9 @@ test('approved Stripe refunds settle reserved funds once after exact authenticat
     } finally { release(); }
     assert.equal((await (await waiting).json()).state, 'pending');
     assert.equal(await postedBalance(deps.db, advance.accountId), 150001n);
+    const before = await dashboard();
+    assert.equal(before.money.refundReservedMinor, '300002');
+    assert.equal(before.settled.refundedMinor, '0');
     const settled = await (await submit(advance.id)).json();
     assert.equal(settled.state, 'succeeded');
     assert.deepEqual(await (await submit(advance.id)).json(), settled);
@@ -149,6 +162,17 @@ test('approved Stripe refunds settle reserved funds once after exact authenticat
     assert.equal((await (await submit(deposit.id)).json()).state, 'succeeded');
     assert.equal(await postedBalance(deps.db, deposit.accountId), 0n);
     assert.deepEqual(submissions, ['pi_service', 'pi_deposit']);
+    const after = await dashboard();
+    assert.equal(after.money.refundReservedMinor, '300002');
+    assert.equal(after.settled.refundedMinor, '300002');
+    const daily = after.days.reduce((sum: bigint, day: { settled: { refundedMinor: string } }) =>
+      sum + BigInt(day.settled.refundedMinor), 0n);
+    assert.equal(daily, 300002n);
+    assert.equal((await dashboard(outsider)).settled.refundedMinor, '0');
+    assert.equal((await dashboard(artist, 'live')).settled.refundedMinor, null);
+    const aggregate = await fetch(base + 'admin/analytics' + selection, admin);
+    assert.equal(aggregate.status, 200);
+    assert.ok(BigInt((await aggregate.json()).settled.refundedMinor) >= 300002n);
 
     const rows = await deps.db.stripeRefundExecution.findMany({ where: { requestId: refund.id }, include: { settlement: true } });
     assert.equal(rows.length, 2);

@@ -24,16 +24,18 @@ const financial = z.object({
   serviceCapturedMinor: amount, depositCapturedMinor: amount, captureReviewMinor: amount,
   refundReservedMinor: amount, payoutReservedMinor: amount, feeReservedMinor: amount,
 });
-const activity = z.object({ bookings: counts, money: financial.nullable(), newUsers: z.number().int().nonnegative().nullable() });
+const settled = z.object({ refundedMinor: amount.nullable(), paidOutMinor: z.null(), feeRevenueMinor: z.null() });
+const activity = z.object({
+  bookings: counts, money: financial.nullable(), newUsers: z.number().int().nonnegative().nullable(), settled,
+});
 const report = activity.extend({
   from: date, to: date, currency, environment,
   days: z.array(activity.extend({ date })),
-  settled: z.object({ refundedMinor: z.null(), paidOutMinor: z.null(), feeRevenueMinor: z.null() }),
 });
 
 type BookingMetric = keyof z.infer<typeof counts>;
 type MoneyMetric = keyof z.infer<typeof financial>;
-type Fact = { day: string; metric: BookingMetric | MoneyMetric | 'newUsers'; total: string };
+type Fact = { day: string; metric: BookingMetric | MoneyMetric | 'refundedMinor' | 'newUsers'; total: string };
 type Period = ReturnType<typeof analyticsPeriod>;
 
 export function analyticsPeriod(raw: unknown, now = new Date()) {
@@ -109,6 +111,13 @@ async function financialFacts(tx: Prisma.TransactionClient, period: Period, prov
       JOIN payment_orders o ON o.id = r.order_id
       WHERE j.source = 'refund.sandbox.reserve'
       UNION ALL
+      SELECT j.posted_at, o.booking_id, 'refundedMinor', e.amount_minor
+      FROM journal j JOIN stripe_refund_executions r ON r.settlement_id = j.id
+      JOIN payment_orders o ON o.id = r.order_id
+      JOIN journal_entries e ON e.transaction_id = j.id AND e.amount_minor > 0
+      JOIN financial_accounts a ON a.id = e.account_id AND a.kind = 'clearing' AND a.scope = 'gateway:stripe:test'
+      WHERE j.source = 'stripe.test.refund.settle' AND r.status = 'succeeded'
+      UNION ALL
       SELECT j.posted_at, d.booking_id, split.metric, split.minor
       FROM journal j JOIN damage_claims d ON d.reservation_id = j.id
       CROSS JOIN LATERAL (VALUES ('refundReservedMinor', d.refund_minor), ('payoutReservedMinor', d.deduction_minor)) AS split(metric, minor)
@@ -134,6 +143,7 @@ function emptyActivity() {
       serviceCapturedMinor: 0n, depositCapturedMinor: 0n, captureReviewMinor: 0n,
       refundReservedMinor: 0n, payoutReservedMinor: 0n, feeReservedMinor: 0n,
     },
+    refundedMinor: 0n,
     newUsers: 0,
   };
 }
@@ -142,6 +152,7 @@ type Activity = ReturnType<typeof emptyActivity>;
 
 function addFact(activity: Activity, { metric, total }: Fact) {
   if (metric === 'newUsers') activity.newUsers += Number(total);
+  else if (metric === 'refundedMinor') activity.refundedMinor += BigInt(total);
   else if (Object.hasOwn(activity.bookings, metric)) activity.bookings[metric as BookingMetric] += Number(total);
   else activity.money[metric as MoneyMetric] += BigInt(total);
 }
@@ -161,13 +172,17 @@ export async function readAnalytics(tx: Prisma.TransactionClient, period: Period
       money: period.environment === 'sandbox'
         ? Object.fromEntries(Object.entries(activity.money).map(([key, value]) => [key, value.toString()])) : null,
       newUsers: providerId ? null : activity.newUsers,
+      settled: {
+        refundedMinor: period.environment === 'sandbox' ? activity.refundedMinor.toString() : null,
+        paidOutMinor: null,
+        feeRevenueMinor: null,
+      },
     };
   }
   return {
     from: period.from.toISOString().slice(0, 10), to: period.to.toISOString().slice(0, 10),
     currency: period.currency, environment: period.environment, ...present(total),
     days: [...days].map(([date, activity]) => ({ date, ...present(activity) })),
-    settled: { refundedMinor: null, paidOutMinor: null, feeRevenueMinor: null },
   };
 }
 

@@ -12291,6 +12291,36 @@
                       "minimum": 0,
                       "maximum": 9007199254740991
                     },
+                    "settled": {
+                      "type": "object",
+                      "properties": {
+                        "refundedMinor": {
+                          "nullable": true,
+                          "type": "string",
+                          "pattern": "^\\d+$"
+                        },
+                        "paidOutMinor": {
+                          "type": "string",
+                          "nullable": true,
+                          "enum": [
+                            null
+                          ]
+                        },
+                        "feeRevenueMinor": {
+                          "type": "string",
+                          "nullable": true,
+                          "enum": [
+                            null
+                          ]
+                        }
+                      },
+                      "required": [
+                        "refundedMinor",
+                        "paidOutMinor",
+                        "feeRevenueMinor"
+                      ],
+                      "additionalProperties": false
+                    },
                     "from": {
                       "type": "string",
                       "format": "date",
@@ -12396,6 +12426,36 @@
                             "minimum": 0,
                             "maximum": 9007199254740991
                           },
+                          "settled": {
+                            "type": "object",
+                            "properties": {
+                              "refundedMinor": {
+                                "nullable": true,
+                                "type": "string",
+                                "pattern": "^\\d+$"
+                              },
+                              "paidOutMinor": {
+                                "type": "string",
+                                "nullable": true,
+                                "enum": [
+                                  null
+                                ]
+                              },
+                              "feeRevenueMinor": {
+                                "type": "string",
+                                "nullable": true,
+                                "enum": [
+                                  null
+                                ]
+                              }
+                            },
+                            "required": [
+                              "refundedMinor",
+                              "paidOutMinor",
+                              "feeRevenueMinor"
+                            ],
+                            "additionalProperties": false
+                          },
                           "date": {
                             "type": "string",
                             "format": "date",
@@ -12406,54 +12466,23 @@
                           "bookings",
                           "money",
                           "newUsers",
+                          "settled",
                           "date"
                         ],
                         "additionalProperties": false
                       }
-                    },
-                    "settled": {
-                      "type": "object",
-                      "properties": {
-                        "refundedMinor": {
-                          "type": "string",
-                          "nullable": true,
-                          "enum": [
-                            null
-                          ]
-                        },
-                        "paidOutMinor": {
-                          "type": "string",
-                          "nullable": true,
-                          "enum": [
-                            null
-                          ]
-                        },
-                        "feeRevenueMinor": {
-                          "type": "string",
-                          "nullable": true,
-                          "enum": [
-                            null
-                          ]
-                        }
-                      },
-                      "required": [
-                        "refundedMinor",
-                        "paidOutMinor",
-                        "feeRevenueMinor"
-                      ],
-                      "additionalProperties": false
                     }
                   },
                   "required": [
                     "bookings",
                     "money",
                     "newUsers",
+                    "settled",
                     "from",
                     "to",
                     "currency",
                     "environment",
-                    "days",
-                    "settled"
+                    "days"
                   ],
                   "additionalProperties": false
                 }
@@ -12600,6 +12629,36 @@
                       "minimum": 0,
                       "maximum": 9007199254740991
                     },
+                    "settled": {
+                      "type": "object",
+                      "properties": {
+                        "refundedMinor": {
+                          "nullable": true,
+                          "type": "string",
+                          "pattern": "^\\d+$"
+                        },
+                        "paidOutMinor": {
+                          "type": "string",
+                          "nullable": true,
+                          "enum": [
+                            null
+                          ]
+                        },
+                        "feeRevenueMinor": {
+                          "type": "string",
+                          "nullable": true,
+                          "enum": [
+                            null
+                          ]
+                        }
+                      },
+                      "required": [
+                        "refundedMinor",
+                        "paidOutMinor",
+                        "feeRevenueMinor"
+                      ],
+                      "additionalProperties": false
+                    },
                     "from": {
                       "type": "string",
                       "format": "date",
@@ -12705,6 +12764,36 @@
                             "minimum": 0,
                             "maximum": 9007199254740991
                           },
+                          "settled": {
+                            "type": "object",
+                            "properties": {
+                              "refundedMinor": {
+                                "nullable": true,
+                                "type": "string",
+                                "pattern": "^\\d+$"
+                              },
+                              "paidOutMinor": {
+                                "type": "string",
+                                "nullable": true,
+                                "enum": [
+                                  null
+                                ]
+                              },
+                              "feeRevenueMinor": {
+                                "type": "string",
+                                "nullable": true,
+                                "enum": [
+                                  null
+                                ]
+                              }
+                            },
+                            "required": [
+                              "refundedMinor",
+                              "paidOutMinor",
+                              "feeRevenueMinor"
+                            ],
+                            "additionalProperties": false
+                          },
                           "date": {
                             "type": "string",
                             "format": "date",
@@ -12715,54 +12804,23 @@
                           "bookings",
                           "money",
                           "newUsers",
+                          "settled",
                           "date"
                         ],
                         "additionalProperties": false
                       }
-                    },
-                    "settled": {
-                      "type": "object",
-                      "properties": {
-                        "refundedMinor": {
-                          "type": "string",
-                          "nullable": true,
-                          "enum": [
-                            null
-                          ]
-                        },
-                        "paidOutMinor": {
-                          "type": "string",
-                          "nullable": true,
-                          "enum": [
-                            null
-                          ]
-                        },
-                        "feeRevenueMinor": {
-                          "type": "string",
-                          "nullable": true,
-                          "enum": [
-                            null
-                          ]
-                        }
-                      },
-                      "required": [
-                        "refundedMinor",
-                        "paidOutMinor",
-                        "feeRevenueMinor"
-                      ],
-                      "additionalProperties": false
                     }
                   },
                   "required": [
                     "bookings",
                     "money",
                     "newUsers",
+                    "settled",
                     "from",
                     "to",
                     "currency",
                     "environment",
-                    "days",
-                    "settled"
+                    "days"
                   ],
                   "additionalProperties": false
                 }

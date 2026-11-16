@@ -7592,6 +7592,13 @@ export interface operations {
                             feeReservedMinor: string;
                         } | null;
                         newUsers: number | null;
+                        settled: {
+                            refundedMinor: string | null;
+                            /** @enum {string|null} */
+                            paidOutMinor: null;
+                            /** @enum {string|null} */
+                            feeRevenueMinor: null;
+                        };
                         /** Format: date */
                         from: string;
                         /** Format: date */
@@ -7616,17 +7623,16 @@ export interface operations {
                                 feeReservedMinor: string;
                             } | null;
                             newUsers: number | null;
+                            settled: {
+                                refundedMinor: string | null;
+                                /** @enum {string|null} */
+                                paidOutMinor: null;
+                                /** @enum {string|null} */
+                                feeRevenueMinor: null;
+                            };
                             /** Format: date */
                             date: string;
                         }[];
-                        settled: {
-                            /** @enum {string|null} */
-                            refundedMinor: null;
-                            /** @enum {string|null} */
-                            paidOutMinor: null;
-                            /** @enum {string|null} */
-                            feeRevenueMinor: null;
-                        };
                     };
                 };
             };
@@ -7667,6 +7673,13 @@ export interface operations {
                             feeReservedMinor: string;
                         } | null;
                         newUsers: number | null;
+                        settled: {
+                            refundedMinor: string | null;
+                            /** @enum {string|null} */
+                            paidOutMinor: null;
+                            /** @enum {string|null} */
+                            feeRevenueMinor: null;
+                        };
                         /** Format: date */
                         from: string;
                         /** Format: date */
@@ -7691,17 +7704,16 @@ export interface operations {
                                 feeReservedMinor: string;
                             } | null;
                             newUsers: number | null;
+                            settled: {
+                                refundedMinor: string | null;
+                                /** @enum {string|null} */
+                                paidOutMinor: null;
+                                /** @enum {string|null} */
+                                feeRevenueMinor: null;
+                            };
                             /** Format: date */
                             date: string;
                         }[];
-                        settled: {
-                            /** @enum {string|null} */
-                            refundedMinor: null;
-                            /** @enum {string|null} */
-                            paidOutMinor: null;
-                            /** @enum {string|null} */
-                            feeRevenueMinor: null;
-                        };
                     };
                 };
             };
