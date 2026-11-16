@@ -8,7 +8,7 @@ function fakeResources(up: boolean): Resources {
   return { db: {
     $queryRaw: async () => { if (!up) throw new Error('password=do-not-leak'); return [{ migration_name: MIGRATION }]; },
     $disconnect: async () => {},
-  }, redis: { status: 'ready', ping: async () => { if (!up) throw new Error('redis secret'); return 'PONG'; }, quit: async () => {}, disconnect: () => {} } } as unknown as Resources;
+  }, redis: { options: { db: 0 }, status: 'ready', ping: async () => { if (!up) throw new Error('redis secret'); return 'PONG'; }, quit: async () => {}, disconnect: () => {} } } as unknown as Resources;
 }
 for (const up of [true, false]) test(`API health and errors when dependencies are ${up ? 'available' : 'unavailable'}`, async () => {
   const { app, document } = await createApp(config, fakeResources(up));

@@ -6,6 +6,7 @@ import { subscribeToNotificationChanges } from '../../../shared/notification-sig
 import { PublicError } from '../auth/errors.js';
 import type { AuthService, Identity } from '../auth/service.js';
 import { checkMaintenance } from '../operations/maintenance.js';
+import { bookingChatSignals, type BookingSignal } from './chat-signals.js';
 import type { BookingChat, BookingChatChange } from './messages.js';
 
 const maxRooms = 16;
@@ -19,7 +20,6 @@ const typingInput = roomInput.extend({ typing: z.boolean() });
 type Failure = { ok: false; error: { code: string; message: string } };
 type Ack = (result: { ok: true; data: unknown } | Failure) => void;
 type ChatAction = (identity: Identity, input: unknown) => unknown;
-type Typing = { bookingId: string; userId: string; typing: boolean };
 
 function failure(error: unknown): Failure {
   if (error instanceof PublicError) return { ok: false, error: { code: error.code, message: error.publicMessage } };
@@ -84,6 +84,16 @@ export function attachBookingChat(server: HttpServer, auth: AuthService, chat: B
     }));
   }
 
+  function deliverBooking(signal: BookingSignal, skip?: Socket) {
+    if (signal.kind === 'typing') {
+      const { kind: _kind, ...value } = signal;
+      void deliver(room(signal.bookingId), socket => socket.volatile.emit('chat:typing', value), skip);
+    } else {
+      void deliver(room(signal.bookingId), socket => socket.emit('chat:changed', signal));
+    }
+  }
+
+  const bookingSignals = bookingChatSignals(auth.deps.redis, auth.config.AUTH_RATE_PREFIX, deliverBooking);
   const inbox = subscribeToNotificationChanges(auth.deps.redis, userIds => {
     for (const userId of userIds) {
       void deliver(inboxRoom(userId), (socket, identity) => {
@@ -118,6 +128,8 @@ export function attachBookingChat(server: HttpServer, auth: AuthService, chat: B
 
     handle('chat:join', async (actor, raw) => {
       const id = await chat.join(actor, parse(roomInput, raw).bookingId);
+      try { await bookingSignals.start(); }
+      catch { log('chat.subscription_unavailable', { code: 'REDIS_UNAVAILABLE' }); }
       const inboxCount = Number(socket.rooms.has(inboxRoom(actor.user.id)));
       if (socket.rooms.size > maxRooms + inboxCount && !socket.rooms.has(room(id))) {
         throw new PublicError(429, 'CHAT_ROOM_LIMIT', 'Leave another conversation first.');
@@ -148,8 +160,9 @@ export function attachBookingChat(server: HttpServer, auth: AuthService, chat: B
       const now = performance.now();
       if (now - lastTyping >= 750) {
         lastTyping = now;
-        const payload: Typing = { bookingId, userId: actor.user.id, typing };
-        void deliver(room(bookingId), peer => peer.volatile.emit('chat:typing', payload), socket);
+        const signal = { kind: 'typing' as const, bookingId, userId: actor.user.id, typing };
+        deliverBooking(signal, socket);
+        void bookingSignals.publish(signal);
       }
       return { bookingId };
     });
@@ -181,11 +194,13 @@ export function attachBookingChat(server: HttpServer, auth: AuthService, chat: B
 
   return {
     notify(change: BookingChatChange) {
-      void deliver(room(change.bookingId), socket => socket.emit('chat:changed', change));
+      deliverBooking(change);
+      void bookingSignals.publish(change);
     },
     close() {
       stopped = true;
       clearInterval(timer);
+      bookingSignals.close();
       inbox.close();
       io.disconnectSockets(true);
       io.engine.close();

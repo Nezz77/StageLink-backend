@@ -27,7 +27,7 @@ function next(socket: Socket, name: string): Promise<unknown> {
   });
 }
 
-test('booking sockets and notification subscriptions enforce scopes and check revoked sessions before delivery', async () => {
+test('booking chat and notifications cross API replicas while enforcing participant scopes and revocation', async () => {
   const deps = resources(config);
   const { app } = await createApp(config, deps);
   const clients: Socket[] = [];
@@ -97,8 +97,13 @@ test('booking sockets and notification subscriptions enforce scopes and check re
       assert.equal(socket.connected, false);
     }
 
+    replica = (await createApp(config)).app;
+    await replica.listen(0, '127.0.0.1');
+    const replicaBase = await replica.getUrl();
     const [buyer, seller, stranger] = await Promise.all([
-      connect(client(customer.accessToken)), connect(client(provider.accessToken)), connect(client(outsider.accessToken)),
+      connect(client(customer.accessToken)),
+      connect(client(provider.accessToken, config.WEB_ORIGIN, replicaBase)),
+      connect(client(outsider.accessToken, config.WEB_ORIGIN, replicaBase)),
     ]);
     const room = { bookingId };
     const payload = { ...room, data: { requestKey: randomUUID(), body: 'Can we confirm the setup time?' } };
@@ -118,15 +123,28 @@ test('booking sockets and notification subscriptions enforce scopes and check re
     const typing = next(seller, 'chat:typing');
     await buyer.timeout(5000).emitWithAck('chat:typing', { ...room, typing: true });
     assert.deepEqual(await typing, { ...room, userId: customer.userId, typing: true });
+    let buyerSignals = 0;
+    let sellerSignals = 0;
+    let outsiderSignals = 0;
+    buyer.on('chat:changed', () => buyerSignals++);
+    seller.on('chat:changed', () => sellerSignals++);
+    stranger.on('chat:changed', () => outsiderSignals++);
     const changed = next(seller, 'chat:changed');
+    const echoed = next(buyer, 'chat:changed');
     const sent = await send();
     assert.equal(sent.ok, true);
     assert.deepEqual(await changed, { ...room, kind: 'message', messageId: sent.data.id });
+    assert.deepEqual(await echoed, { ...room, kind: 'message', messageId: sent.data.id });
     assert.deepEqual(await send(), sent);
     const receiptEvent = next(buyer, 'chat:changed');
+    const sellerReceiptEvent = next(seller, 'chat:changed');
     const receipt = await seller.timeout(5000).emitWithAck('chat:read', { ...room, data: { throughId: sent.data.id } });
     assert.deepEqual(receipt, { ok: true, data: { readerId: provider.userId, throughId: sent.data.id } });
     assert.deepEqual(await receiptEvent, { ...room, kind: 'read', ...receipt.data });
+    assert.deepEqual(await sellerReceiptEvent, { ...room, kind: 'read', ...receipt.data });
+    assert.equal(buyerSignals, 2);
+    assert.equal(sellerSignals, 2);
+    assert.equal(outsiderSignals, 0);
 
     await deps.db.authSession.update({ where: { id: provider.sessionId }, data: { revokedAt: new Date() } });
     const disconnected = next(seller, 'disconnect');
@@ -134,12 +152,11 @@ test('booking sockets and notification subscriptions enforce scopes and check re
     const another = await call(customer, 'messages', { requestKey: randomUUID(), body: 'Setup starts at 4.' });
     assert.deepEqual(await httpEvent, { ...room, kind: 'message', messageId: another.id });
     assert.equal(await disconnected, 'io server disconnect');
+    assert.equal(sellerSignals, 2);
     const since = await call(customer, 'messages?after=' + sent.data.id);
     assert.deepEqual(since.items, [another]);
 
-    replica = (await createApp(config)).app;
-    await replica.listen(0, '127.0.0.1');
-    const secondTab = await connect(client(customer.accessToken, config.WEB_ORIGIN, await replica.getUrl()));
+    const secondTab = await connect(client(customer.accessToken, config.WEB_ORIGIN, replicaBase));
     const subscribe = (socket: Socket, payload: object) => socket.timeout(5000).emitWithAck('notifications:subscribe', payload);
     assert.equal((await subscribe(stranger, { userId: customer.userId })).error.code, 'INVALID_CHAT_EVENT');
     for (const socket of [buyer, secondTab, stranger]) {

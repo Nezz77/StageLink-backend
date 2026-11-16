@@ -8,7 +8,7 @@ Updated 16 November 2026. Scope comes from the final proposal, sections 4, 5 and
 | --- | --- |
 | Accounts and onboarding | Registration, email verification, recovery, role-scoped sessions, provider profiles and approvals, and private media with publication review |
 | Marketplace and discovery | Published artist gigs and packages, equipment, venues and bundles, serialized inventory, galleries, deposit policies, filtered search, public feed, saved items, private event briefs, drafts and inquiries |
-| Booking and communication | Availability calendars, renewable holds, booking and quote revisions, authenticated agreements, persistent chat and attachments, completion, and verified reviews |
+| Booking and communication | Availability calendars, renewable holds, booking and quote revisions, authenticated agreements, persistent chat and attachments, cross-replica chat signals, completion, and verified reviews |
 | Payments and rentals | Sandbox checkout and signed notification handlers, administrator checkout reconciliation, immutable financial journal, refund and payout reservations, sandbox invoices and receipts, inspections, deposit claims and arbitration reservations |
 | AI | Weighted top-three recommendations, matching weight and prompt versioning, model usage, private artist writing suggestions, approved-source equipment lookups, versioned gig embeddings, and opt-in semantic reranking |
 | Administration and operations | Provider verification history, support, dispute review, in-app notifications, email reminder queues, consent-based email campaigns, announcements, maintenance controls and sandbox analytics |
@@ -20,7 +20,7 @@ Updated 16 November 2026. Scope comes from the final proposal, sections 4, 5 and
 | 1 | Sandbox payments and reconciliation, P11–P14 | Verify real PayHere and Stripe test callbacks and retrieval with merchant accounts, confirm supported LKR and Connect capabilities, and add audited recovery for missing gateway events identified by the reconciliation check. |
 | 2 | Refunds, payouts and arbitration, P12–P16 | Execute approved money movements through the gateways and record settlements, retries and failure recovery. Use settled data for production documents and P18 financial analytics. |
 | 3 | Equipment references and verification evidence, P15–P16 | Populate the equipment catalog from approved manufacturer sources and add protected PDF evidence upload and access. These tasks can run alongside payment work. |
-| 4 | Hosted communication, P10 and P17 | Verify live SMTP reminders and campaigns, add consent-based SMS and delivery reconciliation, and verify WebSocket upgrades and multi-instance booking chat. |
+| 4 | Hosted communication, P10 and P17 | Verify live SMTP reminders and campaigns, add consent-based SMS and delivery reconciliation, and verify WebSocket upgrades and booking chat on the hosted proxy. |
 | 5 | Frontend and release, all phases | Connect each supported workflow in the frontend and update its Figma flow. Run staging end-to-end, access control, accessibility, load, backup restore and rollback checks. |
 
 ## Backend build order
@@ -37,7 +37,8 @@ A checked box marks implemented backend code. PostgreSQL integration, client wir
 - [x] P09 quotation revisions, counteroffers, authenticated acceptance and SHA-256 agreement evidence.
 - [x] P10 booking text persistence, retry deduplication, read receipts, and history catch-up.
 - [x] P10 private image attachments with validated derivatives, participant-only access, and retention while referenced.
-- [x] P10 Socket.IO booking chat for a single API process, including typing and socket session revocation.
+- [x] P10 Participant-scoped Socket.IO booking chat across API replicas, including typing signals, read receipts and socket session revocation.
+- [ ] P10 Verify the WebSocket upgrade and reconnect paths on the hosted proxy.
 - [x] P11 financial journal foundation. Balanced immutable postings, duplicate command protection, and atomic available-to-reserved fund transfers.
 - [x] P11 server-priced advance and deposit orders with participant-only status reads.
 - [x] P11 PayHere sandbox hosted checkout and signed notification intake for advances and deposits.

@@ -1485,7 +1485,7 @@
       "ui_coverage_ids": [
         "UI-031"
       ],
-      "remaining": "Verify hosted WebSocket upgrades, PostgreSQL/S3 integration and the frontend/Figma handoff. Add inter-replica event delivery if the API is scaled horizontally."
+      "remaining": "Inter-replica chat signals are implemented and integration-tested. Verify hosted WebSocket upgrades and reconnect, and complete the frontend/Figma handoff."
     },
     {
       "id": "BE-042",

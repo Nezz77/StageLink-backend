@@ -215,7 +215,7 @@ Connect Socket.IO 4.x to the API host with path `/api/v1/chat/socket.io`, transp
 
 Join as a booking participant before sending, reading or publishing typing state. `chat:changed` carries a booking ID and either `{ kind: 'message', messageId }` or `{ kind: 'read', readerId, throughId }`. The API sends changes from REST and socket writes. Use `GET /api/v1/conversations/:id/messages?after=<last applied message ID>` to recover committed messages and current read receipts on change and after reconnect. When no messages have been loaded yet, request the initial page without a cursor. Retry an unacknowledged send with the same request key. `chat:typing` carries `{ bookingId, userId, typing }` and is transient. Expire typing indicators locally.
 
-When an access token expires, reconnect with a refreshed token and rejoin the conversation. A revoked session is rejected. Deploy the realtime API as one replica for local fanout and forward WebSocket upgrades through the proxy.
+When an access token expires, reconnect with a refreshed token and rejoin the conversation. A revoked session is rejected. Forward WebSocket upgrades through the proxy. Replicas that share PostgreSQL and Redis must use the same Redis database and `AUTH_RATE_PREFIX` for booking fanout. Redis relays booking IDs and event references, while each replica checks active sessions before delivering to its local rooms. If a relay signal is missed, recover the conversation through the REST history endpoint.
 
 ## Booking disputes
 
