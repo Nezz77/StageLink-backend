@@ -2030,7 +2030,7 @@
       "ui_coverage_ids": [
         "UI-047"
       ],
-      "remaining": "Add embedding and semantic ranking provenance, evaluate ranking quality, and verify the frontend/Figma integration."
+      "remaining": "Weighted ranking and versioned public gig embeddings are implemented. Add opt-in semantic reranking and recommendation provenance, run a reproducible evaluation and live embedding smoke test, and verify frontend/Figma integration."
     },
     {
       "id": "BE-058",

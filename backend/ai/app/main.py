@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.embeddings import MODELS, EmbeddingRequest, EmbeddingResult, generate_embedding
 from app.preview import GEMINI_MODEL_ID, MODEL_ID, PreviewRequest, PreviewResult, Provider, ProviderName, generate_preview
 
 
@@ -20,6 +21,7 @@ class Settings(BaseSettings):
     internal_token: SecretStr = SecretStr("")
     openai_api_key: SecretStr = SecretStr("")
     openai_model: str = ""
+    embedding_model: str = ""
     gemini_api_key: SecretStr = SecretStr("")
     gemini_model: str = ""
     preview_primary_provider: ProviderName = "openai"
@@ -43,14 +45,26 @@ class Settings(BaseSettings):
             return self.provider("gemini" if self.preview_primary_provider == "openai" else "openai")
         return None
 
+    def embeddings_enabled(self) -> bool:
+        return (
+            self.embedding_model in MODELS
+            and bool(self.openai_api_key.get_secret_value().strip())
+            and bool(fullmatch(r"[a-f0-9]{64}", self.internal_token.get_secret_value()))
+        )
+
     def capabilities(self) -> list[str]:
-        return ["prompt-preview"] if self.primary_provider() else ["health-only"]
+        features = []
+        if self.primary_provider():
+            features.append("prompt-preview")
+        if self.embeddings_enabled():
+            features.append("listing-embeddings")
+        return features or ["health-only"]
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app.state.settings = Settings()
-    if "prompt-preview" not in app.state.settings.capabilities():
+    if app.state.settings.capabilities() == ["health-only"]:
         yield
         return
     async with AsyncClient(follow_redirects=False, timeout=8) as client:
@@ -108,15 +122,30 @@ async def live(request: Request):
                   version="0.1.0", capabilities=request.app.state.settings.capabilities())
 
 
+def require_internal_authorization(request: Request, settings: Settings):
+    credential = ("Bearer " + settings.internal_token.get_secret_value()).encode()
+    if not compare_digest(request.headers.get("authorization", "").encode(), credential):
+        raise HTTPException(status_code=401, detail="Internal authorization required")
+
+
 @app.post("/internal/prompt-preview", response_model=PreviewResult)
 async def prompt_preview(request: Request, body: PreviewRequest):
     settings = request.app.state.settings
     primary = settings.primary_provider()
     if primary is None:
         raise HTTPException(status_code=503, detail="Model preview unavailable")
-    credential = ("Bearer " + settings.internal_token.get_secret_value()).encode()
-    if not compare_digest(request.headers.get("authorization", "").encode(), credential):
-        raise HTTPException(status_code=401, detail="Internal authorization required")
+    require_internal_authorization(request, settings)
     return await generate_preview(
         request.app.state.model_client, body, primary, settings.fallback_provider(),
     )
+
+
+@app.post("/internal/embeddings", response_model=EmbeddingResult)
+async def listing_embedding(request: Request, body: EmbeddingRequest):
+    settings = request.app.state.settings
+    if not settings.embeddings_enabled():
+        raise HTTPException(status_code=503, detail="Listing embeddings unavailable")
+    require_internal_authorization(request, settings)
+    if body.model != settings.embedding_model:
+        raise HTTPException(status_code=409, detail="Embedding model does not match the service configuration")
+    return await generate_embedding(request.app.state.model_client, body, settings.openai_api_key)

@@ -1,16 +1,28 @@
 # StageLink completion backlog
 
-Audit date 13 November 2026. Requirements come from the final proposal, sections 4, 5 and 7, and the interim report, sections 5.11, 6.4–6.8 and 7.6. The [interim report](https://chatgpt.com/library?file_id=libfile_52b19e94cb7c8191abf03766b2de8ca8&account_id=personal) describes initial implementation. This checklist uses local source and test results to establish current status.
+Updated 16 November 2026. Scope comes from the final proposal, sections 4, 5 and 7, and the [interim report](https://chatgpt.com/library?file_id=libfile_52b19e94cb7c8191abf03766b2de8ca8&account_id=personal), sections 5.11, 6.4–6.8 and 7.6.
 
-## Frontend and backend gaps by module
+## Completed backend work
 
-| Module | What exists | What to complete |
+| Area | Implemented |
+| --- | --- |
+| Accounts and onboarding | Registration, email verification, recovery, role-scoped sessions, provider profiles and approvals, and private media with publication review |
+| Marketplace and discovery | Published artist gigs and packages, equipment, venues and bundles, serialized inventory, galleries, deposit policies, filtered search, public feed, saved items, private event briefs, drafts and inquiries |
+| Booking and communication | Availability calendars, renewable holds, booking and quote revisions, authenticated agreements, persistent chat and attachments, completion, and verified reviews |
+| Payments and rentals | Sandbox checkout and signed notification handlers, immutable financial journal, refund and payout reservations, sandbox invoices and receipts, inspections, deposit claims and arbitration reservations |
+| AI | Weighted top-three recommendations, matching weight and prompt versioning, model usage, private artist writing suggestions, approved-source equipment lookups, and versioned embeddings for currently published gig text |
+| Administration and operations | Provider verification history, support, dispute review, in-app notifications, email reminder queues, consent-based email campaigns, announcements, maintenance controls and sandbox analytics |
+
+## Remaining work in order
+
+| Order | Task | Completion criteria |
 | --- | --- | --- |
-| 1. Visitor and customer | Live artist browse and published gig detail with package selection. The demo also has discovery, saved items and reviews. Account, recovery and contact data persist in the backend repository. | Connect the public feed and promotional slots to approved records. Implement real radius, genre, budget and rating filters. Add the event brief form and top-three recommendation results. Persist saved items and allow completed-booking reviews with photos. |
-| 2. Artist and talent | Persistent onboarding and reviewed portfolio media. Demo UI for package tiers, audition and calendar. The live artist account now saves gig drafts, base pricing, package tiers, add-ons, performer count and duration, with explicit publication controls. | Connect approved media to gigs, add public catalog search and capture the selected package version in bookings, add AI bio/listing generation and connect the calendar to authoritative booking availability. |
-| 3. Renter and equipment | Persistent storefront onboarding, reviewed media and versioned equipment listings with daily LKR rates, stock quantities and technical specs. Public equipment browse shows published versions. Demo UI covers deposit rules, inspections and earnings. | Verify venue and bundle publication against PostgreSQL. Enforce exclusive venue reservations and shared equipment capacity in P08. Connect equipment galleries and listings to approved media. Persist serial custody, maintenance, dispatch, return and inspections. Connect deposits and earnings to settlement data. |
-| 4. Booking, chat and payments | Demo screens for booking, messages, quotations, checkout, milestones, documents and the saved archive. | Persist requests and lifecycle transitions, reservation holds, quotes and counteroffers. Add authenticated agreement acceptance and a verifiable SHA-256 digest of accepted terms. Implement authorized Socket.IO rooms, attachments, typing, reads and reconnect. Connect hosted sandbox checkout, webhook handling, refunds, payouts and server-issued documents. |
-| 5. Administration and AI | Persistent provider-profile, payout-destination and portfolio reviews. Demo operations and AI panels. | Complete KYC evidence and decisions, case and support chat, dispute settlement and audit evidence, live analytics, promotion and maintenance. Implement FastAPI matchmaking and content generation, and real 24-hour and 2-hour SMS/email scheduling. |
+| 1 | Semantic recommendations, P15 | Add semantic reranking behind a configuration switch, with opt-in handling for private brief text, existing eligibility gates, recorded embedding provenance, a weighted fallback and repeatable quality checks. Run a live embedding smoke test before enabling it in staging. |
+| 2 | Sandbox payments and reconciliation, P11–P14 | Verify real PayHere and Stripe test callbacks with merchant accounts, confirm supported LKR and Connect capabilities, and reconcile duplicate, delayed and missing gateway events. |
+| 3 | Refunds, payouts and arbitration, P12–P16 | Execute approved money movements through the gateways and record settlements, retries and failure recovery. Use settled data for production documents and P18 financial analytics. |
+| 4 | Equipment references and verification evidence, P15–P16 | Populate the equipment catalog from approved manufacturer sources and add protected PDF evidence upload and access. These tasks can run alongside payment work. |
+| 5 | Hosted communication, P10 and P17 | Verify live SMTP reminders and campaigns, add consent-based SMS and delivery reconciliation, and verify WebSocket upgrades and multi-instance booking chat. |
+| 6 | Frontend and release, all phases | Connect each supported workflow in the frontend and update its Figma flow. Run staging end-to-end, access control, accessibility, load, backup restore and rollback checks. |
 
 ## Backend build order
 
@@ -49,6 +61,9 @@ A checked box marks implemented backend code. PostgreSQL integration, client wir
 - [x] P15 Equipment suggestions from approved manufacturer references with citation history and withdrawal.
 - [x] P15 Top-three event-brief artist recommendations using published listings and versioned catalog weights.
 - [x] P15 Natural-language artist search preview with confirmable catalog filters.
+- [x] P15 Administrator indexing and status checks for versioned public gig embeddings.
+- [ ] P15 Semantic reranking, recommendation provenance, repeatable evaluation and live model verification.
+- [ ] P15 Populate approved manufacturer references.
 - [x] P16 Private provider verification submissions, administrative review and resubmission history.
 - [x] P16 Role-specific provider identity approval for sandbox payout and arbitration reservations.
 - [x] P16 Support tickets, member/staff replies, private notes, assignments and reopen history.
@@ -60,14 +75,17 @@ A checked box marks implemented backend code. PostgreSQL integration, client wir
 - [x] P17 Promotional email opt-in, campaign drafts, verified audience preview, scheduling and cancellation.
 - [x] P17 Opt-in promotional email worker, rolling hourly cap, and administrator delivery counts.
 - [x] P17 One-click promotional email opt-out from supported mail clients.
-- [ ] P15–P17 equipment catalog population, live model evaluation, semantic ranking, private PDF verification evidence, arbitration execution, SMS reminders, promotional SMS, and live SMTP campaign verification.
+- [ ] P16 Private PDF verification evidence and gateway execution of arbitration awards.
+- [ ] P17 Live SMTP reminder and campaign verification, SMS reminders and promotional SMS.
 - [x] P18 Administrator and provider analytics from booking records and posted sandbox journals.
 - [ ] P18 Settled financial analytics, security, accessibility, backup and rollback, and end-to-end release verification.
 
 ## Verification and client integration
 
-- [ ] Run the new migrations and integration tests with PostgreSQL, Redis, Mailpit and S3Mock. Include concurrent reservations and decisions, expiry, permissions and published-version visibility.
-- [ ] Reconcile the team frontend and connect the backend contracts on the frontend branch. Update the corresponding StageLink Figma screens and flows in each UI task.
-- [ ] Verify payment sandbox callbacks, reconciliation and two-account booking flows once those endpoints exist.
+- [x] GitHub CI passed through `78705a3` using PostgreSQL, Redis, Mailpit and S3Mock. See [run 43754928062](https://github.com/Nezz77/StageLink-backend/actions/runs/43754928062).
+- [x] Local listing-embedding checks passed with all migrations applied to isolated PGlite, Redis, mocked model calls, 37 Node unit tests and 21 FastAPI tests.
+- [ ] Run the full dependency-backed suite in GitHub CI for the new listing-embedding migration and API.
+- [ ] Reconcile the [team frontend](https://github.com/Nezz77/StageLink) with the current backend contracts. Update the corresponding StageLink Figma screens and flows during each UI task.
+- [ ] Verify hosted model calls, signed sandbox payment callbacks, gateway reconciliation and two-account booking flows in staging.
 
 See [backend-backlog.json](backend-backlog.json) for ticket acceptance criteria and [PROGRESS.md](PROGRESS.md) for implementation details.

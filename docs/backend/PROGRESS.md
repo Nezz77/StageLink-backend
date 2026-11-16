@@ -1,6 +1,6 @@
 # StageLink backend checkpoint
 
-Date: 2026-11-03. Work stays on `backend` in the separate `StageLink-backend` worktree. GitHub's `frontend` branch remains at the original UI commit `9cbbe0ded3112a347c8ba1ffdf7029bd4fde268e`; the original UI checkout remains on its local `main` branch. No merge or deployment is performed.
+Updated 16 November 2026. Backend development uses `main` in [Nezz77/StageLink-backend](https://github.com/Nezz77/StageLink-backend). The [completion backlog](StageLink-Completion-Backlog.md) tracks current status. The entries below record the checks and implementation as each phase landed.
 
 ## Completed
 
@@ -147,3 +147,5 @@ BE-056 adds a Gemini GenerateContent adapter and explicit primary selection. If 
 BE-027 adds authenticated artist biography and structured gig suggestions with owner-scoped retrieval. Jobs pin published prompt versions, record model attempts and deduplicate repeated request keys. The database enforces the shared rolling quota during concurrent submissions. Suggestions are stored privately for review, separate from profiles and gigs. The input fields are kept out of job storage. Live provider verification and the frontend/Figma handoff remain open.
 
 BE-031 adds administrator-approved equipment specification references, exact model lookup for verified renters, and owner-scoped suggestion history. Unknown and ambiguous matches leave measurements empty. Retiring a source withdraws the measurements from past suggestions while preserving their citation. Suggestions use curated references with a separate lookup quota. The source catalog starts empty, and manufacturer reference entry and frontend/Figma wiring remain open.
+
+BE-057 adds administrator-triggered indexing for the current published gig version. The private FastAPI adapter sends its title and description to the configured embedding model. PostgreSQL stores the normalized vector by gig version, model and input format. The API keeps repeat and concurrent requests for the same version from starting duplicate work, retries failed or expired attempts and reports provider usage without exposing vectors. Semantic reranking, evaluation, live provider verification and frontend/Figma integration remain open.

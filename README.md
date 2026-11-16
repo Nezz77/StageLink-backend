@@ -2,7 +2,7 @@
 
 Backend development and CI use `main` in [Nezz77/StageLink-backend](https://github.com/Nezz77/StageLink-backend). Push backend commits with `git push origin main`. Frontend development lives in [Nezz77/StageLink](https://github.com/Nezz77/StageLink).
 
-StageLink uses a layered architecture. The core is a modular NestJS REST API, with a separate BullMQ worker process and an internal FastAPI service. Prisma connects the Node services to PostgreSQL, Redis backs the queue and rate limiting, and an S3 adapter stores media. The FastAPI service currently exposes health endpoints.
+StageLink uses a layered architecture. The core is a modular NestJS REST API, with a separate BullMQ worker process and an internal FastAPI service. Prisma connects the Node services to PostgreSQL, Redis backs the queue and rate limiting, and an S3 adapter stores media. The private FastAPI service exposes health checks and supports opt-in model previews, artist writing suggestions and public gig embeddings.
 
 | Path | Responsibility |
 | --- | --- |

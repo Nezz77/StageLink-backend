@@ -469,6 +469,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/ai/listing-embeddings/{gigId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ListingEmbeddingsController_status"];
+        put?: never;
+        post: operations["ListingEmbeddingsController_index"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/event-posts/{id}/recommendations": {
         parameters: {
             query?: never;
@@ -5332,6 +5348,76 @@ export interface operations {
                         /** Format: uuid */
                         retiredBy: string | null;
                         retirementReason: string | null;
+                    };
+                };
+            };
+        };
+    };
+    ListingEmbeddingsController_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gigId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        gigId: string;
+                        gigVersion: number;
+                        model: string | null;
+                        /** @enum {string} */
+                        inputVersion: "published_gig_v1";
+                        /** @enum {string} */
+                        state: "disabled" | "missing" | "processing" | "ready" | "failed";
+                        /** Format: date-time */
+                        indexedAt: string | null;
+                    };
+                };
+            };
+        };
+    };
+    ListingEmbeddingsController_index: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                gigId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    expectedVersion: number;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        gigId: string;
+                        gigVersion: number;
+                        model: string | null;
+                        /** @enum {string} */
+                        inputVersion: "published_gig_v1";
+                        /** @enum {string} */
+                        state: "disabled" | "missing" | "processing" | "ready" | "failed";
+                        /** Format: date-time */
+                        indexedAt: string | null;
                     };
                 };
             };

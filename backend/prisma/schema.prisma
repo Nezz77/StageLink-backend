@@ -378,6 +378,7 @@ model ArtistGigVersion {
   packages Json @default("[]")
   gig ArtistGig @relation("GigVersions", fields: [gigId], references: [id], onDelete: Restrict)
   publications ArtistGig[] @relation("GigPublication")
+  embeddings ListingEmbedding[]
   @@id([gigId, version])
   @@map("artist_gig_versions")
 }
@@ -1297,6 +1298,27 @@ model EquipmentSpecSource {
   retirer AuthUser? @relation("EquipmentSourceRetirer", fields: [retiredBy], references: [id], onDelete: Restrict)
   generations AiGenerationJob[]
   @@map("equipment_spec_sources")
+}
+
+enum ListingEmbeddingState {
+  processing
+  ready
+  failed
+}
+
+model ListingEmbedding {
+  gigId String @map("gig_id") @db.Uuid
+  gigVersion Int @map("gig_version")
+  model String @db.VarChar(100)
+  inputVersion String @map("input_version") @db.VarChar(32)
+  state ListingEmbeddingState @default(processing)
+  vector Float[] @default([])
+  attemptId String @map("attempt_id") @db.Uuid
+  startedAt DateTime @map("started_at") @db.Timestamptz(3)
+  indexedAt DateTime? @map("indexed_at") @db.Timestamptz(3)
+  gig ArtistGigVersion @relation(fields: [gigId, gigVersion], references: [gigId, version], onDelete: Cascade)
+  @@id([gigId, gigVersion, model, inputVersion])
+  @@map("listing_embeddings")
 }
 
 model RecommendationRun {
