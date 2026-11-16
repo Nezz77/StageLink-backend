@@ -98,6 +98,7 @@ model AuthUser {
   notificationPreferences NotificationPreference?
   reminderActions ReminderAdminAction[]
   paymentRecoveries PaymentRecoveryAction[]
+  stripeRefundExecutions StripeRefundExecution[]
   openedDisputes BookingDispute[] @relation("DisputeOpener")
   dismissedDisputes BookingDispute[] @relation("DisputeDismisser")
   arbitrationDecisions ArbitrationDecision[] @relation("ArbitrationReviewer")
@@ -784,6 +785,7 @@ model JournalTransaction {
   payhereEvent PayHereEvent?
   stripeAttempt StripeAttempt?
   paymentRecovery PaymentRecoveryAction?
+  stripeRefundSettlement StripeRefundExecution?
   refundReservation RefundItem?
   payoutReservation PayoutOrder?
   depositReservation DamageClaim?
@@ -988,9 +990,38 @@ model RefundItem {
   request RefundRequest @relation(fields: [requestId], references: [id], onDelete: Restrict)
   order PaymentOrder @relation(fields: [orderId], references: [id], onDelete: Restrict)
   reservation JournalTransaction? @relation(fields: [reservationId], references: [id], onDelete: Restrict)
+  stripeExecution StripeRefundExecution?
   @@id([requestId, orderId])
   @@index([orderId])
   @@map("refund_items")
+}
+
+enum StripeRefundState {
+  uncertain
+  pending
+  failed
+  succeeded
+}
+
+model StripeRefundExecution {
+  id String @id @default(uuid()) @db.Uuid
+  requestId String @map("request_id") @db.Uuid
+  orderId String @map("order_id") @db.Uuid
+  actorId String @map("actor_id") @db.Uuid
+  paymentIntentId String @map("payment_intent_id") @db.VarChar(150)
+  providerRefundId String? @unique @map("provider_refund_id") @db.VarChar(150)
+  amountMinor Int @map("amount_minor")
+  status StripeRefundState @default(uncertain)
+  leaseId String? @map("lease_id") @db.Uuid
+  leaseUntil DateTime? @map("lease_until") @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
+  settlementId String? @unique @map("settlement_id") @db.Uuid
+  item RefundItem @relation(fields: [requestId, orderId], references: [requestId, orderId], onDelete: Restrict)
+  actor AuthUser @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  settlement JournalTransaction? @relation(fields: [settlementId], references: [id], onDelete: Restrict)
+  @@unique([requestId, orderId])
+  @@map("stripe_refund_executions")
 }
 
 model BookingPayoutHold {

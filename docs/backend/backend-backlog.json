@@ -1681,7 +1681,7 @@
       "ui_coverage_ids": [
         "UI-037"
       ],
-      "remaining": "Submit reserved refunds through enabled provider adapters. Reconcile partial, successful and unknown provider outcomes, verify API and journal concurrency, and connect the existing frontend flow and Figma design."
+      "remaining": "Stripe test refund execution and reconciliation post confirmed refunds from approved reservations. Verify actual Stripe test responses, add PayHere execution and repair of blocked reservations, and connect the existing frontend and Figma flows."
     },
     {
       "id": "BE-048",

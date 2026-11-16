@@ -43,6 +43,7 @@ const schema = z.object({
   AI_SEMANTIC_DAILY_LIMIT: z.coerce.number().int().min(1).max(500).default(20),
   AI_PREVIEW_DAILY_LIMIT: z.coerce.number().int().min(1).max(200).default(20),
   WORKER_HEALTH_PORT: z.coerce.number().int().min(1).max(65535).default(4001),
+  STRIPE_TEST_REFUND_EXECUTION: z.enum(['true', 'false']).default('false'),
   STRIPE_TEST_SECRET_KEY: optionalSetting(z.string().regex(/^sk_test_[A-Za-z0-9_]{1,250}$/)),
   STRIPE_TEST_WEBHOOK_SECRET: optionalSetting(z.string().regex(/^whsec_[A-Za-z0-9_]{1,250}$/)),
   PAYHERE_SANDBOX_MERCHANT_ID: optionalSetting(z.string().regex(/^\d{1,30}$/)),
@@ -66,6 +67,9 @@ const schema = z.object({
   }
   if (Boolean(config.PAYHERE_SANDBOX_RETRIEVAL_APP_ID) !== Boolean(config.PAYHERE_SANDBOX_RETRIEVAL_APP_SECRET)) {
     ctx.addIssue({ code: 'custom', path: ['PAYHERE_SANDBOX_RETRIEVAL_APP_ID'], message: 'Configure both PayHere retrieval settings together.' });
+  }
+  if (config.STRIPE_TEST_REFUND_EXECUTION === 'true' && !config.STRIPE_TEST_SECRET_KEY) {
+    ctx.addIssue({ code: 'custom', path: ['STRIPE_TEST_REFUND_EXECUTION'], message: 'Configure Stripe test credentials for refund execution.' });
   }
   const payHereSettings = [config.PAYHERE_SANDBOX_MERCHANT_ID, config.PAYHERE_SANDBOX_MERCHANT_SECRET, config.PAYHERE_SANDBOX_NOTIFY_URL];
   if (payHereSettings.some(Boolean) && !payHereSettings.every(Boolean)) {

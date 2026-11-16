@@ -21,12 +21,14 @@ const view = z.object({
   id: uuid, bookingId: uuid, reason, createdAt: timestamp,
   status: z.enum(['requested', 'declined', 'approved']), decidedAt: timestamp.nullable(),
   decisionReason: reason.nullable(), currency: z.literal('LKR'),
-  items: z.array(z.object({ orderId: uuid, amountMinor: z.number().int().positive(), reserved: z.boolean() })),
+  items: z.array(z.object({ orderId: uuid, amountMinor: z.number().int().positive(), reserved: z.boolean(),
+    stripeExecutionStatus: z.enum(['uncertain', 'pending', 'failed', 'succeeded']).nullable(),
+  })),
 });
 const queue = z.object({ items: z.array(view), nextCursor: uuid.nullable() });
 const pageSize = 30;
 
-const refundInclude = { items: { orderBy: { orderId: 'asc' } } } as const;
+const refundInclude = { items: { orderBy: { orderId: 'asc' }, include: { stripeExecution: { select: { status: true } } } } } as const;
 type Refund = Prisma.RefundRequestGetPayload<{ include: typeof refundInclude }>;
 
 function present(row: Refund) {
@@ -34,7 +36,9 @@ function present(row: Refund) {
   return {
     ...details, createdAt: row.createdAt.toISOString(), decidedAt: row.decidedAt?.toISOString() ?? null,
     currency: 'LKR' as const,
-    items: items.map(({ orderId, amountMinor, reservationId }) => ({ orderId, amountMinor, reserved: Boolean(reservationId) })),
+    items: items.map(({ orderId, amountMinor, reservationId, stripeExecution }) => ({
+      orderId, amountMinor, reserved: Boolean(reservationId), stripeExecutionStatus: stripeExecution?.status ?? null,
+    })),
   };
 }
 

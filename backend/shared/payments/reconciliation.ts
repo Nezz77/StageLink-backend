@@ -8,7 +8,7 @@ export const providerStatus = z.enum([
 ]);
 
 type ProviderStatus = z.infer<typeof providerStatus>;
-type Observation = { status: ProviderStatus; paymentReference?: string };
+type Observation = { status: ProviderStatus; paymentReference?: string; paymentIntentId?: string };
 
 export function assessPayment(
   localStatus: PaymentOrderStatus, captured: boolean, localReference: string | null, observation: Observation,
@@ -53,7 +53,9 @@ export async function observeStripe(secret: string | undefined, attempt: StripeE
       data.amount_total !== attempt.amountMinor || data.expires_at !== Math.floor(attempt.expiresAt.getTime() / 1000)) {
       return { status: 'mismatch' };
     }
-    if (data.status === 'complete' && data.payment_status === 'paid') return { status: 'captured' };
+    if (data.status === 'complete' && data.payment_status === 'paid') {
+      return { status: 'captured', ...(data.payment_intent ? { paymentIntentId: data.payment_intent } : {}) };
+    }
     if (data.status === 'expired' && data.payment_status === 'unpaid') return { status: 'expired' };
     if (data.payment_status === 'unpaid') return { status: 'pending' };
     return { status: 'mismatch' };

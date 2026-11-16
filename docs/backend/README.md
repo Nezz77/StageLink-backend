@@ -124,6 +124,12 @@ After the completion report, the customer can open a balance payment order for t
 
 The customer can cancel an unpaid upcoming booking using `POST /api/v1/bookings/:id/cancellations` or request a refund review for captured funds using `POST /api/v1/bookings/:id/refund-requests`. Both take a reason. Administrators review pending requests at `GET /api/v1/admin/refund-requests` and submit a decision and reason to `POST /api/v1/admin/refund-requests/:id/decisions`. Approval reserves sandbox funds by payment and remains pending gateway execution. A gateway-confirmed refund is required to close a paid booking through this flow.
 
+## Stripe test refund execution
+
+Enable `STRIPE_TEST_REFUND_EXECUTION=true` with the Stripe test settings. The feature is off by default. A verified administrator with a recent sign-in can send `{}` to `POST /api/v1/admin/refund-requests/:id/items/:orderId/stripe-execution` with the standard origin and CSRF headers. StageLink uses the approved LKR amount from the reservation and the PaymentIntent from the matching paid test Checkout Session. It posts a settlement only after Stripe confirms the exact refund. The existing refund view includes the last Stripe execution status for each item.
+
+Use `GET` on the execution path to read local state. Repeat the `POST` to reconcile a pending or uncertain execution. StageLink reuses its original execution reference and reconciles by Stripe refund ID or metadata. It limits creation retries to 23 hours after the first attempt. Uncertain and terminal failed executions keep the reservation for review. PayHere execution, payouts and arbitration are tracked in the completion backlog. [Stripe refund API](https://docs.stripe.com/api/refunds/create) · [Stripe idempotent requests](https://docs.stripe.com/api/idempotent_requests)
+
 ## Payout reservations
 
 Providers can read `GET /api/v1/me/earnings`. Administrators can read `GET /api/v1/admin/payments` and submit `{expectedRevision, held, reason}` to `POST /api/v1/admin/bookings/:id/holds`. Use hold revision `0` for a booking without a prior hold.

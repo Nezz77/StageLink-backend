@@ -9,6 +9,7 @@ export const stripeSessionReference = z.object({
 export const stripeSession = stripeSessionReference.extend({
   id: id('cs_test_'), livemode: z.literal(false), mode: z.literal('payment'),
   amount_total: z.number().int().positive(),
+  payment_intent: id('pi_').nullable().optional(),
   currency: z.literal('lkr'), expires_at: z.number().int().positive(),
   status: z.enum(['open', 'complete', 'expired']), payment_status: z.enum(['paid', 'unpaid', 'no_payment_required']),
   url: z.url().max(2048).refine(value => {
