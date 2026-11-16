@@ -1717,7 +1717,7 @@
       "ui_coverage_ids": [
         "UI-038"
       ],
-      "remaining": "Add provider submission, reconciliation and a recovery path for blocked reservations. Verify PostgreSQL API integration, actual provider capabilities, and the frontend/Figma wiring."
+      "remaining": "Stripe test destination links pin approved provider revisions and preserve review history. Add payout submission, reconciliation and a recovery path for blocked reservations. Verify hosted capabilities, the payout route and the frontend/Figma wiring."
     },
     {
       "id": "BE-049",

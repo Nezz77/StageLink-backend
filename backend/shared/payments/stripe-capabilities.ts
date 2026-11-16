@@ -33,14 +33,8 @@ export const stripeCapabilities = z.object({
   }).nullable(),
 });
 
-export async function checkStripeCapabilities(key: string | undefined, destinationId?: string, send = fetch) {
-  const empty = { platform: null, connectedAccount: null };
-  if (!key?.startsWith('sk_test_')) return { status: 'unconfigured' as const, ...empty };
-  if (destinationId !== undefined && !stripeAccountId.safeParse(destinationId).success) {
-    return { status: 'unavailable' as const, ...empty };
-  }
-
-  async function read<T>(path: string, schema: z.ZodType<T>) {
+function stripeRead(key: string, send: typeof fetch) {
+  return async function read<T>(path: string, schema: z.ZodType<T>) {
     try {
       const response = await send('https://api.stripe.com/v1/' + path, {
         method: 'GET', redirect: 'error', signal: AbortSignal.timeout(4000), headers: { Authorization: 'Bearer ' + key },
@@ -49,14 +43,38 @@ export async function checkStripeCapabilities(key: string | undefined, destinati
       const parsed = schema.safeParse(await response.json());
       return parsed.success ? parsed.data : null;
     } catch { return null; }
-  }
+  };
+}
 
+async function readTestAccounts(key: string, destinationId: string | undefined, send: typeof fetch) {
+  const read = stripeRead(key, send);
   const [platform, funds, candidate] = await Promise.all([
     read('account', account), read('balance', balance),
     destinationId ? read('accounts/' + destinationId, account) : null,
   ]);
-  if (!platform || !funds) return { status: 'unavailable' as const, ...empty };
+  if (!platform || !funds) return null;
   const destination = candidate && candidate.id === destinationId && candidate.id !== platform.id ? candidate : null;
+  return { platform, funds, destination };
+}
+
+export async function verifyStripeTestDestination(key: string | undefined, accountId: string, send = fetch) {
+  if (!key?.startsWith('sk_test_') || !stripeAccountId.safeParse(accountId).success) return null;
+  const evidence = await readTestAccounts(key, accountId, send);
+  if (!evidence || evidence.destination?.controller?.is_controller !== true) return null;
+  return { platformAccountId: evidence.platform.id, stripeAccountId: evidence.destination.id, accountCountry: evidence.destination.country };
+}
+
+export async function checkStripeCapabilities(key: string | undefined, destinationId?: string, send = fetch) {
+  const empty = { platform: null, connectedAccount: null };
+  if (!key?.startsWith('sk_test_')) return { status: 'unconfigured' as const, ...empty };
+  if (destinationId !== undefined && !stripeAccountId.safeParse(destinationId).success) {
+    return { status: 'unavailable' as const, ...empty };
+  }
+
+  const evidence = await readTestAccounts(key, destinationId, send);
+  if (!evidence) return { status: 'unavailable' as const, ...empty };
+  const { platform, funds, destination } = evidence;
+  const read = stripeRead(key, send);
   const platformCountry = read('country_specs/' + platform.country, countrySpec);
   const [origin, location] = await Promise.all([
     platformCountry,

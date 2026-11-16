@@ -53,6 +53,7 @@ A checked box marks implemented backend code. PostgreSQL integration, client wir
 - [x] P12 provider earnings and admin payment views, audited payout holds, and atomic payout reservations against reviewed destinations.
 - [x] P12 Execution, reconciliation and journal settlement for approved Stripe test refund items. Failed or uncertain executions retain the reservation for review.
 - [x] P12 Full PayHere sandbox refunds for approved cancellation items, with provider confirmation before journal settlement.
+- [x] P12 Audited Stripe test account links tied to reviewed payout destination revisions.
 - [ ] P12 Hosted Stripe and PayHere refund verification, payout execution, and repair of blocked reservations.
 - [x] P13 Sandbox invoice, per-capture receipt and payout reservation statement with private server-rendered PDFs.
 - [x] P13 Verified customer reviews, moderated event photos and public rating aggregates.
@@ -98,6 +99,7 @@ A checked box marks implemented backend code. PostgreSQL integration, client wir
 - [x] GitHub CI passed for audited checkout recovery at `e451baa`, including the PostgreSQL journal suite. See [run 43812388181](https://github.com/Nezz77/StageLink-backend/actions/runs/43812388181).
 - [x] GitHub CI passed for Stripe test refund execution at `329f025`. See [run 43813265782](https://github.com/Nezz77/StageLink-backend/actions/runs/43813265782).
 - [x] GitHub CI passed for sandbox refund analytics at `276b20f` and PayHere sandbox refund execution at `1608785`. See [run 43814251179](https://github.com/Nezz77/StageLink-backend/actions/runs/43814251179).
+- [x] GitHub CI passed for private verification PDFs at `85ffe0e`. See [run 43815321146](https://github.com/Nezz77/StageLink-backend/actions/runs/43815321146).
 - [ ] Reconcile the [team frontend](https://github.com/Nezz77/StageLink) with the current backend contracts. Update the corresponding StageLink Figma screens and flows during each UI task.
 - [ ] Verify hosted model calls, signed sandbox payment callbacks, gateway reconciliation and two-account booking flows in staging.
 

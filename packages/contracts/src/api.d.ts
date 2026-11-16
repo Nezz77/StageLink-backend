@@ -3173,6 +3173,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/providers/{id}/stripe-destination": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["StripeDestinationsController_get"];
+        put?: never;
+        post: operations["StripeDestinationsController_link"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/providers/{id}/stripe-destination/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["StripeDestinationsController_revoke"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/refund-requests/{id}/items/{orderId}/stripe-execution": {
         parameters: {
             query?: never;
@@ -18970,6 +19002,185 @@ export interface operations {
                         } | null;
                         /** Format: date-time */
                         checkedAt: string;
+                    };
+                };
+            };
+        };
+    };
+    StripeDestinationsController_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        activeLink: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            providerId: string;
+                            destinationRevision: number;
+                            platformAccountId: string;
+                            stripeAccountId: string;
+                            accountCountry: string;
+                            /** Format: uuid */
+                            linkedBy: string;
+                            reason: string;
+                            /** Format: date-time */
+                            createdAt: string;
+                            /** Format: uuid */
+                            replacesId: string | null;
+                            /** Format: uuid */
+                            endedBy: string | null;
+                            /** Format: date-time */
+                            endedAt: string | null;
+                            /** @enum {string|null} */
+                            endKind: "revoke" | "replace" | null;
+                            endReason: string | null;
+                        } | null;
+                        matchesApprovedDestination: boolean;
+                        history: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            providerId: string;
+                            destinationRevision: number;
+                            platformAccountId: string;
+                            stripeAccountId: string;
+                            accountCountry: string;
+                            /** Format: uuid */
+                            linkedBy: string;
+                            reason: string;
+                            /** Format: date-time */
+                            createdAt: string;
+                            /** Format: uuid */
+                            replacesId: string | null;
+                            /** Format: uuid */
+                            endedBy: string | null;
+                            /** Format: date-time */
+                            endedAt: string | null;
+                            /** @enum {string|null} */
+                            endKind: "revoke" | "replace" | null;
+                            endReason: string | null;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    StripeDestinationsController_link: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    requestKey: string;
+                    destinationRevision: number;
+                    /** Format: uuid */
+                    expectedLinkId: string | null;
+                    accountId: string;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uuid */
+                        providerId: string;
+                        destinationRevision: number;
+                        platformAccountId: string;
+                        stripeAccountId: string;
+                        accountCountry: string;
+                        /** Format: uuid */
+                        linkedBy: string;
+                        reason: string;
+                        /** Format: date-time */
+                        createdAt: string;
+                        /** Format: uuid */
+                        replacesId: string | null;
+                        /** Format: uuid */
+                        endedBy: string | null;
+                        /** Format: date-time */
+                        endedAt: string | null;
+                        /** @enum {string|null} */
+                        endKind: "revoke" | "replace" | null;
+                        endReason: string | null;
+                    };
+                };
+            };
+        };
+    };
+    StripeDestinationsController_revoke: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    expectedLinkId: string;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uuid */
+                        providerId: string;
+                        destinationRevision: number;
+                        platformAccountId: string;
+                        stripeAccountId: string;
+                        accountCountry: string;
+                        /** Format: uuid */
+                        linkedBy: string;
+                        reason: string;
+                        /** Format: date-time */
+                        createdAt: string;
+                        /** Format: uuid */
+                        replacesId: string | null;
+                        /** Format: uuid */
+                        endedBy: string | null;
+                        /** Format: date-time */
+                        endedAt: string | null;
+                        /** @enum {string|null} */
+                        endKind: "revoke" | "replace" | null;
+                        endReason: string | null;
                     };
                 };
             };

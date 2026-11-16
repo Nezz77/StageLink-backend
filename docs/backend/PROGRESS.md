@@ -167,3 +167,5 @@ P12 adds full PayHere sandbox refund submission for a reserved cancellation item
 P11 adds a read-only Stripe test capability check for verified administrators. It reports the platform's account country, LKR payment listing and available LKR balance along with the supplied Connect account's control, transfer capability, payout status and country information. Hosted account and transfer-route verification remain open.
 
 P16 adds private verification PDFs. The worker renders up to eight pages and reconstructs a download from those images. Verification cases accept the derivative alongside private images. Access checks use the owner's session or a verified administrator's pending-case grant. PDFs stay outside the public portfolio and other upload purposes.
+
+P12 adds a verified administrator’s Stripe test account link for a specific reviewed provider payout destination revision. The link records the test platform and review reason, rejects duplicate active assignments, and retains replacement and revocation history. A changed destination revision makes the previous link stale. Hosted account verification and payout execution remain open.

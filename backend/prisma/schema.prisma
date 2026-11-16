@@ -65,6 +65,8 @@ model AuthUser {
   providers ProviderProfile[]
   payout PayoutDestination?
   payoutVersions PayoutDestinationVersion[]
+  linkedStripeDestinations StripePayoutDestinationLink[] @relation("StripeDestinationLinker")
+  endedStripeDestinations StripePayoutDestinationLink[] @relation("StripeDestinationEnder")
   pendingEmail PendingEmailChange?
   assets Asset[]
   portfolio PortfolioItem[]
@@ -274,8 +276,35 @@ model PayoutDestinationVersion {
   user AuthUser @relation(fields:[userId], references:[id], onDelete:Cascade)
   payoutOrders PayoutOrder[]
   arbitrationDecisions ArbitrationDecision[]
+  stripeLinks StripePayoutDestinationLink[]
   @@id([userId,revision])
   @@map("payout_destination_versions")
+}
+
+model StripePayoutDestinationLink {
+  id String @id @default(uuid()) @db.Uuid
+  providerId String @map("provider_id") @db.Uuid
+  destinationRevision Int @map("destination_revision")
+  platformAccountId String @map("platform_account_id") @db.VarChar(150)
+  stripeAccountId String @map("stripe_account_id") @db.VarChar(150)
+  accountCountry String @map("account_country") @db.Char(2)
+  linkedBy String @map("linked_by") @db.Uuid
+  requestKey String @map("request_key") @db.Uuid
+  replacesId String? @map("replaces_id") @db.Uuid
+  reason String @db.VarChar(500)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  endedBy String? @map("ended_by") @db.Uuid
+  endedAt DateTime? @map("ended_at") @db.Timestamptz(3)
+  endKind String? @map("end_kind") @db.VarChar(8)
+  endReason String? @map("end_reason") @db.VarChar(500)
+  destination PayoutDestinationVersion @relation(fields: [providerId, destinationRevision], references: [userId, revision], onDelete: Restrict)
+  linker AuthUser @relation("StripeDestinationLinker", fields: [linkedBy], references: [id], onDelete: Restrict)
+  ender AuthUser? @relation("StripeDestinationEnder", fields: [endedBy], references: [id], onDelete: Restrict)
+  replaces StripePayoutDestinationLink? @relation("StripeDestinationReplacement", fields: [replacesId], references: [id], onDelete: Restrict)
+  replacements StripePayoutDestinationLink[] @relation("StripeDestinationReplacement")
+  @@unique([providerId, requestKey])
+  @@index([providerId, createdAt(sort: Desc)], map: "stripe_payout_destination_history")
+  @@map("stripe_payout_destination_links")
 }
 
 model Asset {
