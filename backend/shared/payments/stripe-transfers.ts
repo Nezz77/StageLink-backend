@@ -21,19 +21,30 @@ const paymentIntent = z.object({
   }),
 });
 const replayWindowMs = 23 * 60 * 60_000;
+export const stripeTransferRejection = z.object({
+  code: z.literal('balance_insufficient'),
+  requestId: z.string().max(150).regex(/^req_[A-Za-z0-9_]+$/),
+});
+const insufficientBalance = z.object({
+  error: stripeTransferRejection.pick({ code: true }).extend({ type: z.literal('invalid_request_error') }),
+});
 
 type Capture = Parameters<typeof observeStripe>[1];
 type Transfer = { id: string; amountMinor: number; providerTransferId: string | null; createdAt: Date; stripeAccountId: string };
 
-async function request(
+function request(
   key: string, path: string, send: typeof fetch,
   post?: { body: URLSearchParams; idempotencyKey: string },
-): Promise<unknown> {
+): Promise<Response> {
   if (!key.startsWith('sk_test_')) throw new Error('A Stripe test key is required.');
-  const response = await send(stripe + path, {
+  return send(stripe + path, {
     method: post ? 'POST' : 'GET', redirect: 'error', signal: AbortSignal.timeout(8000), body: post?.body,
     headers: { Authorization: 'Bearer ' + key, ...(post ? { 'Idempotency-Key': post.idempotencyKey } : {}) },
   });
+}
+
+async function get(key: string, path: string, send: typeof fetch): Promise<unknown> {
+  const response = await request(key, path, send);
   if (!response.ok) throw new Error('Stripe test transfer request failed.');
   return response.json();
 }
@@ -44,7 +55,7 @@ export async function verifyStripeTransferCapture(key: string, attempt: Capture,
   if (observed.status !== 'captured' || !observed.paymentIntentId) return false;
   try {
     const id = observed.paymentIntentId;
-    const raw = await request(key, 'payment_intents/' + encodeURIComponent(id) + '?expand%5B%5D=latest_charge', send);
+    const raw = await get(key, 'payment_intents/' + encodeURIComponent(id) + '?expand%5B%5D=latest_charge', send);
     const data = paymentIntent.parse(raw);
     return data.id === id && data.latest_charge.payment_intent === id &&
       data.amount_received === attempt.amountMinor && data.latest_charge.amount_captured === attempt.amountMinor;
@@ -65,11 +76,11 @@ export async function processStripePayoutTransfer(
   try {
     if (expected.providerTransferId) {
       if (!transferId.safeParse(expected.providerTransferId).success) return null;
-      return match(await request(key, 'transfers/' + expected.providerTransferId, send));
+      return match(await get(key, 'transfers/' + expected.providerTransferId, send));
     }
     if (submission !== 'first') {
       const query = new URLSearchParams({ destination: expected.stripeAccountId, transfer_group: group, limit: '2' });
-      const data = page.parse(await request(key, 'transfers?' + query.toString(), send));
+      const data = page.parse(await get(key, 'transfers?' + query.toString(), send));
       if (data.has_more || data.data.length > 1) return null;
       if (data.data.length === 1) return match(data.data[0]);
     }
@@ -78,6 +89,13 @@ export async function processStripePayoutTransfer(
       amount: String(expected.amountMinor), currency: 'lkr', destination: expected.stripeAccountId,
       transfer_group: group, source_type: 'card', 'metadata[stagelink_payout_transfer]': expected.id,
     });
-    return match(await request(key, 'transfers', send, { body, idempotencyKey: 'stagelink-payout-' + expected.id }));
+    const response = await request(key, 'transfers', send, { body, idempotencyKey: 'stagelink-payout-' + expected.id });
+    if (response.ok) return match(await response.json());
+    // A rejection on replay cannot resolve a previous response that was never received.
+    if (submission !== 'first' || ![400, 402].includes(response.status) ||
+      response.headers.get('Idempotent-Replayed') === 'true' || response.headers.get('Stripe-Should-Retry') === 'true') return null;
+    const error = insufficientBalance.parse(await response.json()).error;
+    const rejection = stripeTransferRejection.parse({ code: error.code, requestId: response.headers.get('Request-Id') });
+    return { rejection };
   } catch { return null; }
 }

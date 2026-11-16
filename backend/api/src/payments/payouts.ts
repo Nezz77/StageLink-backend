@@ -34,7 +34,7 @@ const payout = z.object({
   id: uuid, bookingId: uuid, providerId: uuid, destinationRevision: revision, createdAt: timestamp,
   grossMinor: minor, platformFeeMinor: minor, netMinor: minor, currency: z.literal('LKR'),
   status: z.enum(['reserved', 'review_required']),
-  stripeTransferStatus: z.enum(['uncertain', 'transferred', 'review_required']).nullable(),
+  stripeTransferStatus: z.enum(['uncertain', 'transferred', 'review_required', 'rejected']).nullable(),
 });
 const payment = z.object({
   id: uuid, purpose: z.enum(['advance', 'balance', 'deposit']), amountMinor: minor,

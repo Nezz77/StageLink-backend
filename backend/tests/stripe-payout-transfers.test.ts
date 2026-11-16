@@ -54,3 +54,32 @@ test('Stripe transfer reconciliation requires exact test evidence and reports pa
     Response.json({ ...response, reversed: true, amount_reversed: expected.amountMinor })),
     { id: response.id, reversedMinor: expected.amountMinor });
 });
+
+test('only a first submission with a documented balance rejection and request ID is terminal', async () => {
+  const error = { error: { code: 'balance_insufficient', type: 'invalid_request_error' } };
+  const requestId = 'req_balanceFixture';
+  const headers = { 'Request-Id': requestId };
+  const rejection = { rejection: { code: 'balance_insufficient', requestId } };
+  for (const status of [400, 402]) {
+    assert.deepEqual(await processStripePayoutTransfer('sk_test_fixture', expected, 'first',
+      async () => Response.json(error, { status, headers })), rejection);
+  }
+
+  for (const status of [409, 429, 500]) {
+    assert.equal(await processStripePayoutTransfer('sk_test_fixture', expected, 'first',
+      async () => Response.json(error, { status, headers })), null);
+  }
+  for (const [name, value] of [['Request-Id', ''], ['Idempotent-Replayed', 'true'], ['Stripe-Should-Retry', 'true']] as const) {
+    const flaggedHeaders = new Headers(headers);
+    flaggedHeaders.set(name, value);
+    assert.equal(await processStripePayoutTransfer('sk_test_fixture', expected, 'first',
+      async () => Response.json(error, { status: 400, headers: flaggedHeaders })), null);
+  }
+  assert.equal(await processStripePayoutTransfer('sk_test_fixture', expected, 'first',
+    async () => Response.json({ error: { code: 'transfers_not_allowed', type: 'invalid_request_error' } },
+      { status: 400, headers })), null);
+  assert.equal(await processStripePayoutTransfer('sk_test_fixture', expected, 'retry', async (_url, init) =>
+    init?.method === 'GET'
+      ? Response.json({ object: 'list', has_more: false, data: [] })
+      : Response.json(error, { status: 400, headers })), null);
+});

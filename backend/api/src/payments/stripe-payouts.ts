@@ -6,7 +6,7 @@ import { z } from 'zod';
 import type { Prisma, StripePayoutTransfer } from '../../../generated/prisma/client.js';
 import { openAccount, postedBalance, postJournal } from '../../../shared/payments/journal.js';
 import { readStripeTestAccounts } from '../../../shared/payments/stripe-capabilities.js';
-import { processStripePayoutTransfer, verifyStripeTransferCapture } from '../../../shared/payments/stripe-transfers.js';
+import { processStripePayoutTransfer, stripeTransferRejection, verifyStripeTransferCapture } from '../../../shared/payments/stripe-transfers.js';
 import { PublicError } from '../auth/errors.js';
 import type { AuthService, Identity } from '../auth/service.js';
 import { lockBooking, paymentBlocked } from '../bookings/lifecycle.js';
@@ -23,7 +23,8 @@ const view = z.object({
   id: uuid, payoutId: uuid, destinationLinkId: uuid, amountMinor: z.number().int().positive(), currency: z.literal('LKR'),
   attempt: z.number().int().positive(), retryAuthorization: authorizationView.nullable(),
   reversedMinor: z.number().int().nonnegative(),
-  state: z.enum(['processing', 'uncertain', 'transferred', 'review_required']),
+  state: z.enum(['processing', 'uncertain', 'transferred', 'review_required', 'rejected']),
+  rejection: stripeTransferRejection.nullable(),
   providerTransferId: z.string().nullable(), createdAt: z.iso.datetime(), updatedAt: z.iso.datetime(),
 });
 
@@ -44,6 +45,8 @@ function present(row: StripePayoutTransfer) {
   const { id, payoutId, destinationLinkId, amountMinor, attempt, reversedMinor, status, providerTransferId, createdAt, updatedAt } = row;
   return {
     id, payoutId, destinationLinkId, amountMinor, attempt, retryAuthorization: presentAuthorization(row),
+    rejection: row.rejectionCode === 'balance_insufficient' && row.rejectionRequestId
+      ? { code: row.rejectionCode, requestId: row.rejectionRequestId } : null,
     reversedMinor, currency: 'LKR' as const, providerTransferId,
     state: row.leaseUntil && row.leaseUntil > new Date() ? 'processing' : status,
     createdAt: createdAt.toISOString(), updatedAt: updatedAt.toISOString(),
@@ -71,7 +74,7 @@ function transferTarget(payout: Payout, retryOfTransferId?: string) {
 }
 
 function returnWithoutClaim(row: StripePayoutTransfer, input: z.infer<typeof command>) {
-  return row.retryAuthorizedAt !== null || (row.leaseUntil !== null && row.leaseUntil > new Date()) ||
+  return row.status === 'rejected' || row.retryAuthorizedAt !== null || (row.leaseUntil !== null && row.leaseUntil > new Date()) ||
     (!input.reconcileOnly && (row.status !== 'uncertain' || (row.attempt > 1 && !input.retryOfTransferId)));
 }
 
@@ -209,10 +212,11 @@ export function makeStripePayoutTransfersController(auth: AuthService) {
           }
           return previous;
         }
-        if (payout.stripeTransfers[0]?.id !== attempt.id || attempt.status !== 'review_required' ||
-          attempt.reversedMinor !== payout.netMinor || attempt.amountMinor !== payout.netMinor || !attempt.journalId ||
+        const reversed = attempt.status === 'review_required' && attempt.reversedMinor === attempt.amountMinor && attempt.journalId;
+        if (payout.stripeTransfers[0]?.id !== attempt.id || (attempt.status !== 'rejected' && !reversed) ||
+          attempt.amountMinor !== payout.netMinor ||
           (attempt.leaseUntil && attempt.leaseUntil > new Date())) {
-          throw new PublicError(409, 'STRIPE_RETRY_NOT_ELIGIBLE', 'Reconcile a full reversal before authorizing a new transfer.');
+          throw new PublicError(409, 'STRIPE_RETRY_NOT_ELIGIBLE', 'Confirm a transfer rejection or reconcile a full reversal before authorizing a new transfer.');
         }
         const account = await payoutReservationAccount(tx, payout);
         if (!account || account !== attempt.reservedAccountId || await postedBalance(tx, account) !== BigInt(payout.grossMinor)) {
@@ -303,6 +307,14 @@ export function makeStripePayoutTransfersController(auth: AuthService) {
         const current = await tx.stripePayoutTransfer.findUniqueOrThrow({ where: { id: claim.record.id } });
         if (current.leaseId !== claim.leaseId) return present(current);
 
+        if (result && 'rejection' in result) {
+          return present(await tx.stripePayoutTransfer.update({
+            where: { id: current.id }, data: {
+              status: 'rejected', rejectionCode: result.rejection.code, rejectionRequestId: result.rejection.requestId,
+              leaseId: null, leaseUntil: null, updatedAt: new Date(),
+            },
+          }));
+        }
         const confirmed = result && result.reversedMinor >= current.reversedMinor &&
           (current.status !== 'review_required' || result.reversedMinor > 0) ? result : null;
         const reversedMinor = confirmed?.reversedMinor ?? current.reversedMinor;

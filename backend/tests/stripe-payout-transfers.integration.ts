@@ -10,20 +10,25 @@ import { readConfig } from '../shared/config.js';
 import { openAccount, postedBalance, postJournal } from '../shared/payments/journal.js';
 import { resources } from '../shared/resources.js';
 
-const config = readConfig({
-  ...process.env, AUTH_RATE_PREFIX: 'stripe-transfer-test-' + randomUUID(),
+const testConfig = readConfig({
+  ...process.env,
   STRIPE_TEST_PAYOUT_TRANSFERS: 'true', STRIPE_TEST_SECRET_KEY: 'sk_test_transfer', STRIPE_TEST_WEBHOOK_SECRET: 'whsec_transfer',
 });
-if (config.NODE_ENV !== 'test' || !new URL(config.DATABASE_URL).pathname.endsWith('_test')) {
+if (testConfig.NODE_ENV !== 'test' || !new URL(testConfig.DATABASE_URL).pathname.endsWith('_test')) {
   throw new Error('Stripe payout transfers require an isolated *_test database.');
 }
 
 test('a fully reversed test transfer can authorize one new attempt using the original reserve', t =>
-  checkPayoutReconciliation(t, 0));
+  checkPayoutReconciliation(t));
 test('a transfer already partially reversed at first confirmation records both journal movements', t =>
-  checkPayoutReconciliation(t, 1000));
+  checkPayoutReconciliation(t, { initialReversedMinor: 1000 }));
+test('a definitive Stripe test balance rejection preserves the reserve for an authorized retry', t =>
+  checkPayoutReconciliation(t, { rejectFirst: true }));
 
-async function checkPayoutReconciliation(t: TestContext, initialReversedMinor: number) {
+async function checkPayoutReconciliation(
+  t: TestContext, { initialReversedMinor = 0, rejectFirst = false }: { initialReversedMinor?: number; rejectFirst?: boolean } = {},
+) {
+  const config = { ...testConfig, AUTH_RATE_PREFIX: 'stripe-transfer-test-' + randomUUID() };
   const localFetch = globalThis.fetch;
   const sessions = new Map<string, object>();
   const stripeId = 'acct_' + randomUUID().replaceAll('-', '');
@@ -77,6 +82,13 @@ async function checkPayoutReconciliation(t: TestContext, initialReversedMinor: n
       assert.equal(key, 'stagelink-payout-' + executionId);
       idempotencyKeys.add(key!);
       submissions++;
+      if (rejectFirst && submissions === 1) {
+        sent();
+        await waitForResponse;
+        return Response.json({ error: { type: 'invalid_request_error', code: 'balance_insufficient' } }, {
+          status: 400, headers: { 'Request-Id': 'req_transferFixture' },
+        });
+      }
       transfer = {
         id: 'tr_' + executionId.replaceAll('-', ''), object: 'transfer', amount: 95000, currency: 'lkr',
         destination: stripeId, transfer_group: body.get('transfer_group'), livemode: false,
@@ -187,7 +199,7 @@ async function checkPayoutReconciliation(t: TestContext, initialReversedMinor: n
     payoutId = reserved.payout.id;
     const path = base + 'admin/payouts/' + payoutId + '/stripe-transfer';
     const submit = (actor = admin, body: object = {}) => fetch(path, { method: 'POST', headers: actor.headers, body: JSON.stringify(body) });
-    const retryReason = 'Reviewed the fully returned Stripe test funds.';
+    const retryReason = 'Reviewed the Stripe test transfer and its full reserve.';
     const authorize = (transferId: string, actor = admin, reason = retryReason) => fetch(path + '/retry-authorizations', {
       method: 'POST', headers: actor.headers, body: JSON.stringify({ transferId, reason }),
     });
@@ -200,7 +212,7 @@ async function checkPayoutReconciliation(t: TestContext, initialReversedMinor: n
     });
     let activeLinkId = link.id;
     let holdRevision = 1;
-    if (!initialReversedMinor) {
+    if (!initialReversedMinor && !rejectFirst) {
       const pending = { ...dest, revision: 2, status: 'pending' };
       await deps.db.payoutDestinationVersion.create({ data: pending });
       await deps.db.payoutDestination.update({ where: { userId: provider.id }, data: pending });
@@ -264,14 +276,48 @@ async function checkPayoutReconciliation(t: TestContext, initialReversedMinor: n
     try {
       assert.equal((await (await submit()).json()).state, 'processing');
       assert.equal(await postedBalance(deps.db, reserved.account.id), 100000n);
-      const expectedDestinationRevision = initialReversedMinor ? 1 : 2;
+      const expectedDestinationRevision = initialReversedMinor || rejectFirst ? 1 : 2;
       const claimedRepair = { ...repairInput, requestKey: randomUUID(), expectedDestinationRevision, destinationRevision: expectedDestinationRevision + 1 };
       assert.equal((await (await repair(claimedRepair)).json()).code, 'PAYOUT_TRANSFER_STARTED');
       await deps.db.bookingPayoutHold.create({ data: {
         bookingId: booking.id, revision: holdRevision, held: true, reason: 'Manual review hold fixture', actorId: admin.id, createdAt: now,
       } });
     } finally { release(); }
-    const uncertain = await (await first).json();
+    const firstOutcome = await (await first).json();
+    if (rejectFirst) {
+      assert.equal(firstOutcome.state, 'rejected');
+      assert.deepEqual(firstOutcome.rejection, { code: 'balance_insufficient', requestId: 'req_transferFixture' });
+      assert.equal(firstOutcome.providerTransferId, null);
+      assert.equal(await postedBalance(deps.db, reserved.account.id), 100000n);
+      assert.equal(await deps.db.journalEntry.count({
+        where: { accountId: reserved.account.id, transaction: { source: 'stripe.test.payout.transfer' } },
+      }), 0);
+      assert.deepEqual(await (await submit(admin, { reconcileOnly: true })).json(), firstOutcome);
+      const retryCommand = { retryOfTransferId: firstOutcome.id };
+      assert.equal((await (await submit(admin, retryCommand)).json()).code, 'STRIPE_RETRY_NOT_AUTHORIZED');
+      const approved = await authorize(firstOutcome.id);
+      assert.equal(approved.status, 200);
+      const decision = await approved.json();
+      assert.equal(decision.transferId, firstOutcome.id);
+      assert.equal((await submit(admin, retryCommand)).status, 409);
+      await deps.db.bookingPayoutHold.create({ data: {
+        bookingId, revision: holdRevision + 1, held: false, reason: 'Confirmed Stripe rejection reviewed.', actorId: admin.id, createdAt: now,
+      } });
+      const retried = await submit(admin, retryCommand);
+      assert.equal(retried.status, 200);
+      const latest = await retried.json();
+      assert.equal(latest.state, 'transferred');
+      assert.equal(latest.attempt, 2);
+      assert.equal(latest.rejection, null);
+      assert.equal((await (await submit(admin, retryCommand)).json()).id, latest.id);
+      const history = await (await fetch(path + '/attempts', admin)).json();
+      assert.deepEqual(history.attempts, [latest, { ...firstOutcome, retryAuthorization: decision }]);
+      assert.equal(submissions, 2);
+      assert.equal(idempotencyKeys.size, 2);
+      assert.equal(await postedBalance(deps.db, reserved.account.id), 5000n);
+      return;
+    }
+    const uncertain = firstOutcome;
     assert.equal(uncertain.state, 'uncertain');
     assert.equal((await (await authorize(uncertain.id)).json()).code, 'STRIPE_RETRY_NOT_ELIGIBLE');
 

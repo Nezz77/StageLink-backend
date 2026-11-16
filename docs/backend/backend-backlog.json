@@ -1717,7 +1717,7 @@
       "ui_coverage_ids": [
         "UI-038"
       ],
-      "remaining": "Administrators can repair a stale payout destination and authorize a new Stripe test transfer after a full reversal restores the gross reserve. Prior attempts and journal entries remain available for audit. Verify the hosted LKR route and frontend/Figma wiring. Add bank payout confirmation, fee settlement and recovery of funds after a failed or unresolved transfer."
+      "remaining": "Administrators can repair a stale payout destination and authorize a new Stripe test transfer after a confirmed first-submission balance rejection or a full reversal that restores the gross reserve. Prior attempts and journal entries remain available for audit. Verify the hosted LKR route and frontend/Figma wiring. Add bank payout confirmation, fee settlement and resolution of transfer attempts with uncertain provider outcomes."
     },
     {
       "id": "BE-049",

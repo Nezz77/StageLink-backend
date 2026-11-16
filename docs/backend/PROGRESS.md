@@ -177,3 +177,5 @@ P12 now posts confirmed Stripe test transfer reversals back into the payout rese
 P12 adds administrator repair for a payout held against a stale destination revision. The repair rechecks the verified booking, captures, holds, provider approval and original journal reserve under the booking lock. It records both revisions and the reviewer, issues a new reservation statement and keeps the original reserve. A recorded transfer attempt blocks the repair.
 
 P12 adds audited retry authorization after a fully reversed Stripe test transfer. The original gross reserve must be intact. A later attempt uses an explicit reference to the approval and its own Stripe idempotency key. The history preserves prior destinations, provider references and posted journals. Uncertain and partially reversed attempts keep their existing review requirements.
+
+P12 now records a definite first-submission Stripe test balance rejection with its provider request ID. The full reserve remains available for an audited retry. An uncertain transfer keeps its existing idempotency key and reconciliation flow.

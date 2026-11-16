@@ -18609,7 +18609,7 @@ export interface operations {
                                 /** @enum {string} */
                                 status: "reserved" | "review_required";
                                 /** @enum {string|null} */
-                                stripeTransferStatus: "uncertain" | "transferred" | "review_required" | null;
+                                stripeTransferStatus: "uncertain" | "transferred" | "review_required" | "rejected" | null;
                             } | null;
                             /** @enum {string} */
                             currency: "LKR";
@@ -18676,7 +18676,7 @@ export interface operations {
                                 /** @enum {string} */
                                 status: "reserved" | "review_required";
                                 /** @enum {string|null} */
-                                stripeTransferStatus: "uncertain" | "transferred" | "review_required" | null;
+                                stripeTransferStatus: "uncertain" | "transferred" | "review_required" | "rejected" | null;
                             } | null;
                             /** @enum {string} */
                             currency: "LKR";
@@ -18722,7 +18722,7 @@ export interface operations {
                         /** @enum {string} */
                         status: "reserved" | "review_required";
                         /** @enum {string|null} */
-                        stripeTransferStatus: "uncertain" | "transferred" | "review_required" | null;
+                        stripeTransferStatus: "uncertain" | "transferred" | "review_required" | "rejected" | null;
                     };
                 };
             };
@@ -18805,7 +18805,7 @@ export interface operations {
                         /** @enum {string} */
                         status: "reserved" | "review_required";
                         /** @enum {string|null} */
-                        stripeTransferStatus: "uncertain" | "transferred" | "review_required" | null;
+                        stripeTransferStatus: "uncertain" | "transferred" | "review_required" | "rejected" | null;
                     };
                 };
             };
@@ -19344,7 +19344,12 @@ export interface operations {
                             } | null;
                             reversedMinor: number;
                             /** @enum {string} */
-                            state: "processing" | "uncertain" | "transferred" | "review_required";
+                            state: "processing" | "uncertain" | "transferred" | "review_required" | "rejected";
+                            rejection: {
+                                /** @enum {string} */
+                                code: "balance_insufficient";
+                                requestId: string;
+                            } | null;
                             providerTransferId: string | null;
                             /** Format: date-time */
                             createdAt: string;
@@ -19404,7 +19409,12 @@ export interface operations {
                         } | null;
                         reversedMinor: number;
                         /** @enum {string} */
-                        state: "processing" | "uncertain" | "transferred" | "review_required";
+                        state: "processing" | "uncertain" | "transferred" | "review_required" | "rejected";
+                        rejection: {
+                            /** @enum {string} */
+                            code: "balance_insufficient";
+                            requestId: string;
+                        } | null;
                         providerTransferId: string | null;
                         /** Format: date-time */
                         createdAt: string;
@@ -19456,7 +19466,12 @@ export interface operations {
                             } | null;
                             reversedMinor: number;
                             /** @enum {string} */
-                            state: "processing" | "uncertain" | "transferred" | "review_required";
+                            state: "processing" | "uncertain" | "transferred" | "review_required" | "rejected";
+                            rejection: {
+                                /** @enum {string} */
+                                code: "balance_insufficient";
+                                requestId: string;
+                            } | null;
                             providerTransferId: string | null;
                             /** Format: date-time */
                             createdAt: string;

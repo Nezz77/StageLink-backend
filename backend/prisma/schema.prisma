@@ -1142,6 +1142,7 @@ enum StripePayoutTransferState {
   uncertain
   transferred
   review_required
+  rejected
 }
 
 model StripePayoutTransfer {
@@ -1155,6 +1156,8 @@ model StripePayoutTransfer {
   reversedMinor Int @default(0) @map("reversed_minor")
   status StripePayoutTransferState @default(uncertain)
   providerTransferId String? @unique @map("provider_transfer_id") @db.VarChar(150)
+  rejectionCode String? @map("rejection_code") @db.VarChar(40)
+  rejectionRequestId String? @map("rejection_request_id") @db.VarChar(150)
   journalId String? @unique @map("journal_id") @db.Uuid
   leaseId String? @map("lease_id") @db.Uuid
   leaseUntil DateTime? @map("lease_until") @db.Timestamptz(3)

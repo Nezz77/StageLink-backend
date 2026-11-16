@@ -47104,7 +47104,8 @@
                                 "enum": [
                                   "uncertain",
                                   "transferred",
-                                  "review_required"
+                                  "review_required",
+                                  "rejected"
                                 ]
                               }
                             },
@@ -47337,7 +47338,8 @@
                                 "enum": [
                                   "uncertain",
                                   "transferred",
-                                  "review_required"
+                                  "review_required",
+                                  "rejected"
                                 ]
                               }
                             },
@@ -47486,7 +47488,8 @@
                       "enum": [
                         "uncertain",
                         "transferred",
-                        "review_required"
+                        "review_required",
+                        "rejected"
                       ]
                     }
                   },
@@ -47715,7 +47718,8 @@
                       "enum": [
                         "uncertain",
                         "transferred",
-                        "review_required"
+                        "review_required",
+                        "rejected"
                       ]
                     }
                   },
@@ -49282,8 +49286,31 @@
                             "processing",
                             "uncertain",
                             "transferred",
-                            "review_required"
+                            "review_required",
+                            "rejected"
                           ]
+                        },
+                        "rejection": {
+                          "nullable": true,
+                          "type": "object",
+                          "properties": {
+                            "code": {
+                              "type": "string",
+                              "enum": [
+                                "balance_insufficient"
+                              ]
+                            },
+                            "requestId": {
+                              "type": "string",
+                              "maxLength": 150,
+                              "pattern": "^req_[A-Za-z0-9_]+$"
+                            }
+                          },
+                          "required": [
+                            "code",
+                            "requestId"
+                          ],
+                          "additionalProperties": false
                         },
                         "providerTransferId": {
                           "nullable": true,
@@ -49310,6 +49337,7 @@
                         "retryAuthorization",
                         "reversedMinor",
                         "state",
+                        "rejection",
                         "providerTransferId",
                         "createdAt",
                         "updatedAt"
@@ -49458,8 +49486,31 @@
                         "processing",
                         "uncertain",
                         "transferred",
-                        "review_required"
+                        "review_required",
+                        "rejected"
                       ]
+                    },
+                    "rejection": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "enum": [
+                            "balance_insufficient"
+                          ]
+                        },
+                        "requestId": {
+                          "type": "string",
+                          "maxLength": 150,
+                          "pattern": "^req_[A-Za-z0-9_]+$"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "requestId"
+                      ],
+                      "additionalProperties": false
                     },
                     "providerTransferId": {
                       "nullable": true,
@@ -49486,6 +49537,7 @@
                     "retryAuthorization",
                     "reversedMinor",
                     "state",
+                    "rejection",
                     "providerTransferId",
                     "createdAt",
                     "updatedAt"
@@ -49614,8 +49666,31 @@
                               "processing",
                               "uncertain",
                               "transferred",
-                              "review_required"
+                              "review_required",
+                              "rejected"
                             ]
+                          },
+                          "rejection": {
+                            "nullable": true,
+                            "type": "object",
+                            "properties": {
+                              "code": {
+                                "type": "string",
+                                "enum": [
+                                  "balance_insufficient"
+                                ]
+                              },
+                              "requestId": {
+                                "type": "string",
+                                "maxLength": 150,
+                                "pattern": "^req_[A-Za-z0-9_]+$"
+                              }
+                            },
+                            "required": [
+                              "code",
+                              "requestId"
+                            ],
+                            "additionalProperties": false
                           },
                           "providerTransferId": {
                             "nullable": true,
@@ -49642,6 +49717,7 @@
                           "retryAuthorization",
                           "reversedMinor",
                           "state",
+                          "rejection",
                           "providerTransferId",
                           "createdAt",
                           "updatedAt"
