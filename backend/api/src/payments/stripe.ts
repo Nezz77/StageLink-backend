@@ -9,6 +9,7 @@ import { PublicError } from '../auth/errors.js';
 import type { AuthService } from '../auth/service.js';
 import { lockPaymentOrder, recordCapture, updatePaymentStatus } from './capture.js';
 import { parse, paymentAccess, readOrder, schema, uuid } from './orders.js';
+import { reconcileStripeTransferEvent } from './stripe-transfer-events.js';
 
 const empty = z.object({}).strict();
 const checkout = z.object({ url: z.url(), expiresAt: z.iso.datetime() });
@@ -109,13 +110,17 @@ export function makeStripeController(auth: AuthService) {
     @HttpCode(200)
     @ApiConsumes('application/json')
     @ApiOkResponse({ schema: schema(acknowledged) })
-    notify(@Req() req: RawBodyRequest<Request>, @Body() body: unknown) {
+    async notify(@Req() req: RawBodyRequest<Request>, @Body() body: unknown) {
       if (!req.is('application/json')) throw new PublicError(415, 'UNSUPPORTED_PAYMENT_EVENT', 'Use JSON for Stripe events.');
       const config = settings(auth.config);
       if (!req.rawBody || !validStripeSignature(req.rawBody, req.get('Stripe-Signature') ?? '', config.signingSecret, Math.floor(Date.now() / 1000))) {
         throw new PublicError(401, 'INVALID_PAYMENT_SIGNATURE', 'The payment notification could not be verified.');
       }
       const event = parse(stripeEvent, body);
+      if (event.type === 'transfer.created' || event.type === 'transfer.reversed') {
+        await reconcileStripeTransferEvent(db, config.key, body);
+        return { received: true };
+      }
       if (!eventTypes.has(event.type)) return { received: true };
       const reference = stripeSessionReference.safeParse(event.data.object);
       if (!reference.success) return { received: true };

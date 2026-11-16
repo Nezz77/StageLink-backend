@@ -61,6 +61,10 @@ export async function readStripeTestAccounts(key: string, destinationId?: string
   return { platform, funds, destination };
 }
 
+export async function readStripeTestPlatform(key: string, send = fetch) {
+  return key.startsWith('sk_test_') ? stripeRead(key, send)('account', account) : null;
+}
+
 export async function verifyStripeTestDestination(key: string | undefined, accountId: string, send = fetch) {
   if (!key?.startsWith('sk_test_') || !stripeAccountId.safeParse(accountId).success) return null;
   const evidence = await readStripeTestAccounts(key, accountId, send);

@@ -1172,8 +1172,21 @@ model StripePayoutTransfer {
   retryReviewer AuthUser? @relation("StripeTransferRetryReviewer", fields: [retryAuthorizedBy], references: [id], onDelete: Restrict)
   reservedAccount FinancialAccount @relation(fields: [reservedAccountId], references: [id], onDelete: Restrict)
   journal JournalTransaction? @relation(fields: [journalId], references: [id], onDelete: Restrict)
+  events StripePayoutTransferEvent[]
   @@unique([payoutId, attempt])
   @@map("stripe_payout_transfers")
+}
+
+model StripePayoutTransferEvent {
+  id String @id @db.VarChar(150)
+  transferId String @map("transfer_id") @db.Uuid
+  eventType String @map("event_type") @db.VarChar(80)
+  observedReversedMinor Int @map("observed_reversed_minor")
+  createdAt DateTime @map("created_at") @db.Timestamptz(3)
+  receivedAt DateTime @default(now()) @map("received_at") @db.Timestamptz(3)
+  transfer StripePayoutTransfer @relation(fields: [transferId], references: [id], onDelete: Restrict)
+  @@index([transferId])
+  @@map("stripe_payout_transfer_events")
 }
 
 

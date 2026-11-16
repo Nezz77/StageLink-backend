@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { createHmac, randomUUID } from 'node:crypto';
 import { test, type TestContext } from 'node:test';
 import { SignJWT } from 'jose';
 import { createApp } from '../api/src/app.js';
@@ -24,14 +24,19 @@ test('a transfer already partially reversed at first confirmation records both j
   checkPayoutReconciliation(t, { initialReversedMinor: 1000 }));
 test('a definitive Stripe test balance rejection preserves the reserve for an authorized retry', t =>
   checkPayoutReconciliation(t, { rejectFirst: true }));
+test('signed Stripe transfer events reconcile a lost response and ignore duplicate or stale reversals', t =>
+  checkPayoutReconciliation(t, { useWebhooks: true }));
 
 async function checkPayoutReconciliation(
-  t: TestContext, { initialReversedMinor = 0, rejectFirst = false }: { initialReversedMinor?: number; rejectFirst?: boolean } = {},
+  t: TestContext,
+  { initialReversedMinor = 0, rejectFirst = false, useWebhooks = false }:
+    { initialReversedMinor?: number; rejectFirst?: boolean; useWebhooks?: boolean } = {},
 ) {
   const config = { ...testConfig, AUTH_RATE_PREFIX: 'stripe-transfer-test-' + randomUUID() };
   const localFetch = globalThis.fetch;
   const sessions = new Map<string, object>();
   const stripeId = 'acct_' + randomUUID().replaceAll('-', '');
+  let platformAccountId = 'acct_platform';
   let disputed = false;
   let cardBalanceMinor = 100000;
   let reversedMinor = 0;
@@ -49,7 +54,7 @@ async function checkPayoutReconciliation(
     assert.equal(new Headers(init?.headers).get('Authorization'), 'Bearer sk_test_transfer');
     if (url.pathname === '/v1/account' || url.pathname === '/v1/accounts/' + stripeId) {
       return Response.json({
-        object: 'account', id: url.pathname === '/v1/account' ? 'acct_platform' : stripeId, country: 'US',
+        object: 'account', id: url.pathname === '/v1/account' ? platformAccountId : stripeId, country: 'US',
         charges_enabled: true, payouts_enabled: true, controller: { is_controller: true }, capabilities: { transfers: 'active' },
       });
     }
@@ -199,6 +204,20 @@ async function checkPayoutReconciliation(
     payoutId = reserved.payout.id;
     const path = base + 'admin/payouts/' + payoutId + '/stripe-transfer';
     const submit = (actor = admin, body: object = {}) => fetch(path, { method: 'POST', headers: actor.headers, body: JSON.stringify(body) });
+    const webhookEvent = (type: string, reversal: number, details: object = {}) => ({
+      id: 'evt_' + randomUUID().replaceAll('-', ''), object: 'event', type, livemode: false, created: Math.floor(Date.now() / 1000),
+      data: { object: { ...(transfer ?? {}), amount_reversed: reversal, reversed: reversal === 95000 } }, ...details,
+    });
+    const notify = (event: object, signed = true) => {
+      const raw = JSON.stringify(event);
+      const time = Math.floor(Date.now() / 1000);
+      const signature = createHmac('sha256', config.STRIPE_TEST_WEBHOOK_SECRET!).update(time + '.' + raw).digest('hex');
+      return fetch(base + 'payments/webhooks/stripe', {
+        method: 'POST', body: raw, headers: {
+          'Content-Type': 'application/json', 'Stripe-Signature': 't=' + time + ',v1=' + (signed ? signature : '0'.repeat(64)),
+        },
+      });
+    };
     const retryReason = 'Reviewed the Stripe test transfer and its full reserve.';
     const authorize = (transferId: string, actor = admin, reason = retryReason) => fetch(path + '/retry-authorizations', {
       method: 'POST', headers: actor.headers, body: JSON.stringify({ transferId, reason }),
@@ -212,7 +231,7 @@ async function checkPayoutReconciliation(
     });
     let activeLinkId = link.id;
     let holdRevision = 1;
-    if (!initialReversedMinor && !rejectFirst) {
+    if (!initialReversedMinor && !rejectFirst && !useWebhooks) {
       const pending = { ...dest, revision: 2, status: 'pending' };
       await deps.db.payoutDestinationVersion.create({ data: pending });
       await deps.db.payoutDestination.update({ where: { userId: provider.id }, data: pending });
@@ -276,14 +295,58 @@ async function checkPayoutReconciliation(
     try {
       assert.equal((await (await submit()).json()).state, 'processing');
       assert.equal(await postedBalance(deps.db, reserved.account.id), 100000n);
-      const expectedDestinationRevision = initialReversedMinor || rejectFirst ? 1 : 2;
+      const expectedDestinationRevision = initialReversedMinor || rejectFirst || useWebhooks ? 1 : 2;
       const claimedRepair = { ...repairInput, requestKey: randomUUID(), expectedDestinationRevision, destinationRevision: expectedDestinationRevision + 1 };
       assert.equal((await (await repair(claimedRepair)).json()).code, 'PAYOUT_TRANSFER_STARTED');
       await deps.db.bookingPayoutHold.create({ data: {
         bookingId: booking.id, revision: holdRevision, held: true, reason: 'Manual review hold fixture', actorId: admin.id, createdAt: now,
       } });
+      if (useWebhooks) {
+        const partial = webhookEvent('transfer.reversed', 1000);
+        assert.equal((await notify(partial, false)).status, 401);
+        assert.equal((await notify({ ...partial, livemode: true })).status, 400);
+        assert.equal((await notify({ ...partial, account: stripeId })).status, 200);
+        assert.equal((await notify({
+          ...partial, data: { object: { ...partial.data.object, amount: 95001 } },
+        })).status, 409);
+        assert.equal((await notify(partial)).status, 503, 'Stripe retrieval is behind the signed reversal snapshot');
+        reversedMinor = 1000;
+        platformAccountId = 'acct_wrongPlatform';
+        assert.equal((await notify(partial)).status, 409);
+        platformAccountId = 'acct_platform';
+        assert.equal(await deps.db.stripePayoutTransferEvent.count({ where: { transfer: { payoutId } } }), 0);
+        assert.equal(await postedBalance(deps.db, reserved.account.id), 100000n);
+
+        const deliveries = await Promise.all([notify(partial), notify(partial)]);
+        assert.ok(deliveries.every(response => response.status === 200));
+        assert.equal(await deps.db.stripePayoutTransferEvent.count({ where: { transfer: { payoutId } } }), 1);
+        assert.equal(await postedBalance(deps.db, reserved.account.id), 6000n);
+        assert.equal((await (await fetch(path, admin)).json()).transfer.state, 'review_required');
+
+        reversedMinor = 0;
+        assert.equal((await notify(webhookEvent('transfer.created', 0, { created: partial.created - 1 }))).status, 200);
+        assert.equal(await postedBalance(deps.db, reserved.account.id), 6000n);
+        reversedMinor = 95000;
+        const full = webhookEvent('transfer.reversed', 95000);
+        assert.equal((await notify(full)).status, 200);
+        assert.equal((await notify(full)).status, 200);
+      }
     } finally { release(); }
     const firstOutcome = await (await first).json();
+    if (useWebhooks) {
+      assert.equal(firstOutcome.state, 'review_required');
+      assert.equal(firstOutcome.reversedMinor, 95000);
+      assert.equal(submissions, 1);
+      assert.equal(await postedBalance(deps.db, reserved.account.id), 100000n);
+      const receipts = await deps.db.stripePayoutTransferEvent.findMany({ where: { transferId: firstOutcome.id } });
+      assert.deepEqual(receipts.map(row => row.observedReversedMinor).sort((a, b) => a - b), [0, 1000, 95000]);
+      const postings = await deps.db.journalEntry.findMany({
+        where: { accountId: reserved.account.id, transaction: { source: { in: ['stripe.test.payout.transfer', 'stripe.test.payout.transfer_reversal'] } } },
+        orderBy: { amountMinor: 'asc' },
+      });
+      assert.deepEqual(postings.map(posting => posting.amountMinor), [-95000n, 1000n, 94000n]);
+      return;
+    }
     if (rejectFirst) {
       assert.equal(firstOutcome.state, 'rejected');
       assert.deepEqual(firstOutcome.rejection, { code: 'balance_insufficient', requestId: 'req_transferFixture' });
@@ -428,6 +491,7 @@ async function checkPayoutReconciliation(
     release();
     try {
       if (payoutId) {
+        await deps.db.stripePayoutTransferEvent.deleteMany({ where: { transfer: { payoutId } } });
         await deps.db.stripePayoutTransfer.deleteMany({ where: { payoutId } });
         await deps.db.payoutDestinationRepair.deleteMany({ where: { payoutId } });
         await deps.db.payoutOrder.delete({ where: { id: payoutId } });

@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import type { Request } from 'express';
 import { z } from 'zod';
 import type { Prisma, StripePayoutTransfer } from '../../../generated/prisma/client.js';
-import { openAccount, postedBalance, postJournal } from '../../../shared/payments/journal.js';
+import { postedBalance } from '../../../shared/payments/journal.js';
 import { readStripeTestAccounts } from '../../../shared/payments/stripe-capabilities.js';
 import { processStripePayoutTransfer, stripeTransferRejection, verifyStripeTransferCapture } from '../../../shared/payments/stripe-transfers.js';
 import { PublicError } from '../auth/errors.js';
@@ -13,6 +13,7 @@ import { lockBooking, paymentBlocked } from '../bookings/lifecycle.js';
 import { ProfileService } from '../profiles/service.js';
 import { parse, schema, uuid } from './orders.js';
 import { assertPayoutProvider, payoutReservationAccount } from './payout-eligibility.js';
+import { recordConfirmedStripeTransfer } from './stripe-transfer-settlement.js';
 
 const command = z.object({
   reconcileOnly: z.boolean().optional(), retryOfTransferId: uuid.optional(),
@@ -315,33 +316,10 @@ export function makeStripePayoutTransfersController(auth: AuthService) {
             },
           }));
         }
-        const confirmed = result && result.reversedMinor >= current.reversedMinor &&
-          (current.status !== 'review_required' || result.reversedMinor > 0) ? result : null;
-        const reversedMinor = confirmed?.reversedMinor ?? current.reversedMinor;
-        const returned = reversedMinor - current.reversedMinor;
-        let journalId = current.journalId;
-        if (confirmed && (!journalId || returned > 0)) {
-          const fund = { currency: 'LKR', purpose: 'service' } as const;
-          const clearing = await openAccount(tx, { ...fund, scope: 'gateway:stripe:test', kind: 'clearing' });
-          if (!journalId) {
-            const amount = BigInt(current.amountMinor);
-            journalId = await postJournal(tx, { ...fund, source: 'stripe.test.payout.transfer', reference: confirmed.id }, [
-              { accountId: current.reservedAccountId, amountMinor: -amount }, { accountId: clearing.id, amountMinor: amount },
-            ]);
-          }
-          if (returned > 0) {
-            const amount = BigInt(returned);
-            await postJournal(tx, {
-              ...fund, source: 'stripe.test.payout.transfer_reversal', reference: current.id + ':' + reversedMinor,
-            }, [
-              { accountId: clearing.id, amountMinor: -amount }, { accountId: current.reservedAccountId, amountMinor: amount },
-            ]);
-          }
-        }
-        const status = confirmed ? reversedMinor > 0 ? 'review_required' : 'transferred' : current.status;
+        const settled = result ? await recordConfirmedStripeTransfer(tx, current, result) : current;
+        if (!settled.leaseId) return present(settled);
         return present(await tx.stripePayoutTransfer.update({
           where: { id: current.id }, data: {
-            status, journalId, reversedMinor, providerTransferId: confirmed?.id ?? current.providerTransferId,
             leaseId: null, leaseUntil: null, updatedAt: new Date(),
           },
         }));

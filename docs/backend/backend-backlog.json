@@ -1717,7 +1717,7 @@
       "ui_coverage_ids": [
         "UI-038"
       ],
-      "remaining": "Administrators can repair a stale payout destination and authorize a new Stripe test transfer after a confirmed first-submission balance rejection or a full reversal that restores the gross reserve. Prior attempts and journal entries remain available for audit. Verify the hosted LKR route and frontend/Figma wiring. Add bank payout confirmation, fee settlement and resolution of transfer attempts with uncertain provider outcomes."
+      "remaining": "Signed Stripe test transfer creation and reversal events reconcile existing attempts when Stripe confirms the transfer. Administrators can repair a stale payout destination and authorize a retry after a confirmed balance rejection or full reversal. Verify hosted event delivery, the LKR route and frontend/Figma wiring. Add bank payout confirmation and fee settlement. Investigate attempts without conclusive Stripe evidence."
     },
     {
       "id": "BE-049",
