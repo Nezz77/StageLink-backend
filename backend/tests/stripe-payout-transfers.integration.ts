@@ -5,6 +5,7 @@ import { SignJWT } from 'jose';
 import { createApp } from '../api/src/app.js';
 import { csrfFor } from '../api/src/auth/security.js';
 import { recordCapture } from '../api/src/payments/capture.js';
+import { issueDocument } from '../shared/booking-documents.js';
 import { readConfig } from '../shared/config.js';
 import { openAccount, postedBalance, postJournal } from '../shared/payments/journal.js';
 import { resources } from '../shared/resources.js';
@@ -17,7 +18,7 @@ if (config.NODE_ENV !== 'test' || !new URL(config.DATABASE_URL).pathname.endsWit
   throw new Error('Stripe payout transfers require an isolated *_test database.');
 }
 
-test('approved Stripe transfers reconcile exactly once, including after a hold and a later reversal', t =>
+test('repaired payout reserves transfer once and block destination changes after submission', t =>
   checkPayoutReconciliation(t, 0));
 test('a transfer already partially reversed at first confirmation records both journal movements', t =>
   checkPayoutReconciliation(t, 1000));
@@ -172,11 +173,74 @@ async function checkPayoutReconciliation(t: TestContext, initialReversedMinor: n
         id, bookingId: booking.id, providerId: provider.id, destinationRevision: 1, createdBy: admin.id, createdAt: now,
         grossMinor: 100000, platformFeeMinor: 5000, netMinor: 95000, reservationId,
       } });
+      await issueDocument(tx, booking.id, payout.id, {
+        version: 1, kind: 'settlement', issuedAt: now.toISOString(),
+        grossMinor: payout.grossMinor, platformFeeMinor: payout.platformFeeMinor,
+        netMinor: payout.netMinor, destinationRevision: payout.destinationRevision,
+      });
       return { payout, account };
     });
     payoutId = reserved.payout.id;
     const path = base + 'admin/payouts/' + payoutId + '/stripe-transfer';
     const submit = (actor = admin, body: object = {}) => fetch(path, { method: 'POST', headers: actor.headers, body: JSON.stringify(body) });
+    const repairPath = base + 'admin/bookings/' + booking.id + '/payout-destination-repairs';
+    const repairInput = {
+      requestKey: randomUUID(), expectedDestinationRevision: 1, destinationRevision: 2, reason: 'Reviewed the updated payout destination.',
+    };
+    const repair = (body = repairInput, actor = admin) => fetch(repairPath, {
+      method: 'POST', headers: actor.headers, body: JSON.stringify(body),
+    });
+    let activeLinkId = link.id;
+    let holdRevision = 1;
+    if (!initialReversedMinor) {
+      const pending = { ...dest, revision: 2, status: 'pending' };
+      await deps.db.payoutDestinationVersion.create({ data: pending });
+      await deps.db.payoutDestination.update({ where: { userId: provider.id }, data: pending });
+      assert.equal((await repair(repairInput, provider)).status, 403);
+      assert.equal((await (await repair()).json()).code, 'DESTINATION_NOT_APPROVED');
+      await deps.db.payoutDestinationVersion.update({
+        where: { userId_revision: { userId: provider.id, revision: 2 } },
+        data: { status: 'approved', reviewerId: admin.id, reviewedAt: now, reviewReason: repairInput.reason },
+      });
+      await deps.db.payoutDestination.update({ where: { userId: provider.id }, data: { status: 'approved' } });
+      await deps.db.bookingPayoutHold.create({ data: {
+        bookingId, revision: 1, held: true, reason: 'Review destination first.', actorId: admin.id, createdAt: now,
+      } });
+      assert.equal((await (await repair()).json()).code, 'PAYOUT_NOT_ELIGIBLE');
+      await deps.db.bookingPayoutHold.create({ data: {
+        bookingId, revision: 2, held: false, reason: 'Destination review completed.', actorId: admin.id, createdAt: now,
+      } });
+      holdRevision = 3;
+      const [repaired, replay] = await Promise.all([repair(), repair()]);
+      assert.equal(repaired.status, 200);
+      assert.equal(replay.status, 200);
+      const decision = await repaired.json();
+      assert.deepEqual(await replay.json(), decision);
+      assert.equal(decision.previousDestinationRevision, 1);
+      assert.equal(decision.destinationRevision, 2);
+      assert.equal(decision.actorId, admin.id);
+      assert.equal((await (await repair({ ...repairInput, reason: 'A different reason for the repair.' })).json()).code, 'REQUEST_KEY_REUSED');
+      assert.equal((await (await repair({ ...repairInput, requestKey: randomUUID() })).json()).code, 'PAYOUT_DESTINATION_CHANGED');
+      assert.equal(await deps.db.payoutDestinationRepair.count({ where: { payoutId } }), 1);
+      const updated = await deps.db.payoutOrder.findUniqueOrThrow({ where: { id: payoutId } });
+      assert.deepEqual(updated, { ...reserved.payout, destinationRevision: 2 });
+      assert.equal(await postedBalance(deps.db, reserved.account.id), 100000n);
+      const statements = await deps.db.bookingDocument.findMany({ where: { bookingId, kind: 'settlement' } });
+      assert.equal(statements.length, 2);
+      for (const [sourceId, destinationRevision] of [[payoutId, 1], [decision.id, 2]]) {
+        const snapshot = statements.find(row => row.sourceId === sourceId)?.snapshot;
+        assert.equal((snapshot as { destinationRevision: number } | undefined)?.destinationRevision, destinationRevision);
+      }
+      assert.equal((await submit()).status, 409);
+      assert.equal(submissions, 0);
+      const replacement = await fetch(base + 'admin/providers/' + provider.id + '/stripe-destination', {
+        method: 'POST', headers: admin.headers, body: JSON.stringify({
+          requestKey: randomUUID(), expectedLinkId: link.id, destinationRevision: 2, accountId: stripeId, reason: repairInput.reason,
+        }),
+      });
+      assert.equal(replacement.status, 200);
+      activeLinkId = (await replacement.json()).id;
+    }
     assert.equal((await submit(provider)).status, 403);
     assert.equal((await submit(admin, { reconcileOnly: true })).status, 409);
     cardBalanceMinor = 90000;
@@ -192,8 +256,11 @@ async function checkPayoutReconciliation(t: TestContext, initialReversedMinor: n
     try {
       assert.equal((await (await submit()).json()).state, 'processing');
       assert.equal(await postedBalance(deps.db, reserved.account.id), 100000n);
+      const expectedDestinationRevision = initialReversedMinor ? 1 : 2;
+      const claimedRepair = { ...repairInput, requestKey: randomUUID(), expectedDestinationRevision, destinationRevision: expectedDestinationRevision + 1 };
+      assert.equal((await (await repair(claimedRepair)).json()).code, 'PAYOUT_TRANSFER_STARTED');
       await deps.db.bookingPayoutHold.create({ data: {
-        bookingId: booking.id, revision: 1, held: true, reason: 'Manual review hold fixture', actorId: admin.id, createdAt: now,
+        bookingId: booking.id, revision: holdRevision, held: true, reason: 'Manual review hold fixture', actorId: admin.id, createdAt: now,
       } });
     } finally { release(); }
     assert.equal((await (await first).json()).state, 'uncertain');
@@ -204,7 +271,7 @@ async function checkPayoutReconciliation(t: TestContext, initialReversedMinor: n
     const saved = await reconciliation.json();
     const expectedState = initialReversedMinor ? 'review_required' : 'transferred';
     assert.equal(saved.state, expectedState);
-    assert.equal(saved.destinationLinkId, link.id);
+    assert.equal(saved.destinationLinkId, activeLinkId);
     assert.equal(saved.amountMinor, 95000);
     assert.equal(saved.reversedMinor, initialReversedMinor);
     assert.equal(submissions, 1);
@@ -249,6 +316,7 @@ async function checkPayoutReconciliation(t: TestContext, initialReversedMinor: n
     try {
       if (payoutId) {
         await deps.db.stripePayoutTransfer.deleteMany({ where: { payoutId } });
+        await deps.db.payoutDestinationRepair.deleteMany({ where: { payoutId } });
         await deps.db.payoutOrder.delete({ where: { id: payoutId } });
       }
       if (bookingId) {

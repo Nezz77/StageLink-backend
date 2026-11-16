@@ -142,6 +142,12 @@ Providers can read `GET /api/v1/me/earnings`. Administrators can read `GET /api/
 
 `POST /api/v1/admin/payouts` takes `{bookingId, destinationRevision}` and reserves the sandbox service funds once. It requires administrator-verified completion, paid service orders and the current approved destination. `GET /api/v1/payouts/:id` is scoped to the provider and administrators. A reservation status of `review_required` signals a hold, destination change or payment review. `stripeTransferStatus` reports the status of a connected-account transfer separately from reservation eligibility.
 
+### Repair a stale payout destination
+
+A verified administrator with a recent sign-in can use `POST /api/v1/admin/bookings/:id/payout-destination-repairs` with the standard origin and CSRF headers. Send `requestKey`, the payout's `expectedDestinationRevision`, the newer approved `destinationRevision`, and a review `reason`. StageLink requires verified completion, current provider identity approval, paid service orders, the full original reserve, and clearance of booking and payment holds. Eligibility ends once a Stripe transfer attempt is recorded.
+
+The repair preserves the payout ID, reserved balance and fee amount. StageLink records both revisions and the approving administrator, then issues a new reservation statement alongside the original. Replay the same request key and input to get the saved decision. Review and link the newer Stripe test destination before submitting a transfer.
+
 ## Stripe test Connect capabilities
 
 A verified administrator can read `GET /api/v1/admin/payments/stripe-capabilities` using the configured Stripe test key. It reports whether the platform country lists LKR for payments and whether the account has an available LKR balance. With `connectedAccountId=acct_…`, it also reports the account controller relationship, transfer capability, payout status and the available country-spec evidence for LKR bank settlement and destinations. Missing evidence appears as `null`. The report is a read-only diagnostic. Hosted validation still needs a test platform, the actual connected account and a supported transfer route for the chosen payout. [Stripe Accounts](https://docs.stripe.com/api/accounts/retrieve) · [Country specs](https://docs.stripe.com/api/country_specs/retrieve) · [Connect transfers](https://docs.stripe.com/connect/separate-charges-and-transfers)
@@ -158,7 +164,7 @@ Use `GET` on the same path for the active link, its match to the current approve
 
 Use `GET` on the same path to read the saved transfer state. Send `{reconcileOnly:true}` to check an existing attempt against Stripe without initiating a transfer. A retry with `{}` first looks for the original transfer and reuses its idempotency key for at most 23 hours after the initial attempt. A confirmed transfer posts the provider's net amount once to Stripe transfer clearing. `transferred` means Stripe confirmed the movement to the connected account balance. [Stripe transfers](https://docs.stripe.com/api/transfers) · [Stripe idempotency](https://docs.stripe.com/api/idempotent_requests)
 
-Reconciliation credits confirmed partial or full reversals back to the payout reserve. The API reports the cumulative posted amount in `reversedMinor`. Reconciliation posts only increases in that total and preserves the original transfer journal. A reversal keeps the payout in `review_required` and the returned funds and platform fee remain reserved. Hosted test account verification, bank payout execution and reserve recovery remain open. [Stripe transfer reversals](https://docs.stripe.com/api/transfer_reversals)
+Reconciliation credits confirmed partial or full reversals back to the payout reserve. The API reports the cumulative posted amount in `reversedMinor`. Reconciliation posts only increases in that total and preserves the original transfer journal. A reversal keeps the payout in `review_required` and the returned funds and platform fee remain reserved. Hosted test account verification, bank payout execution and recovery after a transfer attempt remain open. [Stripe transfer reversals](https://docs.stripe.com/api/transfer_reversals)
 
 ## Booking documents
 

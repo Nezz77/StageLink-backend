@@ -3077,6 +3077,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/bookings/{id}/payout-destination-repairs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["PayoutsController_repairDestination"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/payment-orders/{id}/sessions": {
         parameters: {
             query?: never;
@@ -18758,6 +18774,51 @@ export interface operations {
                         status: "reserved" | "review_required";
                         /** @enum {string|null} */
                         stripeTransferStatus: "uncertain" | "transferred" | "review_required" | null;
+                    };
+                };
+            };
+        };
+    };
+    PayoutsController_repairDestination: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    requestKey: string;
+                    expectedDestinationRevision: number;
+                    destinationRevision: number;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uuid */
+                        payoutId: string;
+                        /** Format: uuid */
+                        requestKey: string;
+                        previousDestinationRevision: number;
+                        destinationRevision: number;
+                        /** Format: uuid */
+                        actorId: string;
+                        reason: string;
+                        /** Format: date-time */
+                        createdAt: string;
                     };
                 };
             };

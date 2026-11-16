@@ -3,15 +3,15 @@ import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiParam, ApiQuery, ApiTags } fr
 import { randomUUID } from 'node:crypto';
 import type { Request } from 'express';
 import { z } from 'zod';
-import type { Booking, BookingPayoutHold, PayoutOrder, Prisma } from '../../../generated/prisma/client.js';
+import type { Booking, BookingPayoutHold, PayoutDestinationRepair, PayoutOrder, Prisma } from '../../../generated/prisma/client.js';
 import { issueDocument } from '../../../shared/booking-documents.js';
-import { hasJournalSqlState, openAccount, postJournal } from '../../../shared/payments/journal.js';
+import { hasJournalSqlState, openAccount, postedBalance, postJournal } from '../../../shared/payments/journal.js';
 import { PublicError } from '../auth/errors.js';
 import type { AuthService } from '../auth/service.js';
 import { lockBooking, maxMinor, paymentBlocked } from '../bookings/lifecycle.js';
 import { ProfileService } from '../profiles/service.js';
 import { parse, schema, uuid } from './orders.js';
-import { assertPayoutProvider, providerVerifiedForPayout } from './payout-eligibility.js';
+import { assertPayoutProvider, payoutReservationAccount, providerVerifiedForPayout } from './payout-eligibility.js';
 
 const timestamp = z.iso.datetime();
 const minor = z.number().int().min(0).max(maxMinor);
@@ -20,6 +20,13 @@ const holdInput = z.object({
   expectedRevision: z.number().int().min(0).max(maxMinor - 1), held: z.boolean(), reason: z.string().trim().min(1).max(500),
 }).strict();
 const payoutInput = z.object({ bookingId: uuid, destinationRevision: revision }).strict();
+const repairInput = z.object({
+  requestKey: uuid, expectedDestinationRevision: revision, destinationRevision: revision, reason: z.string().trim().min(10).max(500),
+}).strict().refine(input => input.destinationRevision > input.expectedDestinationRevision, 'Choose a newer approved destination revision.');
+const repairView = z.object({
+  id: uuid, payoutId: uuid, requestKey: uuid, previousDestinationRevision: revision, destinationRevision: revision,
+  actorId: uuid, reason: z.string(), createdAt: timestamp,
+});
 const hold = z.object({
   bookingId: uuid, revision, held: z.boolean(), reason: z.string(), createdAt: timestamp,
 });
@@ -69,6 +76,8 @@ function presentHold(row: BookingPayoutHold) {
   return { ...details, createdAt: row.createdAt.toISOString() };
 }
 
+const presentRepair = (row: PayoutDestinationRepair) => ({ ...row, createdAt: row.createdAt.toISOString() });
+
 type BookingFinance = Prisma.BookingGetPayload<{ include: typeof overviewInclude }>;
 
 function presentPayout(row: PayoutOrder, booking: BookingFinance) {
@@ -94,6 +103,29 @@ async function currentPayout(tx: Prisma.TransactionClient, row: PayoutOrder) {
 
 function notEligible(): never {
   throw new PublicError(409, 'PAYOUT_NOT_ELIGIBLE', 'The booking, payments or destination are unavailable for payout reservation.');
+}
+
+async function payoutAmounts(tx: Prisma.TransactionClient, booking: Booking, revision: number) {
+  const [report, hold, orders] = await Promise.all([
+    tx.bookingCompletion.findUnique({ where: { bookingId: booking.id } }),
+    tx.bookingPayoutHold.findFirst({ where: { bookingId: booking.id }, orderBy: { revision: 'desc' } }),
+    tx.paymentOrder.findMany({
+      where: { bookingId: booking.id, ...serviceOrders },
+      include: {
+        payhereAttempt: { select: { events: { where: { statusCode: '2' }, select: { journalId: true } } } },
+        stripeAttempt: { select: { journalId: true } },
+      },
+    }),
+  ]);
+  if (!report?.verifiedAt || hold?.held || await paymentBlocked(tx, booking.id)) notEligible();
+  const destinationRevision = await assertPayoutProvider(tx, booking, revision);
+  if (orders.some(order => !(order.payhereAttempt?.events[0]?.journalId || order.stripeAttempt?.journalId))) notEligible();
+  const advance = orders.find(order => order.purpose === 'advance');
+  const balance = orders.find(order => order.purpose === 'balance');
+  if (advance?.status !== 'paid' || advance.amountMinor !== report.advanceMinor ||
+    (report.balanceMinor > 0 ? balance?.status !== 'paid' || balance.amountMinor !== report.balanceMinor : Boolean(balance))) notEligible();
+  const grossMinor = report.advanceMinor + report.balanceMinor;
+  return { destinationRevision, grossMinor, platformFeeMinor: report.platformFeeMinor, netMinor: grossMinor - report.platformFeeMinor };
 }
 
 export function makePayoutsController(auth: AuthService) {
@@ -227,45 +259,24 @@ export function makePayoutsController(auth: AuthService) {
             }
             return currentPayout(tx, existing);
           }
-          const [report, held, orders] = await Promise.all([
-            tx.bookingCompletion.findUnique({ where: { bookingId: booking.id } }),
-            tx.bookingPayoutHold.findFirst({ where: { bookingId: booking.id }, orderBy: { revision: 'desc' } }),
-            tx.paymentOrder.findMany({
-              where: { bookingId: booking.id, ...serviceOrders },
-              include: {
-                payhereAttempt: { select: { events: { where: { statusCode: '2' }, select: { journalId: true } } } },
-                stripeAttempt: { select: { journalId: true } },
-              },
-            }),
-          ]);
-          if (!report?.verifiedAt || held?.held || await paymentBlocked(tx, booking.id)) notEligible();
-          const destinationRevision = await assertPayoutProvider(tx, booking, input.destinationRevision);
-          if (orders.some(order => !(order.payhereAttempt?.events[0]?.journalId || order.stripeAttempt?.journalId))) notEligible();
-          const advance = orders.find(order => order.purpose === 'advance');
-          const balance = orders.find(order => order.purpose === 'balance');
-          if (advance?.status !== 'paid' || advance.amountMinor !== report.advanceMinor ||
-            (report.balanceMinor > 0 ? balance?.status !== 'paid' || balance.amountMinor !== report.balanceMinor : Boolean(balance))) notEligible();
-
+          const amounts = await payoutAmounts(tx, booking, input.destinationRevision);
           const id = randomUUID();
-          const grossMinor = report.advanceMinor + report.balanceMinor;
-          const platformFeeMinor = report.platformFeeMinor;
-          const netMinor = grossMinor - platformFeeMinor;
           const fund = { currency: 'LKR', purpose: 'service' } as const;
           const available = await openAccount(tx, { ...fund, scope: 'sandbox:booking:' + booking.id, kind: 'available' });
           const reserved = await openAccount(tx, { ...fund, scope: 'sandbox:payout:' + id, kind: 'reserved' });
           const reservationId = await postJournal(tx, { ...fund, source: 'payout.sandbox.reserve', reference: booking.id }, [
-            { accountId: available.id, amountMinor: -BigInt(grossMinor) },
-            { accountId: reserved.id, amountMinor: BigInt(grossMinor) },
+            { accountId: available.id, amountMinor: -BigInt(amounts.grossMinor) },
+            { accountId: reserved.id, amountMinor: BigInt(amounts.grossMinor) },
           ]);
           const order = await tx.payoutOrder.create({
             data: {
-              id, bookingId: booking.id, providerId: booking.providerId, destinationRevision,
-              createdBy: actorId, createdAt: new Date(), grossMinor, platformFeeMinor, netMinor, reservationId,
+              id, bookingId: booking.id, providerId: booking.providerId,
+              createdBy: actorId, createdAt: new Date(), ...amounts, reservationId,
             },
           });
           await issueDocument(tx, booking.id, order.id, {
             version: 1, kind: 'settlement', issuedAt: order.createdAt.toISOString(),
-            grossMinor, platformFeeMinor, netMinor, destinationRevision: order.destinationRevision,
+            ...amounts,
           });
           return currentPayout(tx, order);
         });
@@ -274,6 +285,52 @@ export function makePayoutsController(auth: AuthService) {
         if (hasJournalSqlState(error, 'SL001')) notEligible();
         throw error;
       }
+    }
+
+    @Post('admin/bookings/:id/payout-destination-repairs')
+    @HttpCode(200)
+    @ApiParam({ name: 'id', format: 'uuid' })
+    @ApiBody({ schema: schema(repairInput) })
+    @ApiOkResponse({ schema: schema(repairView) })
+    repairDestination(@Req() req: Request, @Param('id') id: string, @Body() raw: unknown) {
+      const input = parse(repairInput, raw);
+      return adminWrite(req, parse(uuid, id), async (tx, booking, actorId) => {
+        const order = await tx.payoutOrder.findUnique({
+          where: { bookingId: booking.id }, include: { stripeTransfer: { select: { id: true } } },
+        });
+        if (!order) throw new PublicError(404, 'PAYOUT_NOT_FOUND', 'This payout reservation is unavailable.');
+        const prior = await tx.payoutDestinationRepair.findUnique({
+          where: { payoutId_requestKey: { payoutId: order.id, requestKey: input.requestKey } },
+        });
+        if (prior) {
+          if (prior.actorId !== actorId || prior.previousDestinationRevision !== input.expectedDestinationRevision ||
+            prior.destinationRevision !== input.destinationRevision || prior.reason !== input.reason) {
+            throw new PublicError(409, 'REQUEST_KEY_REUSED', 'Use a new request key for a different payout destination repair.');
+          }
+          return presentRepair(prior);
+        }
+        if (order.destinationRevision !== input.expectedDestinationRevision) {
+          throw new PublicError(409, 'PAYOUT_DESTINATION_CHANGED', 'Reload the payout reservation and review its current destination.');
+        }
+        if (order.stripeTransfer) {
+          throw new PublicError(409, 'PAYOUT_TRANSFER_STARTED', 'This payout is tied to a transfer attempt. Review it from the Stripe transfer endpoint.');
+        }
+        if (order.providerId !== booking.providerId) notEligible();
+        const amounts = await payoutAmounts(tx, booking, input.destinationRevision);
+        const account = await payoutReservationAccount(tx, order);
+        if (amounts.grossMinor !== order.grossMinor || amounts.platformFeeMinor !== order.platformFeeMinor ||
+          !account || await postedBalance(tx, account) !== BigInt(order.grossMinor)) notEligible();
+
+        const repair = await tx.payoutDestinationRepair.create({
+          data: {
+            actorId, payoutId: order.id, requestKey: input.requestKey, reason: input.reason,
+            previousDestinationRevision: order.destinationRevision, destinationRevision: amounts.destinationRevision,
+          },
+        });
+        await tx.payoutOrder.update({ where: { id: order.id }, data: { destinationRevision: repair.destinationRevision } });
+        await issueDocument(tx, booking.id, repair.id, { version: 1, kind: 'settlement', issuedAt: repair.createdAt.toISOString(), ...amounts });
+        return presentRepair(repair);
+      });
     }
   }
   return PayoutsController;

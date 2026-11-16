@@ -1717,7 +1717,7 @@
       "ui_coverage_ids": [
         "UI-038"
       ],
-      "remaining": "Stripe test transfers move the reserved provider net to a linked account. Reconciliation records confirmed reversals and returns the funds to the reserve for review. Verify the hosted LKR transfer route and frontend/Figma wiring. Add bank payout confirmation, fee settlement and repair of blocked reservations."
+      "remaining": "Administrators can repair a stale payout destination against the current approved revision before a transfer attempt. Stripe test transfers and confirmed reversals reconcile into the sandbox journal. Verify the hosted LKR route and frontend/Figma wiring. Add bank payout confirmation, fee settlement and recovery of funds held after a failed or reversed transfer attempt."
     },
     {
       "id": "BE-049",

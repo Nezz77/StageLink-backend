@@ -3,7 +3,7 @@ import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiParam, ApiTags } from '@nestj
 import { randomUUID } from 'node:crypto';
 import type { Request } from 'express';
 import { z } from 'zod';
-import type { PayoutOrder, Prisma, StripePayoutTransfer } from '../../../generated/prisma/client.js';
+import type { Prisma, StripePayoutTransfer } from '../../../generated/prisma/client.js';
 import { openAccount, postedBalance, postJournal } from '../../../shared/payments/journal.js';
 import { readStripeTestAccounts } from '../../../shared/payments/stripe-capabilities.js';
 import { processStripePayoutTransfer, verifyStripeTransferCapture } from '../../../shared/payments/stripe-transfers.js';
@@ -12,7 +12,7 @@ import type { AuthService, Identity } from '../auth/service.js';
 import { lockBooking, paymentBlocked } from '../bookings/lifecycle.js';
 import { ProfileService } from '../profiles/service.js';
 import { parse, schema, uuid } from './orders.js';
-import { assertPayoutProvider } from './payout-eligibility.js';
+import { assertPayoutProvider, payoutReservationAccount } from './payout-eligibility.js';
 
 const command = z.object({ reconcileOnly: z.boolean().optional() }).strict();
 const view = z.object({
@@ -90,18 +90,6 @@ async function submissionEvidence(tx: Prisma.TransactionClient, payout: Payout) 
     captures.push({ id: attempt.id, sessionId: attempt.sessionId, amountMinor: order.amountMinor, expiresAt: attempt.expiresAt });
   }
   return { link, captures };
-}
-
-async function reservationAccount(tx: Prisma.TransactionClient, payout: PayoutOrder) {
-  const posting = await tx.journalEntry.findFirst({
-    where: {
-      transactionId: payout.reservationId, amountMinor: BigInt(payout.grossMinor),
-      transaction: { postedAt: { not: null }, source: 'payout.sandbox.reserve', reference: payout.bookingId },
-      account: { scope: 'sandbox:payout:' + payout.id, kind: 'reserved', currency: 'LKR', purpose: 'service' },
-    }, select: { accountId: true },
-  });
-  if (!posting || await postedBalance(tx, posting.accountId) < BigInt(payout.netMinor)) return null;
-  return posting.accountId;
 }
 
 async function validProvider(tx: Prisma.TransactionClient, payout: Payout) {
@@ -199,7 +187,8 @@ export function makeStripePayoutTransfersController(auth: AuthService) {
         const current = canSubmit ? await submissionEvidence(tx, payout) : null;
         const same = current && candidate && current.link.id === destination.id &&
           JSON.stringify(current.captures) === JSON.stringify(candidate.captures);
-        const reserved = same && await validProvider(tx, payout) ? await reservationAccount(tx, payout) : null;
+        const account = same && await validProvider(tx, payout) ? await payoutReservationAccount(tx, payout) : null;
+        const reserved = account && await postedBalance(tx, account) >= BigInt(payout.netMinor) ? account : null;
         const allowSubmission = Boolean(reserved && (!existing || reserved === existing.reservedAccountId));
         if (!existing && !reserved) throw notEligible();
 
