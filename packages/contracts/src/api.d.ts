@@ -7754,10 +7754,8 @@ export interface operations {
                         newUsers: number | null;
                         settled: {
                             refundedMinor: string | null;
-                            /** @enum {string|null} */
-                            paidOutMinor: null;
-                            /** @enum {string|null} */
-                            feeRevenueMinor: null;
+                            paidOutMinor: string | null;
+                            feeRevenueMinor: string | null;
                         };
                         /** Format: date */
                         from: string;
@@ -7785,10 +7783,8 @@ export interface operations {
                             newUsers: number | null;
                             settled: {
                                 refundedMinor: string | null;
-                                /** @enum {string|null} */
-                                paidOutMinor: null;
-                                /** @enum {string|null} */
-                                feeRevenueMinor: null;
+                                paidOutMinor: string | null;
+                                feeRevenueMinor: string | null;
                             };
                             /** Format: date */
                             date: string;
@@ -7835,10 +7831,8 @@ export interface operations {
                         newUsers: number | null;
                         settled: {
                             refundedMinor: string | null;
-                            /** @enum {string|null} */
-                            paidOutMinor: null;
-                            /** @enum {string|null} */
-                            feeRevenueMinor: null;
+                            paidOutMinor: string | null;
+                            feeRevenueMinor: string | null;
                         };
                         /** Format: date */
                         from: string;
@@ -7866,10 +7860,8 @@ export interface operations {
                             newUsers: number | null;
                             settled: {
                                 refundedMinor: string | null;
-                                /** @enum {string|null} */
-                                paidOutMinor: null;
-                                /** @enum {string|null} */
-                                feeRevenueMinor: null;
+                                paidOutMinor: string | null;
+                                feeRevenueMinor: string | null;
                             };
                             /** Format: date */
                             date: string;

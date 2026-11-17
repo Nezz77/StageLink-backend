@@ -12300,18 +12300,14 @@
                           "pattern": "^\\d+$"
                         },
                         "paidOutMinor": {
-                          "type": "string",
                           "nullable": true,
-                          "enum": [
-                            null
-                          ]
+                          "type": "string",
+                          "pattern": "^-?\\d+$"
                         },
                         "feeRevenueMinor": {
-                          "type": "string",
                           "nullable": true,
-                          "enum": [
-                            null
-                          ]
+                          "type": "string",
+                          "pattern": "^-?\\d+$"
                         }
                       },
                       "required": [
@@ -12435,18 +12431,14 @@
                                 "pattern": "^\\d+$"
                               },
                               "paidOutMinor": {
-                                "type": "string",
                                 "nullable": true,
-                                "enum": [
-                                  null
-                                ]
+                                "type": "string",
+                                "pattern": "^-?\\d+$"
                               },
                               "feeRevenueMinor": {
-                                "type": "string",
                                 "nullable": true,
-                                "enum": [
-                                  null
-                                ]
+                                "type": "string",
+                                "pattern": "^-?\\d+$"
                               }
                             },
                             "required": [
@@ -12638,18 +12630,14 @@
                           "pattern": "^\\d+$"
                         },
                         "paidOutMinor": {
-                          "type": "string",
                           "nullable": true,
-                          "enum": [
-                            null
-                          ]
+                          "type": "string",
+                          "pattern": "^-?\\d+$"
                         },
                         "feeRevenueMinor": {
-                          "type": "string",
                           "nullable": true,
-                          "enum": [
-                            null
-                          ]
+                          "type": "string",
+                          "pattern": "^-?\\d+$"
                         }
                       },
                       "required": [
@@ -12773,18 +12761,14 @@
                                 "pattern": "^\\d+$"
                               },
                               "paidOutMinor": {
-                                "type": "string",
                                 "nullable": true,
-                                "enum": [
-                                  null
-                                ]
+                                "type": "string",
+                                "pattern": "^-?\\d+$"
                               },
                               "feeRevenueMinor": {
-                                "type": "string",
                                 "nullable": true,
-                                "enum": [
-                                  null
-                                ]
+                                "type": "string",
+                                "pattern": "^-?\\d+$"
                               }
                             },
                             "required": [

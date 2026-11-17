@@ -185,3 +185,5 @@ P12 reconciles existing Stripe test payout attempts from signed platform transfe
 P12 adds an administrator read to match a recorded transfer's exact connected-account balance credit to a paid automatic LKR bank payout. The check reports pending reconciliation and later payout failures. Bank payout execution and financial posting remain open.
 
 P12 adds audited sandbox journal and fee settlement for a confirmed automatic Stripe test bank payout. The reconciliation command reuses one settlement per transfer and payout, blocks competing active payouts, and posts compensating entries on a bank payout failure or transfer reversal.
+
+P18 now reports net sandbox bank payouts and platform fee revenue from posted Stripe test settlement journals. Compensating entries reduce the totals on the reversal posting date. Administrator reports include all bookings and provider reports include their own bookings. Live financial projections remain unavailable.

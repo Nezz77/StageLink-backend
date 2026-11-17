@@ -19,6 +19,10 @@ test('analytics fills empty days and preserves the exact totals of posted amount
     { day: '2024-02-28', metric: 'serviceCapturedMinor', total: '9007199254740993' },
     { day: '2024-02-29', metric: 'serviceCapturedMinor', total: '10' },
     { day: '2024-02-29', metric: 'refundedMinor', total: '9007199254741001' },
+    { day: '2024-02-28', metric: 'paidOutMinor', total: '9007199254740993' },
+    { day: '2024-02-29', metric: 'paidOutMinor', total: '-9007199254741003' },
+    { day: '2024-02-28', metric: 'feeRevenueMinor', total: '5000' },
+    { day: '2024-02-29', metric: 'feeRevenueMinor', total: '-5000' },
   ] : [{ day: '2024-02-28', metric: 'requested', total: '3' }] } as unknown as Prisma.TransactionClient;
   const report = await readAnalytics(tx, period);
   assert.equal(report.bookings.requested, 3);
@@ -27,9 +31,16 @@ test('analytics fills empty days and preserves the exact totals of posted amount
   assert.equal(report.settled.refundedMinor, '9007199254741001');
   assert.equal(report.days[0]?.settled.refundedMinor, '0');
   assert.equal(report.days[1]?.settled.refundedMinor, '9007199254741001');
-  assert.equal(report.settled.paidOutMinor, null);
+  assert.equal(report.settled.paidOutMinor, '-10');
+  assert.equal(report.settled.feeRevenueMinor, '0');
+  assert.equal(report.days[0]?.settled.paidOutMinor, '9007199254740993');
+  assert.equal(report.days[0]?.settled.feeRevenueMinor, '5000');
+  assert.equal(report.days[1]?.settled.paidOutMinor, '-9007199254741003');
+  assert.equal(report.days[1]?.settled.feeRevenueMinor, '-5000');
   const live = await readAnalytics(tx, { ...period, environment: 'live' }, '6ca57815-ee96-4737-8522-4730d8b11483');
   assert.equal(live.money, null);
   assert.equal(live.settled.refundedMinor, null);
+  assert.equal(live.settled.paidOutMinor, null);
+  assert.equal(live.settled.feeRevenueMinor, null);
   assert.equal(live.newUsers, null);
 });

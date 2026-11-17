@@ -96,7 +96,8 @@ A checked box marks implemented backend code. PostgreSQL integration, client wir
 - [ ] P17 Live SMTP reminder and campaign verification, SMS reminders and promotional SMS.
 - [x] P18 Administrator and provider analytics from booking records and posted sandbox journals.
 - [x] P18 Stripe test and PayHere sandbox refund settlements in administrator and provider analytics, with daily totals.
-- [ ] P18 Settled payout and fee analytics, supported live financial totals, and release verification for security, accessibility, backup and rollback.
+- [x] P18 Net Stripe test bank payout and platform fee analytics by UTC day and period, scoped by role and inclusive of posted reversals.
+- [ ] P18 Live financial totals for supported workflows and release verification for security, accessibility, backup and rollback.
 
 ## Verification and client integration
 
@@ -116,6 +117,7 @@ A checked box marks implemented backend code. PostgreSQL integration, client wir
 - [x] GitHub CI passed for confirmed Stripe test balance rejection recovery at `5cd50f4`. See [run 43933131668](https://github.com/Nezz77/StageLink-backend/actions/runs/43933131668).
 - [x] GitHub CI passed for signed Stripe test transfer creation and reversal events at `a5f1a97`. See [run 43954240039](https://github.com/Nezz77/StageLink-backend/actions/runs/43954240039).
 - [x] GitHub CI passed for Stripe test bank payout inclusion at `d5e43ee`. See [run 44044430909](https://github.com/Nezz77/StageLink-backend/actions/runs/44044430909).
+- [x] GitHub CI passed for Stripe test bank payout and fee settlement through `a54fb29`. See [run 44047480446](https://github.com/Nezz77/StageLink-backend/actions/runs/44047480446).
 - [ ] Reconcile the [team frontend](https://github.com/Nezz77/StageLink) with the current backend contracts. Update the corresponding StageLink Figma screens and flows during each UI task.
 - [ ] Verify hosted model calls, signed sandbox payment callbacks, gateway reconciliation and two-account booking flows in staging.
 

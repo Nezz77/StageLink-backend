@@ -16,6 +16,7 @@ const query = z.object({
   from: date.optional(), to: date.optional(), currency: currency.optional(), environment: environment.optional(),
 }).strict();
 const amount = z.string().regex(/^\d+$/);
+const signedAmount = z.string().regex(/^-?\d+$/);
 const counts = z.object({
   requested: z.number().int().nonnegative(), agreed: z.number().int().nonnegative(),
   cancelled: z.number().int().nonnegative(), verifiedCompleted: z.number().int().nonnegative(),
@@ -24,7 +25,9 @@ const financial = z.object({
   serviceCapturedMinor: amount, depositCapturedMinor: amount, captureReviewMinor: amount,
   refundReservedMinor: amount, payoutReservedMinor: amount, feeReservedMinor: amount,
 });
-const settled = z.object({ refundedMinor: amount.nullable(), paidOutMinor: z.null(), feeRevenueMinor: z.null() });
+const settled = z.object({
+  refundedMinor: amount.nullable(), paidOutMinor: signedAmount.nullable(), feeRevenueMinor: signedAmount.nullable(),
+});
 const activity = z.object({
   bookings: counts, money: financial.nullable(), newUsers: z.number().int().nonnegative().nullable(), settled,
 });
@@ -35,7 +38,8 @@ const report = activity.extend({
 
 type BookingMetric = keyof z.infer<typeof counts>;
 type MoneyMetric = keyof z.infer<typeof financial>;
-type Fact = { day: string; metric: BookingMetric | MoneyMetric | 'refundedMinor' | 'newUsers'; total: string };
+type SettledMetric = keyof z.infer<typeof settled>;
+type Fact = { day: string; metric: BookingMetric | MoneyMetric | SettledMetric | 'newUsers'; total: string };
 type Period = ReturnType<typeof analyticsPeriod>;
 
 export function analyticsPeriod(raw: unknown, now = new Date()) {
@@ -90,6 +94,15 @@ async function financialFacts(tx: Prisma.TransactionClient, period: Period, prov
       JOIN payment_orders o ON o.id = a.order_id
       WHERE j.source = 'stripe.test.capture'
     ),
+    bank_journals AS (
+      SELECT j.id, j.posted_at, s.transfer_id
+      FROM journal j JOIN stripe_bank_payout_settlements s ON s.journal_id = j.id
+      WHERE j.source = 'stripe.test.bank_payout.settled'
+      UNION ALL
+      SELECT j.id, j.posted_at, s.transfer_id
+      FROM journal j JOIN stripe_bank_payout_settlements s ON s.reversal_journal_id = j.id
+      WHERE j.source = 'stripe.test.bank_payout.reversal'
+    ),
     events(at, booking_id, metric, minor) AS (
       SELECT c.posted_at, c.booking_id,
         CASE WHEN a.scope = 'sandbox:review:' || c.order_id THEN 'captureReviewMinor'
@@ -125,6 +138,16 @@ async function financialFacts(tx: Prisma.TransactionClient, period: Period, prov
       JOIN financial_accounts a ON a.id = e.account_id AND a.kind = 'clearing' AND a.scope = 'gateway:payhere:sandbox'
       WHERE j.source = 'payhere.sandbox.refund.settle' AND r.status = 'succeeded'
       UNION ALL
+      SELECT j.posted_at, p.booking_id,
+        CASE WHEN a.scope = 'gateway:stripe:test:bank' THEN 'paidOutMinor' ELSE 'feeRevenueMinor' END,
+        e.amount_minor
+      FROM bank_journals j JOIN stripe_payout_transfers t ON t.id = j.transfer_id
+      JOIN payout_orders p ON p.id = t.payout_id
+      JOIN journal_entries e ON e.transaction_id = j.id
+      JOIN financial_accounts a ON a.id = e.account_id
+      WHERE (a.scope = 'gateway:stripe:test:bank' AND a.kind = 'clearing')
+         OR (a.scope = 'platform:stripe:test:fees' AND a.kind = 'available')
+      UNION ALL
       SELECT j.posted_at, d.booking_id, split.metric, split.minor
       FROM journal j JOIN damage_claims d ON d.reservation_id = j.id
       CROSS JOIN LATERAL (VALUES ('refundReservedMinor', d.refund_minor), ('payoutReservedMinor', d.deduction_minor)) AS split(metric, minor)
@@ -139,7 +162,7 @@ async function financialFacts(tx: Prisma.TransactionClient, period: Period, prov
     )
     SELECT to_char(e.at AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS day, e.metric, sum(e.minor)::text AS total
     FROM events e JOIN bookings b ON b.id = e.booking_id
-    WHERE e.minor > 0 ${provider}
+    WHERE (e.minor > 0 OR e.metric IN ('paidOutMinor', 'feeRevenueMinor')) ${provider}
     GROUP BY 1, 2`;
 }
 
@@ -150,7 +173,7 @@ function emptyActivity() {
       serviceCapturedMinor: 0n, depositCapturedMinor: 0n, captureReviewMinor: 0n,
       refundReservedMinor: 0n, payoutReservedMinor: 0n, feeReservedMinor: 0n,
     },
-    refundedMinor: 0n,
+    settled: { refundedMinor: 0n, paidOutMinor: 0n, feeRevenueMinor: 0n },
     newUsers: 0,
   };
 }
@@ -159,7 +182,7 @@ type Activity = ReturnType<typeof emptyActivity>;
 
 function addFact(activity: Activity, { metric, total }: Fact) {
   if (metric === 'newUsers') activity.newUsers += Number(total);
-  else if (metric === 'refundedMinor') activity.refundedMinor += BigInt(total);
+  else if (Object.hasOwn(activity.settled, metric)) activity.settled[metric as SettledMetric] += BigInt(total);
   else if (Object.hasOwn(activity.bookings, metric)) activity.bookings[metric as BookingMetric] += Number(total);
   else activity.money[metric as MoneyMetric] += BigInt(total);
 }
@@ -174,15 +197,16 @@ export async function readAnalytics(tx: Prisma.TransactionClient, period: Period
     addFact(days.get(fact.day)!, fact);
   }
   function present(activity: Activity) {
+    const sandbox = period.environment === 'sandbox';
     return {
       bookings: activity.bookings,
-      money: period.environment === 'sandbox'
+      money: sandbox
         ? Object.fromEntries(Object.entries(activity.money).map(([key, value]) => [key, value.toString()])) : null,
       newUsers: providerId ? null : activity.newUsers,
       settled: {
-        refundedMinor: period.environment === 'sandbox' ? activity.refundedMinor.toString() : null,
-        paidOutMinor: null,
-        feeRevenueMinor: null,
+        refundedMinor: sandbox ? activity.settled.refundedMinor.toString() : null,
+        paidOutMinor: sandbox ? activity.settled.paidOutMinor.toString() : null,
+        feeRevenueMinor: sandbox ? activity.settled.feeRevenueMinor.toString() : null,
       },
     };
   }

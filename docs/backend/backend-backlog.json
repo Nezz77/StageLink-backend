@@ -2206,7 +2206,7 @@
       "ui_coverage_ids": [
         "UI-052"
       ],
-      "remaining": "Confirmed Stripe test and PayHere sandbox refund settlements have total and daily analytics. Add payout and revenue analytics after execution, verify live totals, and connect the frontend charts and Figma integration."
+      "remaining": "Sandbox analytics reports confirmed Stripe test and PayHere refunds, plus net Stripe test bank payouts and fees with reversal activity by journal posting day. Verify live financial totals for supported workflows and connect the frontend charts and Figma integration."
     },
     {
       "id": "BE-063",

@@ -434,6 +434,20 @@ async function checkPayoutReconciliation(
     const stored = await deps.db.stripePayoutTransfer.findUniqueOrThrow({ where: { id: saved.id }, include: { journal: true } });
     assert.equal(stored.journal?.source, 'stripe.test.payout.transfer');
     if (!initialReversedMinor) {
+      const dayMs = 86_400_000;
+      const from = new Date(now.getTime() - dayMs).toISOString().slice(0, 10);
+      const to = new Date(now.getTime() + 2 * dayMs).toISOString().slice(0, 10);
+      const dashboard = async (actor = provider, environment = 'sandbox') => {
+        const audience = actor.id === admin.id ? 'admin' : 'me';
+        const response = await fetch(base + audience + '/analytics?' + new URLSearchParams({ from, to, environment }), actor);
+        assert.equal(response.status, 200, await response.clone().text());
+        return response.json();
+      };
+      const beforeBank = await dashboard();
+      assert.equal(beforeBank.settled.paidOutMinor, '0');
+      assert.equal(beforeBank.settled.feeRevenueMinor, '0');
+      const adminBefore = (await dashboard(admin)).settled;
+
       assert.equal((await fetch(bankPath, provider)).status, 403);
       assert.equal((await fetch(path + '/bank-payout?bankPayoutId=tr_fixture', admin)).status, 400);
       const included = await fetch(bankPath, admin);
@@ -464,12 +478,30 @@ async function checkPayoutReconciliation(
       assert.equal(firstSettlement.settlement.balanceTransactionId, 'txn_fixture');
       assert.equal(await postedBalance(deps.db, reserved.account.id), 0n);
       const ledger = await deps.db.journalEntry.findMany({
-        where: { transactionId: firstSettlement.settlement.journalId }, include: { account: true },
+        where: { transactionId: firstSettlement.settlement.journalId }, include: { account: true, transaction: true },
       });
       assert.deepEqual(Object.fromEntries(ledger.map(entry => [entry.account.scope, entry.amountMinor])), {
         'gateway:stripe:test': -95000n, 'gateway:stripe:test:bank': 95000n, 'platform:stripe:test:fees': 5000n,
         ['sandbox:payout:' + payoutId]: -5000n,
       });
+      const settledReport = await dashboard();
+      assert.equal(settledReport.settled.paidOutMinor, '95000');
+      assert.equal(settledReport.settled.feeRevenueMinor, '5000');
+      const postedOn = ledger[0]?.transaction.postedAt?.toISOString().slice(0, 10);
+      assert.ok(postedOn);
+      const settledDay = settledReport.days.find((day: { date: string }) => day.date === postedOn);
+      assert.equal(settledDay.settled.paidOutMinor, '95000');
+      assert.equal(settledDay.settled.feeRevenueMinor, '5000');
+      const adminSettled = (await dashboard(admin)).settled;
+      assert.equal(BigInt(adminSettled.paidOutMinor) - BigInt(adminBefore.paidOutMinor), 95000n);
+      assert.equal(BigInt(adminSettled.feeRevenueMinor) - BigInt(adminBefore.feeRevenueMinor), 5000n);
+      const otherProvider = await fixture('artist');
+      const other = (await dashboard(otherProvider)).settled;
+      assert.equal(other.paidOutMinor, '0');
+      assert.equal(other.feeRevenueMinor, '0');
+      const live = (await dashboard(provider, 'live')).settled;
+      assert.equal(live.paidOutMinor, null);
+      assert.equal(live.feeRevenueMinor, null);
       assert.equal((await settleBank('po_replacement')).status, 409);
       bankPayoutStatus = 'failed';
       const failed = await (await settleBank()).json();
@@ -482,6 +514,9 @@ async function checkPayoutReconciliation(
       const compensating = await deps.db.journalEntry.findMany({ where: { transactionId: failed.settlement.reversalJournalId } });
       assert.deepEqual(Object.fromEntries(compensating.map(entry => [entry.accountId, entry.amountMinor])),
         Object.fromEntries(ledger.map(entry => [entry.accountId, -entry.amountMinor])));
+      const afterFailure = (await dashboard()).settled;
+      assert.equal(afterFailure.paidOutMinor, '0');
+      assert.equal(afterFailure.feeRevenueMinor, '0');
       bankPayoutStatus = 'paid';
       assert.deepEqual((await (await settleBank()).json()).settlement, failed.settlement);
       const replacement = await (await settleBank('po_replacement')).json();
