@@ -68,7 +68,9 @@ A checked box marks implemented backend code. PostgreSQL integration, client wir
 - [x] P13 Verified customer reviews, moderated event photos and public rating aggregates.
 - [x] P14 Serialized equipment allocation, private dispatch and return reports, correction history, comparison and stock clearance.
 - [x] P14 Damage claims, customer responses and admin-reviewed reservation of collected deposits.
-- [ ] P13–P14 Production document issuance and gateway execution of deposit refunds and deductions.
+- [x] P14 Stripe test execution and reconciliation of the approved customer share of a rental deposit.
+- [ ] P13 Production document issuance.
+- [ ] P14 Hosted Stripe test deposit refund verification, PayHere deposit refund execution and settlement of eligible deductions.
 - [x] P15 AI service status, revisioned matching weights and persisted usage queries.
 - [x] P15 Prompt drafts, placeholder validation, preview, published history and rollback.
 - [x] P15 Opt-in OpenAI and Gemini administrator previews, with bounded fallback and persisted usage per attempt.
@@ -118,6 +120,7 @@ A checked box marks implemented backend code. PostgreSQL integration, client wir
 - [x] GitHub CI passed for signed Stripe test transfer creation and reversal events at `a5f1a97`. See [run 43954240039](https://github.com/Nezz77/StageLink-backend/actions/runs/43954240039).
 - [x] GitHub CI passed for Stripe test bank payout inclusion at `d5e43ee`. See [run 44044430909](https://github.com/Nezz77/StageLink-backend/actions/runs/44044430909).
 - [x] GitHub CI passed for Stripe test bank payout and fee settlement through `a54fb29`. See [run 44047480446](https://github.com/Nezz77/StageLink-backend/actions/runs/44047480446).
+- [x] GitHub CI passed for net sandbox bank payout and fee analytics at `0fa0aac`. See [run 44055209767](https://github.com/Nezz77/StageLink-backend/actions/runs/44055209767).
 - [ ] Reconcile the [team frontend](https://github.com/Nezz77/StageLink) with the current backend contracts. Update the corresponding StageLink Figma screens and flows during each UI task.
 - [ ] Verify hosted model calls, signed sandbox payment callbacks, gateway reconciliation and two-account booking flows in staging.
 

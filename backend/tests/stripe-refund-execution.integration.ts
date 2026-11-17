@@ -23,6 +23,7 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
   const checkoutSessions = new Map<string, object>();
   const providerRefunds = new Map<string, { id: string; status: string }>();
   const submissions: string[] = [];
+  const damageRefundMinor = 120001;
   let payHereAttemptId: string | undefined;
   let payHereSubmissions = 0;
   let payHereStatus = 'RECEIVED';
@@ -61,15 +62,16 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
       const body = init.body as URLSearchParams;
       const intent = body.get('payment_intent')!;
       const executionId = body.get('metadata[stagelink_refund_execution]')!;
-      assert.equal(body.get('amount'), '150001');
+      const amount = intent === 'pi_damage' ? damageRefundMinor : 150001;
+      assert.equal(body.get('amount'), String(amount));
       assert.equal(new Headers(init.headers).get('Idempotency-Key'), 'stagelink-refund-' + executionId);
       submissions.push(intent);
       const response = {
-        id: intent === 'pi_service' ? 're_service' : 're_deposit', status: intent === 'pi_service' ? 'pending' : 'succeeded',
-        object: 'refund', amount: 150001, currency: 'lkr', payment_intent: intent, metadata: { stagelink_refund_execution: executionId },
+        id: intent.replace(/^pi_/, 're_'), status: intent === 'pi_service' ? 'pending' : 'succeeded',
+        object: 'refund', amount, currency: 'lkr', payment_intent: intent, metadata: { stagelink_refund_execution: executionId },
       };
       providerRefunds.set(intent, response);
-      if (intent === 'pi_deposit') return new Response(null, { status: 500 });
+      if (intent !== 'pi_service') return new Response(null, { status: 500 });
       sent();
       await awaitResponse;
       return Response.json(response);
@@ -85,12 +87,12 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
   const deps = resources(config);
   const { app } = await createApp(config, deps);
   const users: string[] = [];
-  let bookingId: string | undefined;
+  const bookingIds: string[] = [];
   let refundId: string | undefined;
   try {
     await app.listen(0, '127.0.0.1');
     const base = await app.getUrl() + '/api/v1/';
-    async function fixture(role: 'admin' | 'customer' | 'artist', recent = true) {
+    async function fixture(role: 'admin' | 'customer' | 'artist' | 'renter', recent = true) {
       const user = await deps.db.authUser.create({ data: {
         roles: [role], email: randomUUID() + '@stagelink.test', emailVerifiedAt: new Date(), displayName: 'Stripe fixture', passwordHash: 'unused',
       } });
@@ -118,28 +120,32 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
       targetKind: 'gig', targetId: randomUUID(), targetVersion: 1, startsAt, holdExpiresAt: startsAt,
       endsAt: new Date(startsAt.getTime() + 3600_000), snapshot: {},
     } });
-    bookingId = booking.id;
+    bookingIds.push(booking.id);
     const refund = await deps.db.refundRequest.create({ data: {
-      bookingId, status: 'approved', createdAt: new Date(), decidedAt: new Date(), decidedBy: admin.id,
+      bookingId: booking.id, status: 'approved', createdAt: new Date(), decidedAt: new Date(), decidedBy: admin.id,
       reason: 'Customer refund fixture request', decisionReason: 'Authorized test refund fixture',
     } });
     refundId = refund.id;
+
+    async function stripeCapture(tx: Parameters<typeof recordCapture>[0], order: Parameters<typeof recordCapture>[1], intent: string) {
+      const sessionId = 'cs_test_' + randomUUID().replaceAll('-', '');
+      const expiresAt = new Date(Math.floor(Date.now() / 1000 + 2100) * 1000);
+      const journalId = await recordCapture(tx, order, 'stripe', sessionId, 'paid', new Date());
+      const attempt = await tx.stripeAttempt.create({ data: {
+        orderId: order.id, sessionId, journalId, createdAt: new Date(), expiresAt, returnUrl: 'https://stage.test',
+      } });
+      checkoutSessions.set(sessionId, {
+        id: sessionId, client_reference_id: attempt.id, object: 'checkout.session', livemode: false, mode: 'payment',
+        currency: 'lkr', amount_total: order.amountMinor, status: 'complete', payment_status: 'paid', url: null,
+        expires_at: expiresAt.getTime() / 1000, payment_intent: intent,
+      });
+    }
 
     async function reserve(purpose: 'advance' | 'deposit' | 'balance', gateway: 'stripe' | 'payhere' = 'stripe') {
       return deps.db.$transaction(async tx => {
         const order = await tx.paymentOrder.create({ data: { bookingId: booking.id, purpose, amountMinor: 150001, status: 'paid' } });
         if (gateway === 'stripe') {
-          const sessionId = 'cs_test_' + randomUUID().replaceAll('-', '');
-          const expiresAt = new Date(Math.floor(Date.now() / 1000 + 2100) * 1000);
-          const journalId = await recordCapture(tx, order, 'stripe', sessionId, 'paid', new Date());
-          const attempt = await tx.stripeAttempt.create({ data: {
-            orderId: order.id, sessionId, journalId, createdAt: new Date(), expiresAt, returnUrl: 'https://stage.test',
-          } });
-          checkoutSessions.set(sessionId, {
-            id: sessionId, client_reference_id: attempt.id, object: 'checkout.session', livemode: false, mode: 'payment',
-            currency: 'lkr', amount_total: 150001, status: 'complete', payment_status: 'paid', url: null,
-            expires_at: expiresAt.getTime() / 1000, payment_intent: purpose === 'advance' ? 'pi_service' : 'pi_deposit',
-          });
+          await stripeCapture(tx, order, purpose === 'advance' ? 'pi_service' : 'pi_deposit');
         } else {
           const attempt = await tx.payHereAttempt.create({ data: {
             orderId: order.id, createdAt: new Date(), expiresAt: new Date(Date.now() + 60_000),
@@ -239,6 +245,68 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
     assert.equal(completedPayHere.paymentId, paymentId);
     assert.equal(completedPayHere.providerRefundId, '560034010257');
     assert.equal(completedPayHere.settlement?.source, 'payhere.sandbox.refund.settle');
+
+    const renter = await fixture('renter');
+    const rental = await deps.db.booking.create({ data: {
+      customerId: customer.id, providerId: renter.id, requestKey: randomUUID(), requestDigest: '0'.repeat(64),
+      targetKind: 'rental', targetId: randomUUID(), targetVersion: 1, startsAt, holdExpiresAt: startsAt,
+      endsAt: new Date(startsAt.getTime() + 3600_000), snapshot: {},
+    } });
+    bookingIds.push(rental.id);
+    const deductionMinor = 30000;
+    const claim = await deps.db.$transaction(async tx => {
+      const order = await tx.paymentOrder.create({ data: {
+        bookingId: rental.id, purpose: 'deposit', amountMinor: damageRefundMinor + deductionMinor, status: 'paid',
+      } });
+      await stripeCapture(tx, order, 'pi_damage');
+      const inspection = await tx.equipmentInspection.create({ data: {
+        bookingId: rental.id, stage: 'quarantined', revision: 2, accessories: [],
+      } });
+      await tx.equipmentInspectionReport.create({ data: {
+        inspectionId: inspection.id, revision: 2, phase: 'return', evidence: {}, submittedBy: renter.id,
+        decidedBy: customer.id, decidedAt: new Date(), decision: 'acknowledged',
+      } });
+      return tx.damageClaim.create({ data: {
+        bookingId: rental.id, inspectionId: inspection.id, reportRevision: 2, depositOrderId: order.id,
+        depositMinor: order.amountMinor, proposedMinor: deductionMinor, reason: 'Documented repair cost for the returned unit.',
+      } });
+    });
+    const damagePath = base + 'admin/damage-claims/' + claim.id;
+    const executeDamage = (actor = admin) => fetch(damagePath + '/stripe-refund', { method: 'POST', headers: actor.headers, body: '{}' });
+    const readDamage = () => fetch(damagePath + '/stripe-refund', admin);
+    assert.equal((await executeDamage(customer)).status, 403);
+    assert.equal((await (await executeDamage(old)).json()).code, 'RECENT_LOGIN_REQUIRED');
+    assert.equal((await (await executeDamage()).json()).code, 'STRIPE_REFUND_NOT_ELIGIBLE');
+    assert.equal((await (await readDamage()).json()).execution, null);
+    const acceptedClaim = await fetch(base + 'damage-claims/' + claim.id + '/respond', {
+      method: 'POST', headers: customer.headers, body: JSON.stringify({ response: 'accepted' }),
+    });
+    assert.equal(acceptedClaim.status, 200);
+    const resolvedClaim = await fetch(damagePath + '/resolve', {
+      method: 'POST', headers: admin.headers, body: JSON.stringify({ approveDeduction: true, reason: 'Approve the documented repair cost.' }),
+    });
+    assert.equal(resolvedClaim.status, 200);
+    assert.equal((await resolvedClaim.json()).refundMinor, damageRefundMinor);
+    const fund = { kind: 'reserved', currency: 'LKR', purpose: 'deposit' } as const;
+    const reserveAccount = (recipient: 'customer' | 'provider') => deps.db.financialAccount.findFirstOrThrow({
+      where: { ...fund, scope: 'sandbox:damage:' + claim.id + ':' + recipient },
+    });
+    const customerReserve = await reserveAccount('customer');
+    const providerReserve = await reserveAccount('provider');
+    assert.equal((await (await executeDamage()).json()).state, 'uncertain');
+    assert.equal(await postedBalance(deps.db, customerReserve.id), BigInt(damageRefundMinor));
+    const damageSettlement = await (await executeDamage()).json();
+    assert.equal(damageSettlement.state, 'succeeded');
+    assert.equal(damageSettlement.claimId, claim.id);
+    assert.equal(damageSettlement.amountMinor, damageRefundMinor);
+    assert.deepEqual(await (await executeDamage()).json(), damageSettlement);
+    assert.deepEqual((await (await readDamage()).json()).execution, damageSettlement);
+    assert.deepEqual(submissions, ['pi_service', 'pi_deposit', 'pi_damage']);
+    assert.equal(await postedBalance(deps.db, customerReserve.id), 0n);
+    assert.equal(await postedBalance(deps.db, providerReserve.id), BigInt(deductionMinor));
+    assert.equal((await dashboard(renter)).settled.refundedMinor, String(damageRefundMinor));
+    const participantView = await fetch(base + 'bookings/' + rental.id + '/damage-claim', customer);
+    assert.equal((await participantView.json()).claim.stripeRefundState, 'succeeded');
   } finally {
     release();
     try {
@@ -248,7 +316,11 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
         await deps.db.refundItem.deleteMany({ where: { requestId: refundId } });
         await deps.db.refundRequest.delete({ where: { id: refundId } });
       }
-      if (bookingId) {
+      for (const bookingId of bookingIds) {
+        await deps.db.stripeRefundExecution.deleteMany({ where: { damageClaim: { bookingId } } });
+        await deps.db.damageClaim.deleteMany({ where: { bookingId } });
+        await deps.db.equipmentInspectionReport.deleteMany({ where: { inspection: { bookingId } } });
+        await deps.db.equipmentInspection.deleteMany({ where: { bookingId } });
         await deps.db.payHereEvent.deleteMany({ where: { attempt: { order: { bookingId } } } });
         await deps.db.payHereAttempt.deleteMany({ where: { order: { bookingId } } });
         await deps.db.stripeAttempt.deleteMany({ where: { order: { bookingId } } });

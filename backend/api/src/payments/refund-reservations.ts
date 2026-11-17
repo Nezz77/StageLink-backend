@@ -4,18 +4,20 @@ import { openAccount, postedBalance, postJournal } from '../../../shared/payment
 import { PublicError } from '../auth/errors.js';
 import type { Identity } from '../auth/service.js';
 
+export const refundOrderInclude = {
+  stripeAttempt: { select: {
+    id: true, sessionId: true, expiresAt: true, journalId: true,
+    journal: { select: { source: true, reference: true, postedAt: true } },
+  } },
+  payhereAttempt: { select: { id: true, events: {
+    where: { statusCode: '2' },
+    select: { reportedPaymentId: true, journal: { select: { source: true, reference: true, postedAt: true } } },
+  } } },
+} satisfies Prisma.PaymentOrderInclude;
+
 const includes = {
   request: { include: { booking: { select: { customerId: true, providerId: true } } } },
-  order: { include: {
-    stripeAttempt: { select: {
-      id: true, sessionId: true, expiresAt: true, journalId: true,
-      journal: { select: { source: true, reference: true, postedAt: true } },
-    } },
-    payhereAttempt: { select: { id: true, events: {
-      where: { statusCode: '2' },
-      select: { reportedPaymentId: true, journal: { select: { source: true, reference: true, postedAt: true } } },
-    } } },
-  } },
+  order: { include: refundOrderInclude },
   stripeExecution: true,
   payHereExecution: true,
 } satisfies Prisma.RefundItemInclude;
@@ -39,12 +41,22 @@ export function validApprovedRefund(item: Item) {
 export async function reservedFunds(tx: Prisma.TransactionClient, item: Item): Promise<Reserved | null> {
   if (!item.reservationId || !validApprovedRefund(item)) return null;
   const purpose = item.order.purpose === 'deposit' ? 'deposit' : 'service';
-  const amount = BigInt(item.amountMinor);
+  return findRefundReserve(tx, item.reservationId, {
+    purpose, source: 'refund.sandbox.reserve', scope: 'sandbox:refund:' + item.requestId + ':' + item.orderId,
+  }, item.amountMinor);
+}
+
+export async function findRefundReserve(
+  tx: Prisma.TransactionClient, reservationId: string,
+  fund: { purpose: Reserved['purpose']; source: string; scope: string; reference?: string }, amountMinor: number,
+): Promise<Reserved | null> {
+  const { purpose, source, scope, reference } = fund;
+  const amount = BigInt(amountMinor);
   const posting = await tx.journalEntry.findFirst({
     where: {
-      transactionId: item.reservationId, amountMinor: amount,
-      transaction: { source: 'refund.sandbox.reserve', postedAt: { not: null } },
-      account: { scope: 'sandbox:refund:' + item.requestId + ':' + item.orderId, kind: 'reserved', currency: 'LKR', purpose },
+      transactionId: reservationId, amountMinor: amount,
+      transaction: { source, reference, postedAt: { not: null } },
+      account: { scope, kind: 'reserved', currency: 'LKR', purpose },
     },
     select: { accountId: true },
   });
@@ -52,8 +64,8 @@ export async function reservedFunds(tx: Prisma.TransactionClient, item: Item): P
   return { accountId: posting.accountId, purpose };
 }
 
-export function requireRecentIndependentAdmin(actor: Identity, item: Item) {
-  const { customerId, providerId } = item.request.booking;
+export function requireRecentIndependentAdmin(actor: Identity, booking: { customerId: string; providerId: string }) {
+  const { customerId, providerId } = booking;
   if (actor.user.id === customerId || actor.user.id === providerId) {
     throw new PublicError(403, 'SELF_REVIEW_FORBIDDEN', 'Another administrator must execute this refund.');
   }
@@ -63,7 +75,7 @@ export function requireRecentIndependentAdmin(actor: Identity, item: Item) {
 }
 
 export async function settleRefund(
-  tx: Prisma.TransactionClient, item: Item, reserved: Reserved, gateway: 'stripe' | 'payhere',
+  tx: Prisma.TransactionClient, booking: { id: string; customerId: string; providerId: string }, reserved: Reserved, gateway: 'stripe' | 'payhere',
   reference: string, executionId: string, amountMinor: number,
 ) {
   const environment = gateway === 'stripe' ? 'test' : 'sandbox';
@@ -73,7 +85,6 @@ export async function settleRefund(
   const settlementId = await postJournal(tx, { ...fund, source: gateway + '.' + environment + '.refund.settle', reference }, [
     { accountId: reserved.accountId, amountMinor: -amount }, { accountId: clearing.id, amountMinor: amount },
   ]);
-  const { customerId, providerId } = item.request.booking;
-  await notifyUsers(tx, [customerId, providerId], 'payment', item.request.bookingId, gateway + '-refund:' + executionId);
+  await notifyUsers(tx, [booking.customerId, booking.providerId], 'payment', booking.id, gateway + '-refund:' + executionId);
   return settlementId;
 }

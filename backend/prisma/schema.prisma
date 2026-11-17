@@ -1047,7 +1047,8 @@ enum StripeRefundState {
 
 model StripeRefundExecution {
   id String @id @default(uuid()) @db.Uuid
-  requestId String @map("request_id") @db.Uuid
+  requestId String? @map("request_id") @db.Uuid
+  damageClaimId String? @unique @map("damage_claim_id") @db.Uuid
   orderId String @map("order_id") @db.Uuid
   actorId String @map("actor_id") @db.Uuid
   paymentIntentId String @map("payment_intent_id") @db.VarChar(150)
@@ -1059,7 +1060,8 @@ model StripeRefundExecution {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
   settlementId String? @unique @map("settlement_id") @db.Uuid
-  item RefundItem @relation(fields: [requestId, orderId], references: [requestId, orderId], onDelete: Restrict)
+  item RefundItem? @relation(fields: [requestId, orderId], references: [requestId, orderId], onDelete: Restrict)
+  damageClaim DamageClaim? @relation(fields: [damageClaimId], references: [id], onDelete: Restrict)
   actor AuthUser @relation(fields: [actorId], references: [id], onDelete: Restrict)
   settlement JournalTransaction? @relation(fields: [settlementId], references: [id], onDelete: Restrict)
   @@unique([requestId, orderId])
@@ -1396,6 +1398,7 @@ model DamageClaim {
   depositOrder PaymentOrder? @relation(fields: [depositOrderId], references: [id], onDelete: Restrict)
   resolver AuthUser? @relation(fields: [resolvedBy], references: [id], onDelete: Restrict)
   reservation JournalTransaction? @relation(fields: [reservationId], references: [id], onDelete: Restrict)
+  stripeExecution StripeRefundExecution?
   @@map("damage_claims")
 }
 

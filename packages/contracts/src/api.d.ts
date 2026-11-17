@@ -3317,6 +3317,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/damage-claims/{id}/stripe-refund": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["StripeRefundExecutionController_depositStatus"];
+        put?: never;
+        post: operations["StripeRefundExecutionController_executeDeposit"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -18167,6 +18183,8 @@ export interface operations {
                             currency: "LKR";
                             /** @enum {string} */
                             status: "awaiting_customer" | "awaiting_admin" | "reserved" | "resolved_zero_deposit";
+                            /** @enum {string|null} */
+                            stripeRefundState: "pending" | "uncertain" | "failed" | "succeeded" | null;
                         } | null;
                     };
                 };
@@ -19706,8 +19724,6 @@ export interface operations {
                             id: string;
                             /** Format: uuid */
                             orderId: string;
-                            /** Format: uuid */
-                            requestId: string;
                             amountMinor: number;
                             /** @enum {string} */
                             state: "processing" | "pending" | "uncertain" | "failed" | "succeeded";
@@ -19715,6 +19731,8 @@ export interface operations {
                             createdAt: string;
                             /** Format: date-time */
                             updatedAt: string;
+                            /** Format: uuid */
+                            requestId: string;
                         } | null;
                     };
                 };
@@ -19747,8 +19765,6 @@ export interface operations {
                         id: string;
                         /** Format: uuid */
                         orderId: string;
-                        /** Format: uuid */
-                        requestId: string;
                         amountMinor: number;
                         /** @enum {string} */
                         state: "processing" | "pending" | "uncertain" | "failed" | "succeeded";
@@ -19756,6 +19772,84 @@ export interface operations {
                         createdAt: string;
                         /** Format: date-time */
                         updatedAt: string;
+                        /** Format: uuid */
+                        requestId: string;
+                    };
+                };
+            };
+        };
+    };
+    StripeRefundExecutionController_depositStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        execution: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            orderId: string;
+                            amountMinor: number;
+                            /** @enum {string} */
+                            state: "processing" | "pending" | "uncertain" | "failed" | "succeeded";
+                            /** Format: date-time */
+                            createdAt: string;
+                            /** Format: date-time */
+                            updatedAt: string;
+                            /** Format: uuid */
+                            claimId: string;
+                        } | null;
+                    };
+                };
+            };
+        };
+    };
+    StripeRefundExecutionController_executeDeposit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uuid */
+                        orderId: string;
+                        amountMinor: number;
+                        /** @enum {string} */
+                        state: "processing" | "pending" | "uncertain" | "failed" | "succeeded";
+                        /** Format: date-time */
+                        createdAt: string;
+                        /** Format: date-time */
+                        updatedAt: string;
+                        /** Format: uuid */
+                        claimId: string;
                     };
                 };
             };

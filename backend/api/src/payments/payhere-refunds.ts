@@ -82,7 +82,7 @@ export function makePayHereRefundExecutionController(auth: AuthService) {
       const requestId = parse(uuid, rawId);
       const orderId = parse(uuid, rawOrderId);
       const source = await refundItem(db, requestId, orderId);
-      requireRecentIndependentAdmin(actor, source);
+      requireRecentIndependentAdmin(actor, source.request.booking);
       const { attemptId, paymentId } = capture(source);
       const prior = source.payHereExecution;
       if (prior && prior.status !== 'pending') return present(prior);
@@ -103,7 +103,7 @@ export function makePayHereRefundExecutionController(auth: AuthService) {
         await lockBooking(tx, source.request.bookingId);
         await lockPaymentOrder(tx, orderId);
         const item = await refundItem(tx, requestId, orderId);
-        requireRecentIndependentAdmin(currentAdmin, item);
+        requireRecentIndependentAdmin(currentAdmin, item.request.booking);
         const currentCapture = capture(item);
         if (currentCapture.attemptId !== attemptId || currentCapture.paymentId !== paymentId ||
           item.reservationId !== source.reservationId || item.amountMinor !== source.amountMinor) throw notEligible();
@@ -115,7 +115,9 @@ export function makePayHereRefundExecutionController(auth: AuthService) {
           if (!reserved || current.paymentId !== paymentId || !current.providerRefundId || current.amountMinor !== item.amountMinor) {
             throw notEligible();
           }
-          const settlementId = await settleRefund(tx, item, reserved, 'payhere', current.providerRefundId, current.id, current.amountMinor);
+          const settlementId = await settleRefund(
+            tx, { id: item.request.bookingId, ...item.request.booking }, reserved, 'payhere', current.providerRefundId, current.id, current.amountMinor,
+          );
           return { response: present(await tx.payHereRefundExecution.update({
             where: { id: current.id }, data: { status: 'succeeded', settlementId, updatedAt: new Date() },
           })) };

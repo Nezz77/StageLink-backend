@@ -187,3 +187,5 @@ P12 adds an administrator read to match a recorded transfer's exact connected-ac
 P12 adds audited sandbox journal and fee settlement for a confirmed automatic Stripe test bank payout. The reconciliation command reuses one settlement per transfer and payout, blocks competing active payouts, and posts compensating entries on a bank payout failure or transfer reversal.
 
 P18 now reports net sandbox bank payouts and platform fee revenue from posted Stripe test settlement journals. Compensating entries reduce the totals on the reversal posting date. Administrator reports include all bookings and provider reports include their own bookings. Live financial projections remain unavailable.
+
+P14 adds Stripe test refunds for the customer amount on resolved rental deposit claims. Administrator submission verifies the matching captured payment and reservation. Reconciliation uses the saved execution reference, and a confirmed refund settles the customer share once. The provider's deduction remains reserved. Booking participants can read the recorded Stripe refund state. Hosted Stripe test verification, PayHere deposit refunds and deduction settlement remain open.

@@ -1295,7 +1295,7 @@
         "src/components/EquipmentInspection.tsx",
         "src/components/SecurityDeposit.tsx"
       ],
-      "proposed_contract": "POST /bookings/:id/deposit-orders; POST /damage-claims; POST /damage-claims/:id/respond; POST /admin/damage-claims/:id/resolve; POST /bookings/:id/clearance",
+      "proposed_contract": "POST /bookings/:id/deposit-orders; POST /damage-claims; POST /damage-claims/:id/respond; POST /admin/damage-claims/:id/resolve; GET and POST /admin/damage-claims/:id/stripe-refund; POST /bookings/:id/clearance",
       "entities": [
         "deposit_obligations",
         "damage_claims",
@@ -1312,7 +1312,7 @@
       "ui_coverage_ids": [
         "UI-026"
       ],
-      "remaining": "Execute provider refunds and any eligible deduction settlement, reconcile provider outcomes, run custody and journal integration, and connect the frontend/Figma flow."
+      "remaining": "Verify Stripe test deposit refunds in the hosted environment, implement PayHere deposit refunds and settlement of eligible deductions, and connect the frontend and Figma flow."
     },
     {
       "id": "BE-037",
