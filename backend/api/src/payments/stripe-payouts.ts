@@ -3,7 +3,7 @@ import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiParam, ApiQuery, ApiTags } fr
 import { randomUUID } from 'node:crypto';
 import type { Request } from 'express';
 import { z } from 'zod';
-import type { Prisma, StripePayoutTransfer } from '../../../generated/prisma/client.js';
+import type { Prisma, StripeBankPayoutSettlement, StripePayoutTransfer } from '../../../generated/prisma/client.js';
 import { postedBalance } from '../../../shared/payments/journal.js';
 import { checkStripeBankPayout, stripeBankPayoutEvidence, stripeBankPayoutId } from '../../../shared/payments/stripe-bank-payouts.js';
 import { readStripeTestAccounts } from '../../../shared/payments/stripe-capabilities.js';
@@ -14,6 +14,7 @@ import { lockBooking, paymentBlocked } from '../bookings/lifecycle.js';
 import { ProfileService } from '../profiles/service.js';
 import { parse, schema, uuid } from './orders.js';
 import { assertPayoutProvider, payoutReservationAccount } from './payout-eligibility.js';
+import { reconcileBankSettlement } from './stripe-bank-payout-settlement.js';
 import { recordConfirmedStripeTransfer } from './stripe-transfer-settlement.js';
 
 const command = z.object({
@@ -21,6 +22,13 @@ const command = z.object({
 }).strict().refine(input => !input.reconcileOnly || !input.retryOfTransferId, 'Choose reconciliation or an authorized retry.');
 const authorizeCommand = z.object({ transferId: uuid, reason: z.string().trim().min(10).max(500) }).strict();
 const authorizationView = z.object({ transferId: uuid, payoutId: uuid, actorId: uuid, reason: z.string(), createdAt: z.iso.datetime() });
+const bankSettlementCommand = z.object({ bankPayoutId: stripeBankPayoutId }).strict();
+const bankSettlementView = z.object({
+  id: uuid, transferId: uuid, bankPayoutId: stripeBankPayoutId, balanceTransactionId: z.string().nullable(),
+  journalId: uuid.nullable(), reversalJournalId: uuid.nullable(), actorId: uuid, reviewActorId: uuid.nullable(),
+  state: z.enum(['settled', 'review_required']), reviewReason: z.enum(['bank_payout_failed', 'transfer_reversed']).nullable(),
+  createdAt: z.iso.datetime(), updatedAt: z.iso.datetime(),
+});
 const view = z.object({
   id: uuid, payoutId: uuid, destinationLinkId: uuid, amountMinor: z.number().int().positive(), currency: z.literal('LKR'),
   attempt: z.number().int().positive(), retryAuthorization: authorizationView.nullable(),
@@ -52,6 +60,13 @@ function present(row: StripePayoutTransfer) {
     reversedMinor, currency: 'LKR' as const, providerTransferId,
     state: row.leaseUntil && row.leaseUntil > new Date() ? 'processing' : status,
     createdAt: createdAt.toISOString(), updatedAt: updatedAt.toISOString(),
+  };
+}
+
+function presentBankSettlement(row: StripeBankPayoutSettlement) {
+  return {
+    ...row, state: row.reviewReason ? 'review_required' : 'settled',
+    createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString(),
   };
 }
 
@@ -167,6 +182,22 @@ export function makeStripePayoutTransfersController(auth: AuthService) {
     return { payout, operator };
   }
 
+  async function readBankEvidence(actor: Identity, payout: Payout, bankPayoutId: string) {
+    const attempt = payout.stripeTransfers[0];
+    if (!attempt?.providerTransferId || !attempt.journalId || attempt.status !== 'transferred' || attempt.reversedMinor !== 0) {
+      throw new PublicError(409, 'STRIPE_BANK_PAYOUT_NOT_ELIGIBLE', 'A recorded, unreversed Stripe transfer is required.');
+    }
+    const key = config.STRIPE_TEST_SECRET_KEY;
+    if (!key) throw new PublicError(503, 'STRIPE_TRANSFERS_DISABLED', 'Stripe test transfer verification is unavailable.');
+    await auth.limits.check('stripe-bank-payout-admin', actor.user.id, 10, 60);
+    await auth.limits.check('stripe-bank-payout-shared', 'shared', 20, 60);
+    const { payoutFailed, ...evidence } = await checkStripeBankPayout(key, {
+      id: attempt.id, amountMinor: attempt.amountMinor, providerTransferId: attempt.providerTransferId,
+      stripeAccountId: attempt.destination.stripeAccountId, platformAccountId: attempt.destination.platformAccountId,
+    }, bankPayoutId);
+    return { attempt, evidence, payoutFailed };
+  }
+
   @ApiTags('Stripe test payout transfers')
   @ApiBearerAuth()
   @Controller('admin/payouts/:id/stripe-transfer')
@@ -190,18 +221,7 @@ export function makeStripePayoutTransfersController(auth: AuthService) {
       const actor = await admin(req);
       const bankPayoutId = parse(stripeBankPayoutId, rawBankPayoutId);
       const payout = await loadPayout(db, parse(uuid, rawId));
-      const attempt = payout.stripeTransfers[0];
-      if (!attempt?.providerTransferId || !attempt.journalId || attempt.status !== 'transferred' || attempt.reversedMinor !== 0) {
-        throw new PublicError(409, 'STRIPE_BANK_PAYOUT_NOT_ELIGIBLE', 'A recorded, unreversed Stripe transfer is required.');
-      }
-      const key = config.STRIPE_TEST_SECRET_KEY;
-      if (!key) throw new PublicError(503, 'STRIPE_TRANSFERS_DISABLED', 'Stripe test transfer verification is unavailable.');
-      await auth.limits.check('stripe-bank-payout-admin', actor.user.id, 10, 60);
-      await auth.limits.check('stripe-bank-payout-shared', 'shared', 20, 60);
-      const evidence = await checkStripeBankPayout(key, {
-        id: attempt.id, amountMinor: attempt.amountMinor, providerTransferId: attempt.providerTransferId,
-        stripeAccountId: attempt.destination.stripeAccountId, platformAccountId: attempt.destination.platformAccountId,
-      }, bankPayoutId);
+      const { attempt, evidence } = await readBankEvidence(actor, payout, bankPayoutId);
       if (evidence.status === 'included') {
         const current = (await loadPayout(db, payout.id)).stripeTransfers[0];
         if (current?.id !== attempt.id || current.status !== 'transferred' || current.reversedMinor !== 0) {
@@ -209,6 +229,40 @@ export function makeStripePayoutTransfersController(auth: AuthService) {
         }
       }
       return { transferId: attempt.id, bankPayoutId, ...evidence };
+    }
+
+    @Get('bank-settlements')
+    @ApiParam({ name: 'id', format: 'uuid' })
+    @ApiOkResponse({ schema: schema(z.object({ settlements: z.array(bankSettlementView) })) })
+    async bankSettlements(@Req() req: Request, @Param('id') rawId: string) {
+      await admin(req);
+      const payout = await loadPayout(db, parse(uuid, rawId));
+      const rows = await db.stripeBankPayoutSettlement.findMany({
+        where: { transfer: { payoutId: payout.id } }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: 20,
+      });
+      return { settlements: rows.map(presentBankSettlement) };
+    }
+
+    @Post('bank-settlements')
+    @HttpCode(200)
+    @ApiParam({ name: 'id', format: 'uuid' })
+    @ApiBody({ schema: schema(bankSettlementCommand) })
+    @ApiOkResponse({ schema: schema(z.object({ evidence: stripeBankPayoutEvidence, settlement: bankSettlementView.nullable() })) })
+    async settleBankPayout(@Req() req: Request, @Param('id') rawId: string, @Body() raw: unknown) {
+      const actor = await operatorRequest(req);
+      const { bankPayoutId } = parse(bankSettlementCommand, raw);
+      const source = await loadPayout(db, parse(uuid, rawId));
+      requireOperator(actor, source);
+      const { attempt, evidence, payoutFailed } = await readBankEvidence(actor, source, bankPayoutId);
+      const settlement = await db.$transaction(async tx => {
+        const { payout, operator } = await lockPayout(tx, source, actor);
+        const current = payout.stripeTransfers[0];
+        if (current?.id !== attempt.id || current.status !== 'transferred' || current.reversedMinor !== 0) {
+          throw new PublicError(409, 'STRIPE_BANK_PAYOUT_NOT_ELIGIBLE', 'The Stripe transfer changed. Review its current state.');
+        }
+        return reconcileBankSettlement(tx, payout, current, bankPayoutId, { ...evidence, payoutFailed }, operator.user.id);
+      });
+      return { evidence, settlement: settlement ? presentBankSettlement(settlement) : null };
     }
 
     @Get('attempts')

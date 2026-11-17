@@ -178,7 +178,13 @@ To begin a new attempt, send `{retryOfTransferId}` to the transfer endpoint usin
 
 A verified administrator can use `GET /api/v1/admin/payouts/:id/stripe-transfer/bank-payout?bankPayoutId=po_…` to check the latest recorded unreversed transfer against a specific automatic standard LKR bank payout. StageLink retrieves the transfer with the platform test key, then checks the payout and its balance transactions on the linked connected account. `included` means Stripe currently reports the payout as paid and lists the transfer's exact full LKR credit among its reconciled balance transactions. The response may identify one transfer within a larger payout batch. [Stripe connected-account requests](https://docs.stripe.com/connect/authentication) · [Stripe payout balance transactions](https://docs.stripe.com/api/balance_transactions/list)
 
-The check returns the current Stripe payout state on each request. A later failure returns `review_required`, and reconciliation still in progress returns `pending`. The endpoint reads Stripe and leaves journal and fee settlement to their existing workflows. Hosted verification still needs a configured Stripe test platform and a supported LKR payout route. [Stripe payout statuses](https://docs.stripe.com/api/payouts/object)
+The check returns the current Stripe payout state on each request. A later failure returns `review_required`, and reconciliation still in progress returns `pending`. Use the settlement endpoint to record those outcomes in the sandbox journal. Hosted verification still needs a configured Stripe test platform and a supported LKR payout route. [Stripe payout statuses](https://docs.stripe.com/api/payouts/object)
+
+#### Stripe test bank payout settlement
+
+A verified administrator with a recent sign-in can send `{bankPayoutId}` to `POST /api/v1/admin/payouts/:id/stripe-transfer/bank-settlements` with the standard origin and CSRF headers. StageLink fetches fresh Stripe test evidence. When the linked transfer is included in a paid, reconciled automatic LKR bank payout, the booking is clear of holds, and its fee reserve is intact, the journal moves the provider amount into bank clearing and records the reserved platform fee as settled. One active settlement per transfer is allowed, so duplicate requests share the recorded journal.
+
+Use the same POST to reconcile a later bank payout failure. StageLink posts accounting entries that compensate the original settlement, restores the fee reserve, and preserves both journal entries. Reconciliation of a Stripe transfer reversal also compensates any active bank settlement for that transfer. `GET /api/v1/admin/payouts/:id/stripe-transfer/bank-settlements` shows the most recent 20 records and their review reasons. Manual bank payout initiation and hosted verification remain open.
 
 ## Booking documents
 

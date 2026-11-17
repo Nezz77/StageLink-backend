@@ -3253,6 +3253,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/payouts/{id}/stripe-transfer/bank-settlements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["StripePayoutTransfersController_bankSettlements"];
+        put?: never;
+        post: operations["StripePayoutTransfersController_settleBankPayout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/payouts/{id}/stripe-transfer/attempts": {
         parameters: {
             query?: never;
@@ -19468,6 +19484,111 @@ export interface operations {
                         /** Format: uuid */
                         transferId: string;
                         bankPayoutId: string;
+                    };
+                };
+            };
+        };
+    };
+    StripePayoutTransfersController_bankSettlements: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        settlements: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            transferId: string;
+                            bankPayoutId: string;
+                            balanceTransactionId: string | null;
+                            /** Format: uuid */
+                            journalId: string | null;
+                            /** Format: uuid */
+                            reversalJournalId: string | null;
+                            /** Format: uuid */
+                            actorId: string;
+                            /** Format: uuid */
+                            reviewActorId: string | null;
+                            /** @enum {string} */
+                            state: "settled" | "review_required";
+                            /** @enum {string|null} */
+                            reviewReason: "bank_payout_failed" | "transfer_reversed" | null;
+                            /** Format: date-time */
+                            createdAt: string;
+                            /** Format: date-time */
+                            updatedAt: string;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    StripePayoutTransfersController_settleBankPayout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    bankPayoutId: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        evidence: {
+                            /** @enum {string} */
+                            status: "included" | "not_included" | "pending" | "review_required" | "unsupported" | "unavailable";
+                            /** @enum {string|null} */
+                            stripePayoutStatus: "pending" | "in_transit" | "paid" | "failed" | "canceled" | null;
+                            balanceTransactionId: string | null;
+                        };
+                        settlement: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            transferId: string;
+                            bankPayoutId: string;
+                            balanceTransactionId: string | null;
+                            /** Format: uuid */
+                            journalId: string | null;
+                            /** Format: uuid */
+                            reversalJournalId: string | null;
+                            /** Format: uuid */
+                            actorId: string;
+                            /** Format: uuid */
+                            reviewActorId: string | null;
+                            /** @enum {string} */
+                            state: "settled" | "review_required";
+                            /** @enum {string|null} */
+                            reviewReason: "bank_payout_failed" | "transfer_reversed" | null;
+                            /** Format: date-time */
+                            createdAt: string;
+                            /** Format: date-time */
+                            updatedAt: string;
+                        } | null;
                     };
                 };
             };

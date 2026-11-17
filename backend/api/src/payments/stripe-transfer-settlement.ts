@@ -1,6 +1,7 @@
 import type { Prisma, StripePayoutTransfer } from '../../../generated/prisma/client.js';
 import { openAccount, postJournal } from '../../../shared/payments/journal.js';
 import type { ConfirmedStripeTransfer } from '../../../shared/payments/stripe-transfers.js';
+import { activeBankSettlement, reverseBankSettlement } from './stripe-bank-payout-settlement.js';
 
 // The caller holds the booking lock and has matched the observations to this attempt.
 export async function recordConfirmedStripeTransfer(
@@ -14,6 +15,10 @@ export async function recordConfirmedStripeTransfer(
   const returned = observed.reversedMinor - current.reversedMinor;
   let journalId = current.journalId;
   if (journalId && returned === 0) return current;
+  if (returned > 0) {
+    const settlement = await activeBankSettlement(tx, current.id);
+    if (settlement) await reverseBankSettlement(tx, settlement, 'transfer_reversed', null);
+  }
 
   const fund = { currency: 'LKR', purpose: 'service' } as const;
   const clearing = await openAccount(tx, { ...fund, scope: 'gateway:stripe:test', kind: 'clearing' });

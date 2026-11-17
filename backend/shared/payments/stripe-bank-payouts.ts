@@ -27,7 +27,7 @@ export const stripeBankPayoutEvidence = z.object({
 });
 
 type Expected = Parameters<typeof retrieveStripePayoutTransferPayment>[1] & { platformAccountId: string };
-type Evidence = z.infer<typeof stripeBankPayoutEvidence>;
+type Evidence = z.infer<typeof stripeBankPayoutEvidence> & { payoutFailed?: true };
 
 export async function checkStripeBankPayout(key: string, expected: Expected, bankPayoutId: string, send = fetch): Promise<Evidence> {
   const unavailable = { status: 'unavailable', stripePayoutStatus: null, balanceTransactionId: null } as const;
@@ -55,8 +55,10 @@ export async function checkStripeBankPayout(key: string, expected: Expected, ban
     const observed = { stripePayoutStatus: actual.status, balanceTransactionId: null };
     if (!actual.automatic || actual.method !== 'standard' || actual.type !== 'bank_account' ||
       actual.currency !== 'lkr') return { ...observed, status: 'unsupported' };
-    if (actual.status === 'failed' || actual.status === 'canceled' || actual.amount <= 0 ||
-      actual.failure_balance_transaction || actual.reversed_by || actual.original_payout) return { ...observed, status: 'review_required' };
+    if (actual.status === 'failed' || actual.status === 'canceled' || actual.failure_balance_transaction || actual.reversed_by) {
+      return { ...observed, status: 'review_required', payoutFailed: true };
+    }
+    if (actual.amount <= 0 || actual.original_payout) return { ...observed, status: 'review_required' };
     if (actual.reconciliation_status === 'not_applicable') return { ...observed, status: 'unsupported' };
     if (!actual.destination || !/^ba_[A-Za-z0-9_]+$/.test(actual.destination)) return unavailable;
     if (actual.status !== 'paid' || actual.reconciliation_status !== 'completed') return { ...observed, status: 'pending' };

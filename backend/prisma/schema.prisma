@@ -103,6 +103,8 @@ model AuthUser {
   stripeRefundExecutions StripeRefundExecution[]
   stripePayoutTransfers StripePayoutTransfer[] @relation("StripeTransferSubmitter")
   stripePayoutRetryApprovals StripePayoutTransfer[] @relation("StripeTransferRetryReviewer")
+  stripeBankPayoutSettlements StripeBankPayoutSettlement[] @relation("StripeBankSettlementActor")
+  stripeBankPayoutReviews StripeBankPayoutSettlement[] @relation("StripeBankSettlementReviewer")
   payoutDestinationRepairs PayoutDestinationRepair[]
   payHereRefundExecutions PayHereRefundExecution[]
   openedDisputes BookingDispute[] @relation("DisputeOpener")
@@ -822,6 +824,8 @@ model JournalTransaction {
   paymentRecovery PaymentRecoveryAction?
   stripeRefundSettlement StripeRefundExecution?
   stripePayoutTransfer StripePayoutTransfer?
+  stripeBankPayoutSettlement StripeBankPayoutSettlement? @relation("StripeBankSettlementJournal")
+  stripeBankPayoutReversal StripeBankPayoutSettlement? @relation("StripeBankSettlementReversal")
   payHereRefundSettlement PayHereRefundExecution?
   refundReservation RefundItem?
   payoutReservation PayoutOrder?
@@ -1173,8 +1177,30 @@ model StripePayoutTransfer {
   reservedAccount FinancialAccount @relation(fields: [reservedAccountId], references: [id], onDelete: Restrict)
   journal JournalTransaction? @relation(fields: [journalId], references: [id], onDelete: Restrict)
   events StripePayoutTransferEvent[]
+  bankSettlements StripeBankPayoutSettlement[]
   @@unique([payoutId, attempt])
   @@map("stripe_payout_transfers")
+}
+
+model StripeBankPayoutSettlement {
+  id String @id @default(uuid()) @db.Uuid
+  transferId String @map("transfer_id") @db.Uuid
+  bankPayoutId String @map("bank_payout_id") @db.VarChar(150)
+  balanceTransactionId String? @map("balance_transaction_id") @db.VarChar(150)
+  journalId String? @unique @map("journal_id") @db.Uuid
+  reversalJournalId String? @unique @map("reversal_journal_id") @db.Uuid
+  actorId String @map("actor_id") @db.Uuid
+  reviewActorId String? @map("review_actor_id") @db.Uuid
+  reviewReason String? @map("review_reason") @db.VarChar(30)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
+  transfer StripePayoutTransfer @relation(fields: [transferId], references: [id], onDelete: Restrict)
+  actor AuthUser @relation("StripeBankSettlementActor", fields: [actorId], references: [id], onDelete: Restrict)
+  reviewer AuthUser? @relation("StripeBankSettlementReviewer", fields: [reviewActorId], references: [id], onDelete: Restrict)
+  journal JournalTransaction? @relation("StripeBankSettlementJournal", fields: [journalId], references: [id], onDelete: Restrict)
+  reversalJournal JournalTransaction? @relation("StripeBankSettlementReversal", fields: [reversalJournalId], references: [id], onDelete: Restrict)
+  @@unique([transferId, bankPayoutId])
+  @@map("stripe_bank_payout_settlements")
 }
 
 model StripePayoutTransferEvent {

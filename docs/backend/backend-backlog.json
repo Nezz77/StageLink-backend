@@ -1717,7 +1717,7 @@
       "ui_coverage_ids": [
         "UI-038"
       ],
-      "remaining": "Signed Stripe test transfer events reconcile existing attempts. Administrators can check whether Stripe included the linked transfer in a paid, reconciled automatic LKR bank payout. Verify hosted event delivery, the LKR route and frontend/Figma wiring. Add bank payout execution, journal and fee settlement. Investigate attempts without conclusive Stripe evidence."
+      "remaining": "Signed Stripe test transfer events reconcile existing attempts. Administrators can post bank payout and fee settlement after Stripe confirms inclusion in a paid, reconciled automatic LKR bank payout. Compensating journals restore the fee reserve after a confirmed payout failure or transfer reversal. Verify hosted event delivery, the LKR route and frontend/Figma wiring. Add manual bank payout execution and investigate attempts without conclusive evidence."
     },
     {
       "id": "BE-049",

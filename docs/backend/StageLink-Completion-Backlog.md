@@ -62,7 +62,8 @@ A checked box marks implemented backend code. PostgreSQL integration, client wir
 - [x] P12 Audited Stripe test transfer retry after a confirmed first-submission `balance_insufficient` rejection.
 - [x] P12 Signed Stripe test transfer creation and reversal events reconcile existing attempts and recover a lost submission response when Stripe confirms the transfer.
 - [x] P12 Read-only Stripe test confirmation of transfer inclusion in a reconciled automatic LKR bank payout, with fresh failure status.
-- [ ] P12 Bank payout execution, journal and fee settlement, and investigation of attempts without conclusive Stripe evidence.
+- [x] P12 Stripe test journal and fee settlement for confirmed automatic LKR bank payouts, with compensating entries when the payout fails or the transfer reverses.
+- [ ] P12 Manual bank payout execution and investigation of attempts without conclusive Stripe evidence.
 - [x] P13 Sandbox invoice, per-capture receipt and payout reservation statement with private server-rendered PDFs.
 - [x] P13 Verified customer reviews, moderated event photos and public rating aggregates.
 - [x] P14 Serialized equipment allocation, private dispatch and return reports, correction history, comparison and stock clearance.
@@ -114,6 +115,7 @@ A checked box marks implemented backend code. PostgreSQL integration, client wir
 - [x] GitHub CI passed for retries after full Stripe test transfer reversals at `b25970b`. See [run 43928323258](https://github.com/Nezz77/StageLink-backend/actions/runs/43928323258).
 - [x] GitHub CI passed for confirmed Stripe test balance rejection recovery at `5cd50f4`. See [run 43933131668](https://github.com/Nezz77/StageLink-backend/actions/runs/43933131668).
 - [x] GitHub CI passed for signed Stripe test transfer creation and reversal events at `a5f1a97`. See [run 43954240039](https://github.com/Nezz77/StageLink-backend/actions/runs/43954240039).
+- [x] GitHub CI passed for Stripe test bank payout inclusion at `d5e43ee`. See [run 44044430909](https://github.com/Nezz77/StageLink-backend/actions/runs/44044430909).
 - [ ] Reconcile the [team frontend](https://github.com/Nezz77/StageLink) with the current backend contracts. Update the corresponding StageLink Figma screens and flows during each UI task.
 - [ ] Verify hosted model calls, signed sandbox payment callbacks, gateway reconciliation and two-account booking flows in staging.
 

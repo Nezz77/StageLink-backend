@@ -53,17 +53,17 @@ async function checkPayoutReconciliation(
     const url = new URL(input instanceof Request ? input.url : input);
     if (url.hostname !== 'api.stripe.com') return localFetch(input, init);
     assert.equal(new Headers(init?.headers).get('Authorization'), 'Bearer sk_test_transfer');
-    if (url.pathname === '/v1/payouts/po_fixture' || url.pathname === '/v1/balance_transactions') {
+    if (['/v1/payouts/po_fixture', '/v1/payouts/po_replacement', '/v1/balance_transactions'].includes(url.pathname)) {
       assert.equal(init?.method, 'GET');
       assert.equal(new Headers(init?.headers).get('Stripe-Account'), stripeId);
-      if (url.pathname === '/v1/payouts/po_fixture') {
+      if (url.pathname.startsWith('/v1/payouts/')) {
         return Response.json({
-          id: 'po_fixture', object: 'payout', livemode: false, status: bankPayoutStatus, automatic: true,
+          id: url.pathname.split('/').at(-1), object: 'payout', livemode: false, status: bankPayoutStatus, automatic: true,
           method: 'standard', type: 'bank_account', amount: 105000, currency: 'lkr',
           destination: 'ba_fixture', reconciliation_status: 'completed',
         });
       }
-      assert.equal(url.searchParams.get('payout'), 'po_fixture');
+      assert.ok(['po_fixture', 'po_replacement'].includes(url.searchParams.get('payout') ?? ''));
       assert.equal(url.searchParams.get('source'), 'py_fixture');
       return Response.json({
         object: 'list', has_more: false, data: [{
@@ -225,6 +225,10 @@ async function checkPayoutReconciliation(
     payoutId = reserved.payout.id;
     const path = base + 'admin/payouts/' + payoutId + '/stripe-transfer';
     const bankPath = path + '/bank-payout?bankPayoutId=po_fixture';
+    const settlementPath = path + '/bank-settlements';
+    const settleBank = (bankPayoutId = 'po_fixture', actor = admin) => fetch(settlementPath, {
+      method: 'POST', headers: actor.headers, body: JSON.stringify({ bankPayoutId }),
+    });
     const submit = (actor = admin, body: object = {}) => fetch(path, { method: 'POST', headers: actor.headers, body: JSON.stringify(body) });
     const webhookEvent = (type: string, reversal: number, details: object = {}) => ({
       id: 'evt_' + randomUUID().replaceAll('-', ''), object: 'event', type, livemode: false, created: Math.floor(Date.now() / 1000),
@@ -445,6 +449,44 @@ async function checkPayoutReconciliation(
       });
       assert.deepEqual(await deps.db.stripePayoutTransfer.findUniqueOrThrow({ where: { id: saved.id }, include: { journal: true } }), stored);
       assert.equal(await postedBalance(deps.db, reserved.account.id), 5000n);
+
+      bankPayoutStatus = 'paid';
+      assert.equal((await settleBank('po_fixture', provider)).status, 403);
+      assert.equal((await settleBank()).status, 409);
+      await deps.db.bookingPayoutHold.create({ data: {
+        bookingId, revision: ++holdRevision, held: false, reason: 'Bank payout ready for review.', actorId: admin.id, createdAt: now,
+      } });
+      const settledResponses = await Promise.all([settleBank(), settleBank()]);
+      assert.ok(settledResponses.every(result => result.status === 200));
+      const [firstSettlement, duplicateSettlement] = await Promise.all(settledResponses.map(result => result.json()));
+      assert.deepEqual(firstSettlement, duplicateSettlement);
+      assert.equal(firstSettlement.settlement.state, 'settled');
+      assert.equal(firstSettlement.settlement.balanceTransactionId, 'txn_fixture');
+      assert.equal(await postedBalance(deps.db, reserved.account.id), 0n);
+      const ledger = await deps.db.journalEntry.findMany({
+        where: { transactionId: firstSettlement.settlement.journalId }, include: { account: true },
+      });
+      assert.deepEqual(Object.fromEntries(ledger.map(entry => [entry.account.scope, entry.amountMinor])), {
+        'gateway:stripe:test': -95000n, 'gateway:stripe:test:bank': 95000n, 'platform:stripe:test:fees': 5000n,
+        ['sandbox:payout:' + payoutId]: -5000n,
+      });
+      assert.equal((await settleBank('po_replacement')).status, 409);
+      bankPayoutStatus = 'failed';
+      const failed = await (await settleBank()).json();
+      assert.equal(failed.settlement.state, 'review_required');
+      assert.equal(failed.settlement.reviewReason, 'bank_payout_failed');
+      assert.equal(failed.settlement.reviewActorId, admin.id);
+      assert.ok(failed.settlement.reversalJournalId);
+      assert.deepEqual(await (await settleBank()).json(), failed);
+      assert.equal(await postedBalance(deps.db, reserved.account.id), 5000n);
+      const compensating = await deps.db.journalEntry.findMany({ where: { transactionId: failed.settlement.reversalJournalId } });
+      assert.deepEqual(Object.fromEntries(compensating.map(entry => [entry.accountId, entry.amountMinor])),
+        Object.fromEntries(ledger.map(entry => [entry.accountId, -entry.amountMinor])));
+      bankPayoutStatus = 'paid';
+      assert.deepEqual((await (await settleBank()).json()).settlement, failed.settlement);
+      const replacement = await (await settleBank('po_replacement')).json();
+      assert.equal(replacement.settlement.state, 'settled');
+      assert.equal(await postedBalance(deps.db, reserved.account.id), 0n);
     }
 
     reversedMinor = 1000;
@@ -452,6 +494,13 @@ async function checkPayoutReconciliation(
     assert.equal(partial.state, 'review_required');
     assert.equal(partial.reversedMinor, 1000);
     assert.equal(await postedBalance(deps.db, reserved.account.id), 6000n);
+    if (!initialReversedMinor) {
+      const { settlements } = await (await fetch(settlementPath, admin)).json();
+      assert.equal(settlements.length, 2);
+      const reversedBank = settlements.find((row: { bankPayoutId: string }) => row.bankPayoutId === 'po_replacement');
+      assert.equal(reversedBank.reviewReason, 'transfer_reversed');
+      assert.ok(reversedBank.reversalJournalId);
+    }
     assert.equal((await (await authorize(partial.id)).json()).code, 'STRIPE_RETRY_NOT_ELIGIBLE');
 
     assert.equal((await (await submit(admin, { reconcileOnly: true })).json()).reversedMinor, 1000);
@@ -531,6 +580,7 @@ async function checkPayoutReconciliation(
     release();
     try {
       if (payoutId) {
+        await deps.db.stripeBankPayoutSettlement.deleteMany({ where: { transfer: { payoutId } } });
         await deps.db.stripePayoutTransferEvent.deleteMany({ where: { transfer: { payoutId } } });
         await deps.db.stripePayoutTransfer.deleteMany({ where: { payoutId } });
         await deps.db.payoutDestinationRepair.deleteMany({ where: { payoutId } });
