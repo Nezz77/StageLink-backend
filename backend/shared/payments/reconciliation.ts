@@ -8,7 +8,7 @@ export const providerStatus = z.enum([
 ]);
 
 type ProviderStatus = z.infer<typeof providerStatus>;
-type Observation = { status: ProviderStatus; paymentReference?: string; paymentIntentId?: string };
+type Observation = { status: ProviderStatus; paymentReference?: string; paymentIntentId?: string; payHereCardPayment?: true };
 
 export function assessPayment(
   localStatus: PaymentOrderStatus, captured: boolean, localReference: string | null, observation: Observation,
@@ -78,11 +78,17 @@ const payHereStatus = {
   CHARGEBACKED: 'chargeback',
 } as const;
 const payHereReference = z.union([z.string().regex(/^\d{1,120}$/), z.number().int().positive()]).transform(String);
+const payHereCard = z.object({
+  method: z.string().trim().toUpperCase().pipe(
+    z.enum(['VISA', 'MASTER', 'MASTERCARD', 'AMEX', 'AMERICAN EXPRESS', 'DISCOVER', 'DINERS', 'DINERS CLUB']),
+  ),
+});
 const payHerePayment = z.object({
   payment_id: payHereReference,
   order_id: z.string(), currency: z.literal('LKR'),
   amount: z.union([z.string(), z.number()]).transform(String).pipe(z.string().regex(/^\d{1,10}(\.\d{1,2})?$/)),
   status: z.enum(['RECEIVED', 'REFUND REQUESTED', 'REFUND PROCESSING', 'REFUNDED', 'CHARGEBACKED']),
+  payment_method: z.unknown().optional(),
 });
 
 export function makePayHereSandboxClient(appId: string | undefined, appSecret: string | undefined, send = fetch) {
@@ -134,7 +140,10 @@ export function makePayHereSandboxClient(appId: string | undefined, appSecret: s
       if (!payment.success || payment.data.order_id !== attempt.id) return { status: 'mismatch' };
       const [units, cents = ''] = payment.data.amount.split('.');
       if (Number(units) * 100 + Number(cents.padEnd(2, '0')) !== attempt.amountMinor) return { status: 'mismatch' };
-      return { status: payHereStatus[payment.data.status], paymentReference: payment.data.payment_id };
+      return {
+        status: payHereStatus[payment.data.status], paymentReference: payment.data.payment_id,
+        ...(payHereCard.safeParse(payment.data.payment_method).success ? { payHereCardPayment: true } : {}),
+      };
     } catch {
       return { status: 'unavailable' };
     }

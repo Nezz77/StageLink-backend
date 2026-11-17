@@ -136,7 +136,11 @@ For a resolved rental damage claim with a captured Stripe test deposit, use `POS
 
 Enable `PAYHERE_SANDBOX_REFUND_EXECUTION=true` with the sandbox Merchant API credentials. A verified administrator with a recent sign-in sends `{}` to `POST /api/v1/admin/refund-requests/:id/items/:orderId/payhere-execution` with the standard origin and CSRF headers. StageLink ties the reserved amount to one captured PayHere payment with fresh retrieval evidence and submits a full refund. Successful submission records the provider refund number and leaves the reservation pending. Repeat the `POST` to reconcile it. A confirmed refunded payment consumes the reservation once and posts the settlement. Use `GET` on the same path to read local execution status.
 
-A lost or ambiguous submission response retains the reservation for manual review. Repeating the request returns its saved state. Partial refunds for deposit claims and arbitration remain in the backlog. [PayHere Refund API](https://support.payhere.lk/api-%26-mobile-sdk/refund-api) · [PayHere Retrieval API](https://support.payhere.lk/api-%26-mobile-sdk/retrieval-api)
+A lost or ambiguous submission response retains the reservation for manual review. Repeating the request returns its saved state. [PayHere Refund API](https://support.payhere.lk/api-%26-mobile-sdk/refund-api) · [PayHere Retrieval API](https://support.payhere.lk/api-%26-mobile-sdk/retrieval-api)
+
+For a resolved rental deposit claim with a zero deduction, use `POST /api/v1/admin/damage-claims/:id/payhere-refund` with the same `{}` body and administrator checks. StageLink requires authenticated evidence of the matching LKR card payment. Once PayHere reports the payment as refunded, repeating the `POST` settles the customer reserve. Use `GET` on the same path to check execution. Booking participants can read `payHereRefundState` at `GET /api/v1/bookings/:id/damage-claim`.
+
+Partial deposit refunds need hosted confirmation of both provider support and evidence of the exact refunded amount. PayHere’s Refund API shows an amount parameter, while its refund guide describes full refunds and its Retrieval API reports payment status. [PayHere Refund API](https://support.payhere.lk/api-%26-mobile-sdk/refund-api) · [PayHere Refund Process](https://support.payhere.lk/refund-process) · [PayHere Retrieval API](https://support.payhere.lk/api-%26-mobile-sdk/retrieval-api)
 
 ## Payout reservations
 

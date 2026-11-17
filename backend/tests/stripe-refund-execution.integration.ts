@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { createHmac, randomUUID } from 'node:crypto';
 import { test } from 'node:test';
 import { SignJWT } from 'jose';
 import { createApp } from '../api/src/app.js';
@@ -26,8 +26,12 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
   const damageRefundMinor = 120001;
   let payHereAttemptId: string | undefined;
   let payHereSubmissions = 0;
+  let payHereReads = 0;
   let payHereStatus = 'RECEIVED';
+  let payHereMethod: string | undefined;
   const paymentId = '320025071278';
+  let activePayHerePaymentId = paymentId;
+  let providerRefundId = 560034010257;
   let release!: () => void;
   let sent!: () => void;
   const awaitResponse = new Promise<void>(resolve => { release = resolve; });
@@ -41,18 +45,20 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
       });
       assert.equal(new Headers(init?.headers).get('Authorization'), 'Bearer fixture-token');
       if (url.pathname.endsWith('/payment/search')) {
+        payHereReads++;
         assert.equal(url.searchParams.get('order_id'), payHereAttemptId);
         return Response.json({ status: 1, data: [{
-          payment_id: paymentId, order_id: payHereAttemptId, currency: 'LKR', amount: '1500.01', status: payHereStatus,
+          payment_id: activePayHerePaymentId, order_id: payHereAttemptId, currency: 'LKR', amount: '1500.01', status: payHereStatus,
+          payment_method: payHereMethod ? { method: payHereMethod } : undefined,
         }] });
       }
       assert.equal(url.pathname, '/merchant/v1/payment/refund');
       assert.equal(init?.method, 'POST');
       const request = JSON.parse(String(init?.body));
       assert.deepEqual(Object.keys(request).sort(), ['description', 'payment_id']);
-      assert.equal(request.payment_id, paymentId);
+      assert.equal(request.payment_id, activePayHerePaymentId);
       payHereSubmissions++;
-      return Response.json({ status: 1, data: 560034010257 });
+      return Response.json({ status: 1, data: providerRefundId });
     }
     if (url.hostname !== 'api.stripe.com') return localFetch(input, init);
     if (url.pathname.startsWith('/v1/checkout/sessions/')) {
@@ -141,18 +147,23 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
       });
     }
 
+    async function payHereCapture(tx: Parameters<typeof recordCapture>[0], order: Parameters<typeof recordCapture>[1], capturedPaymentId: string) {
+      const attempt = await tx.payHereAttempt.create({ data: {
+        orderId: order.id, createdAt: new Date(), expiresAt: new Date(Date.now() + 60_000),
+      } });
+      const journalId = await recordCapture(tx, order, 'payhere', attempt.id, 'paid', new Date());
+      await tx.payHereEvent.create({ data: { attemptId: attempt.id, statusCode: '2', reportedPaymentId: capturedPaymentId, journalId } });
+      payHereAttemptId = attempt.id;
+      activePayHerePaymentId = capturedPaymentId;
+    }
+
     async function reserve(purpose: 'advance' | 'deposit' | 'balance', gateway: 'stripe' | 'payhere' = 'stripe') {
       return deps.db.$transaction(async tx => {
         const order = await tx.paymentOrder.create({ data: { bookingId: booking.id, purpose, amountMinor: 150001, status: 'paid' } });
         if (gateway === 'stripe') {
           await stripeCapture(tx, order, purpose === 'advance' ? 'pi_service' : 'pi_deposit');
         } else {
-          const attempt = await tx.payHereAttempt.create({ data: {
-            orderId: order.id, createdAt: new Date(), expiresAt: new Date(Date.now() + 60_000),
-          } });
-          payHereAttemptId = attempt.id;
-          const journalId = await recordCapture(tx, order, 'payhere', attempt.id, 'paid', new Date());
-          await tx.payHereEvent.create({ data: { attemptId: attempt.id, statusCode: '2', reportedPaymentId: paymentId, journalId } });
+          await payHereCapture(tx, order, paymentId);
         }
         const fund = { currency: 'LKR', purpose: purpose === 'deposit' ? 'deposit' as const : 'service' as const };
         const available = await openAccount(tx, { ...fund, scope: 'sandbox:booking:' + booking.id, kind: 'available' });
@@ -247,52 +258,61 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
     assert.equal(completedPayHere.settlement?.source, 'payhere.sandbox.refund.settle');
 
     const renter = await fixture('renter');
-    const rental = await deps.db.booking.create({ data: {
-      customerId: customer.id, providerId: renter.id, requestKey: randomUUID(), requestDigest: '0'.repeat(64),
-      targetKind: 'rental', targetId: randomUUID(), targetVersion: 1, startsAt, holdExpiresAt: startsAt,
-      endsAt: new Date(startsAt.getTime() + 3600_000), snapshot: {},
-    } });
-    bookingIds.push(rental.id);
-    const deductionMinor = 30000;
-    const claim = await deps.db.$transaction(async tx => {
-      const order = await tx.paymentOrder.create({ data: {
-        bookingId: rental.id, purpose: 'deposit', amountMinor: damageRefundMinor + deductionMinor, status: 'paid',
+    async function createDamageClaim(deductionMinor: number, capturedPaymentId?: string) {
+      const rental = await deps.db.booking.create({ data: {
+        customerId: customer.id, providerId: renter.id, requestKey: randomUUID(), requestDigest: '0'.repeat(64),
+        targetKind: 'rental', targetId: randomUUID(), targetVersion: 1, startsAt, holdExpiresAt: startsAt,
+        endsAt: new Date(startsAt.getTime() + 3600_000), snapshot: {},
       } });
-      await stripeCapture(tx, order, 'pi_damage');
-      const inspection = await tx.equipmentInspection.create({ data: {
-        bookingId: rental.id, stage: 'quarantined', revision: 2, accessories: [],
-      } });
-      await tx.equipmentInspectionReport.create({ data: {
-        inspectionId: inspection.id, revision: 2, phase: 'return', evidence: {}, submittedBy: renter.id,
-        decidedBy: customer.id, decidedAt: new Date(), decision: 'acknowledged',
-      } });
-      return tx.damageClaim.create({ data: {
-        bookingId: rental.id, inspectionId: inspection.id, reportRevision: 2, depositOrderId: order.id,
-        depositMinor: order.amountMinor, proposedMinor: deductionMinor, reason: 'Documented repair cost for the returned unit.',
-      } });
+      bookingIds.push(rental.id);
+      return deps.db.$transaction(async tx => {
+        const order = await tx.paymentOrder.create({ data: {
+          bookingId: rental.id, purpose: 'deposit', amountMinor: 150001, status: 'paid',
+        } });
+        if (capturedPaymentId) await payHereCapture(tx, order, capturedPaymentId);
+        else await stripeCapture(tx, order, 'pi_damage');
+        const inspection = await tx.equipmentInspection.create({ data: {
+          bookingId: rental.id, stage: 'quarantined', revision: 2, accessories: [],
+        } });
+        await tx.equipmentInspectionReport.create({ data: {
+          inspectionId: inspection.id, revision: 2, phase: 'return', evidence: {}, submittedBy: renter.id,
+          decidedBy: customer.id, decidedAt: new Date(), decision: 'acknowledged',
+        } });
+        return tx.damageClaim.create({ data: {
+          bookingId: rental.id, inspectionId: inspection.id, reportRevision: 2, depositOrderId: order.id,
+          depositMinor: order.amountMinor, proposedMinor: deductionMinor, reason: 'Deposit decision for the acknowledged return.',
+        } });
+      });
+    }
+    const claimPath = (claimId: string) => base + 'admin/damage-claims/' + claimId;
+    async function resolveDamageClaim(claimId: string) {
+      const acceptedClaim = await fetch(base + 'damage-claims/' + claimId + '/respond', {
+        method: 'POST', headers: customer.headers, body: JSON.stringify({ response: 'accepted' }),
+      });
+      assert.equal(acceptedClaim.status, 200);
+      const resolved = await fetch(claimPath(claimId) + '/resolve', {
+        method: 'POST', headers: admin.headers, body: JSON.stringify({ approveDeduction: true, reason: 'Approve the reviewed deposit allocation.' }),
+      });
+      assert.equal(resolved.status, 200);
+      return resolved.json();
+    }
+    const fund = { kind: 'reserved', currency: 'LKR', purpose: 'deposit' } as const;
+    const reserveAccount = (claimId: string, recipient: 'customer' | 'provider') => deps.db.financialAccount.findFirstOrThrow({
+      where: { ...fund, scope: 'sandbox:damage:' + claimId + ':' + recipient },
     });
-    const damagePath = base + 'admin/damage-claims/' + claim.id;
+
+    const deductionMinor = 30000;
+    const claim = await createDamageClaim(deductionMinor);
+    const damagePath = claimPath(claim.id);
     const executeDamage = (actor = admin) => fetch(damagePath + '/stripe-refund', { method: 'POST', headers: actor.headers, body: '{}' });
     const readDamage = () => fetch(damagePath + '/stripe-refund', admin);
     assert.equal((await executeDamage(customer)).status, 403);
     assert.equal((await (await executeDamage(old)).json()).code, 'RECENT_LOGIN_REQUIRED');
     assert.equal((await (await executeDamage()).json()).code, 'STRIPE_REFUND_NOT_ELIGIBLE');
     assert.equal((await (await readDamage()).json()).execution, null);
-    const acceptedClaim = await fetch(base + 'damage-claims/' + claim.id + '/respond', {
-      method: 'POST', headers: customer.headers, body: JSON.stringify({ response: 'accepted' }),
-    });
-    assert.equal(acceptedClaim.status, 200);
-    const resolvedClaim = await fetch(damagePath + '/resolve', {
-      method: 'POST', headers: admin.headers, body: JSON.stringify({ approveDeduction: true, reason: 'Approve the documented repair cost.' }),
-    });
-    assert.equal(resolvedClaim.status, 200);
-    assert.equal((await resolvedClaim.json()).refundMinor, damageRefundMinor);
-    const fund = { kind: 'reserved', currency: 'LKR', purpose: 'deposit' } as const;
-    const reserveAccount = (recipient: 'customer' | 'provider') => deps.db.financialAccount.findFirstOrThrow({
-      where: { ...fund, scope: 'sandbox:damage:' + claim.id + ':' + recipient },
-    });
-    const customerReserve = await reserveAccount('customer');
-    const providerReserve = await reserveAccount('provider');
+    assert.equal((await resolveDamageClaim(claim.id)).refundMinor, damageRefundMinor);
+    const customerReserve = await reserveAccount(claim.id, 'customer');
+    const providerReserve = await reserveAccount(claim.id, 'provider');
     assert.equal((await (await executeDamage()).json()).state, 'uncertain');
     assert.equal(await postedBalance(deps.db, customerReserve.id), BigInt(damageRefundMinor));
     const damageSettlement = await (await executeDamage()).json();
@@ -305,8 +325,55 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
     assert.equal(await postedBalance(deps.db, customerReserve.id), 0n);
     assert.equal(await postedBalance(deps.db, providerReserve.id), BigInt(deductionMinor));
     assert.equal((await dashboard(renter)).settled.refundedMinor, String(damageRefundMinor));
-    const participantView = await fetch(base + 'bookings/' + rental.id + '/damage-claim', customer);
+    const participantView = await fetch(base + 'bookings/' + claim.bookingId + '/damage-claim', customer);
     assert.equal((await participantView.json()).claim.stripeRefundState, 'succeeded');
+
+    // Simulate the next gateway rate-limit window after the cancellation scenario.
+    const gatewayKey = createHmac('sha256', Buffer.from(config.AUTH_JWT_SECRET, 'hex')).update('payhere').digest('hex');
+    await deps.redis.del(`${config.AUTH_RATE_PREFIX}:reconciliation-gateway:${gatewayKey}`);
+
+    const payHereClaimPath = (claimId: string) => claimPath(claimId) + '/payhere-refund';
+    const executePayHereClaim = (claimId: string, actor = admin) => fetch(payHereClaimPath(claimId), {
+      method: 'POST', headers: actor.headers, body: '{}',
+    });
+    const beforeDeposit = payHereReads;
+    const partial = await createDamageClaim(deductionMinor, '320025071279');
+    assert.equal((await resolveDamageClaim(partial.id)).refundMinor, damageRefundMinor);
+    assert.equal((await (await executePayHereClaim(partial.id)).json()).code, 'PAYHERE_PARTIAL_REFUND_UNAVAILABLE');
+    assert.equal(await postedBalance(deps.db, (await reserveAccount(partial.id, 'customer')).id), BigInt(damageRefundMinor));
+    assert.equal(await postedBalance(deps.db, (await reserveAccount(partial.id, 'provider')).id), BigInt(deductionMinor));
+    assert.equal((await (await executePayHereClaim(claim.id)).json()).code, 'PAYHERE_REFUND_NOT_ELIGIBLE');
+
+    const full = await createDamageClaim(0, '320025071280');
+    assert.equal((await executePayHereClaim(full.id, customer)).status, 403);
+    assert.equal((await (await executePayHereClaim(full.id)).json()).code, 'PAYHERE_REFUND_NOT_ELIGIBLE');
+    assert.equal(payHereReads, beforeDeposit);
+    assert.equal(payHereSubmissions, 1);
+    assert.equal((await resolveDamageClaim(full.id)).refundMinor, 150001);
+    const fullReserve = await reserveAccount(full.id, 'customer');
+    payHereStatus = 'RECEIVED';
+    payHereMethod = 'FRIMI';
+    providerRefundId = 560034010258;
+    assert.equal((await (await executePayHereClaim(full.id)).json()).code, 'PAYHERE_CARD_PAYMENT_REQUIRED');
+    assert.equal((await (await fetch(payHereClaimPath(full.id), admin)).json()).execution, null);
+    assert.equal(payHereSubmissions, 1);
+
+    payHereMethod = 'VISA';
+    const pending = await (await executePayHereClaim(full.id)).json();
+    assert.equal(pending.state, 'pending');
+    assert.equal(pending.claimId, full.id);
+    assert.equal(pending.amountMinor, 150001);
+    assert.equal(await postedBalance(deps.db, fullReserve.id), 150001n);
+    payHereStatus = 'REFUNDED';
+    const confirmed = await (await executePayHereClaim(full.id)).json();
+    assert.equal(confirmed.state, 'succeeded');
+    assert.deepEqual(await (await executePayHereClaim(full.id)).json(), confirmed);
+    assert.deepEqual((await (await fetch(payHereClaimPath(full.id), admin)).json()).execution, confirmed);
+    assert.equal(payHereSubmissions, 2);
+    assert.equal(await postedBalance(deps.db, fullReserve.id), 0n);
+    assert.equal((await dashboard(renter)).settled.refundedMinor, String(damageRefundMinor + 150001));
+    const depositView = await (await fetch(base + 'bookings/' + full.bookingId + '/damage-claim', customer)).json();
+    assert.equal(depositView.claim.payHereRefundState, 'succeeded');
   } finally {
     release();
     try {
@@ -318,6 +385,7 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
       }
       for (const bookingId of bookingIds) {
         await deps.db.stripeRefundExecution.deleteMany({ where: { damageClaim: { bookingId } } });
+        await deps.db.payHereRefundExecution.deleteMany({ where: { damageClaim: { bookingId } } });
         await deps.db.damageClaim.deleteMany({ where: { bookingId } });
         await deps.db.equipmentInspectionReport.deleteMany({ where: { inspection: { bookingId } } });
         await deps.db.equipmentInspection.deleteMany({ where: { bookingId } });

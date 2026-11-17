@@ -3,7 +3,7 @@ import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiParam, ApiTags } from '@nestj
 import { randomUUID } from 'node:crypto';
 import type { Request } from 'express';
 import { z } from 'zod';
-import type { Prisma, StripeRefundExecution } from '../../../generated/prisma/client.js';
+import type { StripeRefundExecution } from '../../../generated/prisma/client.js';
 import { observeStripe } from '../../../shared/payments/reconciliation.js';
 import { processStripeRefund } from '../../../shared/payments/stripe-refunds.js';
 import { PublicError } from '../auth/errors.js';
@@ -12,7 +12,7 @@ import { lockBooking, paymentBlocked } from '../bookings/lifecycle.js';
 import { ProfileService } from '../profiles/service.js';
 import { lockPaymentOrder } from './capture.js';
 import { parse, schema, uuid } from './orders.js';
-import { findRefundReserve, refundItem, refundOrderInclude, requireRecentIndependentAdmin, settleRefund, validApprovedRefund } from './refund-reservations.js';
+import { findRefundReserve, refundTarget, requireRecentIndependentAdmin, settleRefund, type RefundKey, type RefundTarget } from './refund-reservations.js';
 
 const empty = z.object({}).strict();
 const execution = z.object({
@@ -33,42 +33,7 @@ function notEligible() {
   return new PublicError(409, 'STRIPE_REFUND_NOT_ELIGIBLE', 'The approved Stripe refund reservation needs review.');
 }
 
-type RefundKey = { requestId: string; orderId: string } | { claimId: string };
-
-async function refundTarget(tx: Prisma.TransactionClient, key: RefundKey) {
-  if ('claimId' in key) {
-    const claim = await tx.damageClaim.findUnique({
-      where: { id: key.claimId },
-      include: {
-        booking: { select: { id: true, customerId: true, providerId: true, targetKind: true } },
-        depositOrder: { include: refundOrderInclude }, stripeExecution: true,
-      },
-    });
-    if (!claim) throw new PublicError(404, 'DAMAGE_CLAIM_NOT_FOUND', 'This deposit claim is unavailable.');
-    const order = claim.depositOrder;
-    const amountMinor = claim.refundMinor ?? 0;
-    return {
-      booking: claim.booking, order, reservationId: claim.reservationId, amountMinor, stripeExecution: claim.stripeExecution,
-      requestId: null, damageClaimId: claim.id,
-      approved: Boolean(claim.resolvedAt && claim.booking.targetKind === 'rental' && order?.purpose === 'deposit' &&
-        order.bookingId === claim.bookingId && order.currency === 'LKR' && order.amountMinor === claim.depositMinor &&
-        amountMinor > 0 && claim.deductionMinor !== null && amountMinor + claim.deductionMinor === claim.depositMinor),
-      reserve: { purpose: 'deposit' as const, source: 'deposit.sandbox.reserve', scope: 'sandbox:damage:' + claim.id + ':customer', reference: claim.id },
-    };
-  }
-  const item = await refundItem(tx, key.requestId, key.orderId);
-  return {
-    booking: { id: item.request.bookingId, ...item.request.booking }, order: item.order,
-    reservationId: item.reservationId, amountMinor: item.amountMinor, stripeExecution: item.stripeExecution,
-    requestId: item.requestId, damageClaimId: null, approved: validApprovedRefund(item),
-    reserve: {
-      purpose: item.order.purpose === 'deposit' ? 'deposit' as const : 'service' as const,
-      source: 'refund.sandbox.reserve', scope: 'sandbox:refund:' + item.requestId + ':' + item.orderId,
-    },
-  };
-}
-
-function hasValidCapture(target: Awaited<ReturnType<typeof refundTarget>>) {
+function hasValidCapture(target: RefundTarget) {
   const stripe = target.order?.stripeAttempt;
   return target.approved && !target.order?.payhereAttempt && Boolean(stripe?.sessionId && stripe.journal?.postedAt &&
     stripe.journal.source === 'stripe.test.capture' && stripe.journal.reference === stripe.sessionId);
@@ -184,7 +149,7 @@ export function makeStripeRefundExecutionController(auth: AuthService) {
     @ApiOkResponse({ schema: schema(z.object({ execution: view.nullable() })) })
     async status(@Req() req: Request, @Param('id') id: string, @Param('orderId') orderId: string) {
       await admin(req);
-      const item = await refundItem(db, parse(uuid, id), parse(uuid, orderId));
+      const item = await refundTarget(db, { requestId: parse(uuid, id), orderId: parse(uuid, orderId) });
       return { execution: item.stripeExecution ? present(item.stripeExecution) : null };
     }
 

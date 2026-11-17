@@ -29,7 +29,8 @@ const view = z.object({
   status: z.enum(['awaiting_customer', 'awaiting_admin', 'reserved', 'resolved_zero_deposit']),
 });
 const queue = z.object({ items: z.array(view), nextCursor: uuid.nullable() });
-const participantView = view.extend({ stripeRefundState: z.enum(['pending', 'uncertain', 'failed', 'succeeded']).nullable() });
+const refundState = z.enum(['pending', 'uncertain', 'failed', 'succeeded']).nullable();
+const participantView = view.extend({ stripeRefundState: refundState, payHereRefundState: refundState });
 const discrepancyEvidence = z.object({
   units: z.array(z.object({ condition: z.enum(['good', 'worn', 'damaged', 'missing']) })),
   accessories: z.array(z.boolean()),
@@ -156,11 +157,14 @@ export function makeDamageClaimsController(auth: AuthService) {
       const actor = await identity(req);
       const booking = await member(db, parse(uuid, id), actor.user.id);
       const row = await db.damageClaim.findUnique({
-        where: { bookingId: booking.id }, include: { stripeExecution: { select: { status: true } } },
+        where: { bookingId: booking.id },
+        include: { stripeExecution: { select: { status: true } }, payHereExecution: { select: { status: true } } },
       });
       if (!row) return { claim: null };
-      const { stripeExecution, ...claim } = row;
-      return { claim: { ...present(claim), stripeRefundState: stripeExecution?.status ?? null } };
+      const { stripeExecution, payHereExecution, ...claim } = row;
+      return { claim: {
+        ...present(claim), stripeRefundState: stripeExecution?.status ?? null, payHereRefundState: payHereExecution?.status ?? null,
+      } };
     }
 
     @Post('damage-claims/:id/respond')

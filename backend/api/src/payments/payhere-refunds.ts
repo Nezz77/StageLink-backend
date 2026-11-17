@@ -6,34 +6,41 @@ import type { PayHereRefundExecution } from '../../../generated/prisma/client.js
 import { makePayHereSandboxClient } from '../../../shared/payments/reconciliation.js';
 import { PublicError } from '../auth/errors.js';
 import type { AuthService } from '../auth/service.js';
-import { lockBooking } from '../bookings/lifecycle.js';
+import { lockBooking, paymentBlocked } from '../bookings/lifecycle.js';
 import { ProfileService } from '../profiles/service.js';
 import { lockPaymentOrder } from './capture.js';
 import { parse, schema, uuid } from './orders.js';
-import { refundItem, requireRecentIndependentAdmin, reservedFunds, settleRefund, validApprovedRefund, type Item } from './refund-reservations.js';
+import { findRefundReserve, refundTarget, requireRecentIndependentAdmin, settleRefund, type RefundKey, type RefundTarget } from './refund-reservations.js';
 
 const empty = z.object({}).strict();
-const view = z.object({
-  id: uuid, orderId: uuid, requestId: uuid, amountMinor: z.number().int().positive(),
+const execution = z.object({
+  id: uuid, orderId: uuid, amountMinor: z.number().int().positive(),
   state: z.enum(['pending', 'uncertain', 'failed', 'succeeded']),
   createdAt: z.iso.datetime(), updatedAt: z.iso.datetime(),
 });
+const view = execution.extend({ requestId: uuid });
+const depositView = execution.extend({ claimId: uuid });
 
 function present(row: PayHereRefundExecution) {
-  const { id, orderId, requestId, status, amountMinor, createdAt, updatedAt } = row;
-  return { id, orderId, requestId, amountMinor, state: status, createdAt: createdAt.toISOString(), updatedAt: updatedAt.toISOString() };
+  const { id, orderId, requestId, damageClaimId, status, amountMinor, createdAt, updatedAt } = row;
+  return { id, orderId, ...(damageClaimId ? { claimId: damageClaimId } : { requestId }), amountMinor,
+    state: status, createdAt: createdAt.toISOString(), updatedAt: updatedAt.toISOString() };
 }
 
 function notEligible() {
   return new PublicError(409, 'PAYHERE_REFUND_NOT_ELIGIBLE', 'The approved PayHere refund reservation needs review.');
 }
 
-function capture(item: Item) {
-  const payHere = item.order.payhereAttempt;
-  const event = payHere?.events[0];
-  if (!validApprovedRefund(item) || item.order.stripeAttempt || !payHere || !event?.journal?.postedAt ||
-    event.journal.source !== 'payhere.sandbox.capture' || event.journal.reference !== payHere.id) throw notEligible();
-  return { attemptId: payHere.id, paymentId: event.reportedPaymentId };
+function capture(target: RefundTarget) {
+  const order = target.order;
+  const attempt = order?.payhereAttempt;
+  const event = attempt?.events[0];
+  if (!target.approved || !order || order.stripeAttempt || !attempt || !event?.journal?.postedAt ||
+    event.journal.source !== 'payhere.sandbox.capture' || event.journal.reference !== attempt.id) throw notEligible();
+  if (target.amountMinor !== order.amountMinor) {
+    throw new PublicError(409, 'PAYHERE_PARTIAL_REFUND_UNAVAILABLE', 'This PayHere deposit refund needs a separate review because the approved amount is partial.');
+  }
+  return { order, attemptId: attempt.id, paymentId: event.reportedPaymentId };
 }
 
 export function makePayHereRefundExecutionController(auth: AuthService) {
@@ -49,95 +56,120 @@ export function makePayHereRefundExecutionController(auth: AuthService) {
     return actor;
   }
 
+  async function runRefund(req: Request, body: unknown, locate: () => RefundKey) {
+    if (req.get('Origin') !== config.WEB_ORIGIN || req.get('Sec-Fetch-Site') === 'cross-site' || !req.is('application/json')) {
+      throw new PublicError(403, 'ORIGIN_REJECTED', 'Open StageLink in its own browser tab and try again.');
+    }
+    const actor = await admin(req);
+    profiles.checkCsrf(actor, req.get('X-CSRF-Token'));
+    parse(empty, body);
+    if (config.PAYHERE_SANDBOX_REFUND_EXECUTION !== 'true') {
+      throw new PublicError(503, 'PAYHERE_REFUNDS_DISABLED', 'PayHere sandbox refund execution is unavailable.');
+    }
+    const key = locate();
+    const source = await refundTarget(db, key);
+    requireRecentIndependentAdmin(actor, source.booking);
+    const { order, attemptId, paymentId } = capture(source);
+    const prior = source.payHereExecution;
+    if (prior && prior.status !== 'pending') return present(prior);
+    if (!prior && (order.status !== 'paid' || !source.reservationId)) throw notEligible();
+
+    await auth.limits.check('reconciliation-admin', actor.user.id, 10, 60);
+    await auth.limits.check('reconciliation-gateway', 'payhere', 4, 10);
+    const observation = await payHere.observe({ id: attemptId, amountMinor: order.amountMinor });
+    if (prior && (observation.status !== 'refunded' || observation.paymentReference !== paymentId)) return present(prior);
+    if (!prior) {
+      if (observation.status !== 'captured' || observation.paymentReference !== paymentId) throw notEligible();
+      if (source.damageClaimId && !observation.payHereCardPayment) {
+        throw new PublicError(409, 'PAYHERE_CARD_PAYMENT_REQUIRED', 'PayHere must confirm a card payment for this deposit refund.');
+      }
+      await auth.limits.check('reconciliation-gateway', 'payhere', 4, 10);
+    }
+
+    const decision = await db.$transaction(async tx => {
+      const currentAdmin = await profiles.actor(tx, actor, undefined, true);
+      profiles.verified(currentAdmin);
+      await lockBooking(tx, source.booking.id);
+      await lockPaymentOrder(tx, order.id);
+      const target = await refundTarget(tx, key);
+      requireRecentIndependentAdmin(currentAdmin, target.booking);
+      const refreshed = capture(target);
+      if (!target.reservationId || target.reservationId !== source.reservationId || target.amountMinor !== source.amountMinor ||
+        refreshed.order.id !== order.id || refreshed.attemptId !== attemptId || refreshed.paymentId !== paymentId) throw notEligible();
+
+      const current = target.payHereExecution;
+      if (current && (current.id !== prior?.id || current.status !== 'pending')) return { response: present(current) };
+      const reserved = await findRefundReserve(tx, target.reservationId, target.reserve, target.amountMinor);
+      if (!reserved) throw notEligible();
+      if (current) {
+        if (current.paymentId !== paymentId || !current.providerRefundId || current.amountMinor !== target.amountMinor) throw notEligible();
+        const settlementId = await settleRefund(tx, target.booking, reserved, 'payhere', current.providerRefundId, current.id, current.amountMinor);
+        return { response: present(await tx.payHereRefundExecution.update({
+          where: { id: current.id }, data: { status: 'succeeded', settlementId, updatedAt: new Date() },
+        })) };
+      }
+
+      if (prior || refreshed.order.status !== 'paid' ||
+        (target.damageClaimId && await paymentBlocked(tx, target.booking.id, false))) throw notEligible();
+      const claim = await tx.payHereRefundExecution.createMany({
+        data: {
+          requestId: target.requestId, damageClaimId: target.damageClaimId, orderId: order.id,
+          actorId: currentAdmin.user.id, paymentId, amountMinor: target.amountMinor,
+        },
+        skipDuplicates: true,
+      });
+      if (!claim.count) throw notEligible();
+      return { row: await tx.payHereRefundExecution.findUniqueOrThrow({ where: { paymentId } }) };
+    });
+    if (decision.response) return decision.response;
+
+    // Only the administrator request that creates the execution can submit it to PayHere.
+    const submission = await payHere.refund(paymentId, decision.row.id);
+    return present(await db.payHereRefundExecution.update({
+      where: { id: decision.row.id }, data: { ...submission, updatedAt: new Date() },
+    }));
+  }
+
   @ApiTags('PayHere sandbox refund execution')
   @ApiBearerAuth()
-  @Controller('admin/refund-requests/:id/items/:orderId/payhere-execution')
+  @Controller()
   class PayHereRefundExecutionController {
-    @Get()
+    @Get('admin/refund-requests/:id/items/:orderId/payhere-execution')
     @ApiParam({ name: 'id', format: 'uuid' })
     @ApiParam({ name: 'orderId', format: 'uuid' })
     @ApiOkResponse({ schema: schema(z.object({ execution: view.nullable() })) })
-    async status(@Req() req: Request, @Param('id') rawId: string, @Param('orderId') rawOrderId: string) {
+    async status(@Req() req: Request, @Param('id') id: string, @Param('orderId') orderId: string) {
       await admin(req);
-      const item = await refundItem(db, parse(uuid, rawId), parse(uuid, rawOrderId));
-      return { execution: item.payHereExecution ? present(item.payHereExecution) : null };
+      const target = await refundTarget(db, { requestId: parse(uuid, id), orderId: parse(uuid, orderId) });
+      return { execution: target.payHereExecution ? present(target.payHereExecution) : null };
     }
 
-    @Post()
+    @Post('admin/refund-requests/:id/items/:orderId/payhere-execution')
     @HttpCode(200)
     @ApiParam({ name: 'id', format: 'uuid' })
     @ApiParam({ name: 'orderId', format: 'uuid' })
     @ApiBody({ schema: schema(empty) })
     @ApiOkResponse({ schema: schema(view) })
-    async execute(@Req() req: Request, @Param('id') rawId: string, @Param('orderId') rawOrderId: string, @Body() body: unknown) {
-      if (req.get('Origin') !== config.WEB_ORIGIN || req.get('Sec-Fetch-Site') === 'cross-site' || !req.is('application/json')) {
-        throw new PublicError(403, 'ORIGIN_REJECTED', 'Open StageLink in its own browser tab and try again.');
-      }
-      const actor = await admin(req);
-      profiles.checkCsrf(actor, req.get('X-CSRF-Token'));
-      parse(empty, body);
-      if (config.PAYHERE_SANDBOX_REFUND_EXECUTION !== 'true') {
-        throw new PublicError(503, 'PAYHERE_REFUNDS_DISABLED', 'PayHere sandbox refund execution is unavailable.');
-      }
-      const requestId = parse(uuid, rawId);
-      const orderId = parse(uuid, rawOrderId);
-      const source = await refundItem(db, requestId, orderId);
-      requireRecentIndependentAdmin(actor, source.request.booking);
-      const { attemptId, paymentId } = capture(source);
-      const prior = source.payHereExecution;
-      if (prior && prior.status !== 'pending') return present(prior);
-      if (!prior && (source.order.status !== 'paid' || !source.reservationId)) throw notEligible();
+    execute(@Req() req: Request, @Param('id') id: string, @Param('orderId') orderId: string, @Body() body: unknown) {
+      return runRefund(req, body, () => ({ requestId: parse(uuid, id), orderId: parse(uuid, orderId) }));
+    }
 
-      await auth.limits.check('reconciliation-admin', actor.user.id, 10, 60);
-      await auth.limits.check('reconciliation-gateway', 'payhere', 4, 10);
-      const observation = await payHere.observe({ id: attemptId, amountMinor: source.amountMinor });
-      if (prior && (observation.status !== 'refunded' || observation.paymentReference !== paymentId)) return present(prior);
-      if (!prior) {
-        if (observation.status !== 'captured' || observation.paymentReference !== paymentId) throw notEligible();
-        await auth.limits.check('reconciliation-gateway', 'payhere', 4, 10);
-      }
+    @Get('admin/damage-claims/:id/payhere-refund')
+    @ApiParam({ name: 'id', format: 'uuid' })
+    @ApiOkResponse({ schema: schema(z.object({ execution: depositView.nullable() })) })
+    async depositStatus(@Req() req: Request, @Param('id') id: string) {
+      await admin(req);
+      const target = await refundTarget(db, { claimId: parse(uuid, id) });
+      return { execution: target.payHereExecution ? present(target.payHereExecution) : null };
+    }
 
-      const decision = await db.$transaction(async tx => {
-        const currentAdmin = await profiles.actor(tx, actor, undefined, true);
-        profiles.verified(currentAdmin);
-        await lockBooking(tx, source.request.bookingId);
-        await lockPaymentOrder(tx, orderId);
-        const item = await refundItem(tx, requestId, orderId);
-        requireRecentIndependentAdmin(currentAdmin, item.request.booking);
-        const currentCapture = capture(item);
-        if (currentCapture.attemptId !== attemptId || currentCapture.paymentId !== paymentId ||
-          item.reservationId !== source.reservationId || item.amountMinor !== source.amountMinor) throw notEligible();
-
-        const current = item.payHereExecution;
-        if (current) {
-          if (current.id !== prior?.id || current.status !== 'pending') return { response: present(current) };
-          const reserved = await reservedFunds(tx, item);
-          if (!reserved || current.paymentId !== paymentId || !current.providerRefundId || current.amountMinor !== item.amountMinor) {
-            throw notEligible();
-          }
-          const settlementId = await settleRefund(
-            tx, { id: item.request.bookingId, ...item.request.booking }, reserved, 'payhere', current.providerRefundId, current.id, current.amountMinor,
-          );
-          return { response: present(await tx.payHereRefundExecution.update({
-            where: { id: current.id }, data: { status: 'succeeded', settlementId, updatedAt: new Date() },
-          })) };
-        }
-
-        if (prior || item.order.status !== 'paid' || !await reservedFunds(tx, item)) throw notEligible();
-        const claim = await tx.payHereRefundExecution.createMany({
-          data: { requestId, orderId, actorId: currentAdmin.user.id, paymentId, amountMinor: item.amountMinor },
-          skipDuplicates: true,
-        });
-        if (!claim.count) throw notEligible();
-        return { row: await tx.payHereRefundExecution.findUniqueOrThrow({ where: { requestId_orderId: { requestId, orderId } } }) };
-      });
-      if (decision.response) return decision.response;
-
-      // PayHere does not document a refund idempotency key. Only the original claim submits.
-      const submission = await payHere.refund(paymentId, decision.row.id);
-      return present(await db.payHereRefundExecution.update({
-        where: { id: decision.row.id }, data: { ...submission, updatedAt: new Date() },
-      }));
+    @Post('admin/damage-claims/:id/payhere-refund')
+    @HttpCode(200)
+    @ApiParam({ name: 'id', format: 'uuid' })
+    @ApiBody({ schema: schema(empty) })
+    @ApiOkResponse({ schema: schema(depositView) })
+    executeDeposit(@Req() req: Request, @Param('id') id: string, @Body() body: unknown) {
+      return runRefund(req, body, () => ({ claimId: parse(uuid, id) }));
     }
   }
   return PayHereRefundExecutionController;

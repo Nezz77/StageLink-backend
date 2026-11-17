@@ -4,7 +4,7 @@ import { openAccount, postedBalance, postJournal } from '../../../shared/payment
 import { PublicError } from '../auth/errors.js';
 import type { Identity } from '../auth/service.js';
 
-export const refundOrderInclude = {
+const refundOrderInclude = {
   stripeAttempt: { select: {
     id: true, sessionId: true, expiresAt: true, journalId: true,
     journal: { select: { source: true, reference: true, postedAt: true } },
@@ -22,7 +22,7 @@ const includes = {
   payHereExecution: true,
 } satisfies Prisma.RefundItemInclude;
 
-export async function refundItem(tx: Prisma.TransactionClient, requestId: string, orderId: string) {
+async function refundItem(tx: Prisma.TransactionClient, requestId: string, orderId: string) {
   const row = await tx.refundItem.findUnique({
     where: { requestId_orderId: { requestId, orderId } }, include: includes,
   });
@@ -30,21 +30,47 @@ export async function refundItem(tx: Prisma.TransactionClient, requestId: string
   return row;
 }
 
-export type Item = Awaited<ReturnType<typeof refundItem>>;
-export type Reserved = { accountId: string; purpose: 'deposit' | 'service' };
+export type RefundKey = { requestId: string; orderId: string } | { claimId: string };
 
-export function validApprovedRefund(item: Item) {
-  return item.request.status === 'approved' && item.order.bookingId === item.request.bookingId &&
-    item.order.currency === 'LKR' && item.amountMinor === item.order.amountMinor;
+export async function refundTarget(tx: Prisma.TransactionClient, key: RefundKey) {
+  if ('claimId' in key) {
+    const claim = await tx.damageClaim.findUnique({
+      where: { id: key.claimId },
+      include: {
+        booking: { select: { id: true, customerId: true, providerId: true, targetKind: true } },
+        depositOrder: { include: refundOrderInclude }, stripeExecution: true, payHereExecution: true,
+      },
+    });
+    if (!claim) throw new PublicError(404, 'DAMAGE_CLAIM_NOT_FOUND', 'This deposit claim is unavailable.');
+    const order = claim.depositOrder;
+    const amountMinor = claim.refundMinor ?? 0;
+    return {
+      booking: claim.booking, order, reservationId: claim.reservationId, amountMinor,
+      stripeExecution: claim.stripeExecution, payHereExecution: claim.payHereExecution,
+      requestId: null, damageClaimId: claim.id,
+      approved: Boolean(claim.resolvedAt && claim.booking.targetKind === 'rental' && order?.purpose === 'deposit' &&
+        order.bookingId === claim.bookingId && order.currency === 'LKR' && order.amountMinor === claim.depositMinor &&
+        amountMinor > 0 && claim.deductionMinor !== null && amountMinor + claim.deductionMinor === claim.depositMinor),
+      reserve: { purpose: 'deposit' as const, source: 'deposit.sandbox.reserve', scope: 'sandbox:damage:' + claim.id + ':customer', reference: claim.id },
+    };
+  }
+  const item = await refundItem(tx, key.requestId, key.orderId);
+  return {
+    booking: { id: item.request.bookingId, ...item.request.booking }, order: item.order,
+    reservationId: item.reservationId, amountMinor: item.amountMinor,
+    stripeExecution: item.stripeExecution, payHereExecution: item.payHereExecution,
+    requestId: item.requestId, damageClaimId: null,
+    approved: item.request.status === 'approved' && item.order.bookingId === item.request.bookingId &&
+      item.order.currency === 'LKR' && item.amountMinor === item.order.amountMinor,
+    reserve: {
+      purpose: item.order.purpose === 'deposit' ? 'deposit' as const : 'service' as const,
+      source: 'refund.sandbox.reserve', scope: 'sandbox:refund:' + item.requestId + ':' + item.orderId,
+    },
+  };
 }
 
-export async function reservedFunds(tx: Prisma.TransactionClient, item: Item): Promise<Reserved | null> {
-  if (!item.reservationId || !validApprovedRefund(item)) return null;
-  const purpose = item.order.purpose === 'deposit' ? 'deposit' : 'service';
-  return findRefundReserve(tx, item.reservationId, {
-    purpose, source: 'refund.sandbox.reserve', scope: 'sandbox:refund:' + item.requestId + ':' + item.orderId,
-  }, item.amountMinor);
-}
+export type RefundTarget = Awaited<ReturnType<typeof refundTarget>>;
+type Reserved = { accountId: string; purpose: 'deposit' | 'service' };
 
 export async function findRefundReserve(
   tx: Prisma.TransactionClient, reservationId: string,
