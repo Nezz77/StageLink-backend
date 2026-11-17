@@ -40,6 +40,7 @@ async function checkPayoutReconciliation(
   let disputed = false;
   let cardBalanceMinor = 100000;
   let reversedMinor = 0;
+  let bankPayoutStatus = 'paid';
   let transfer: Record<string, unknown> | null = null;
   let submissions = 0;
   const idempotencyKeys = new Set<string>();
@@ -52,6 +53,26 @@ async function checkPayoutReconciliation(
     const url = new URL(input instanceof Request ? input.url : input);
     if (url.hostname !== 'api.stripe.com') return localFetch(input, init);
     assert.equal(new Headers(init?.headers).get('Authorization'), 'Bearer sk_test_transfer');
+    if (url.pathname === '/v1/payouts/po_fixture' || url.pathname === '/v1/balance_transactions') {
+      assert.equal(init?.method, 'GET');
+      assert.equal(new Headers(init?.headers).get('Stripe-Account'), stripeId);
+      if (url.pathname === '/v1/payouts/po_fixture') {
+        return Response.json({
+          id: 'po_fixture', object: 'payout', livemode: false, status: bankPayoutStatus, automatic: true,
+          method: 'standard', type: 'bank_account', amount: 105000, currency: 'lkr',
+          destination: 'ba_fixture', reconciliation_status: 'completed',
+        });
+      }
+      assert.equal(url.searchParams.get('payout'), 'po_fixture');
+      assert.equal(url.searchParams.get('source'), 'py_fixture');
+      return Response.json({
+        object: 'list', has_more: false, data: [{
+          id: 'txn_fixture', object: 'balance_transaction', source: 'py_fixture',
+          amount: 95000, net: 95000, currency: 'lkr', status: 'available',
+        }],
+      });
+    }
+    assert.equal(new Headers(init?.headers).get('Stripe-Account'), null);
     if (url.pathname === '/v1/account' || url.pathname === '/v1/accounts/' + stripeId) {
       return Response.json({
         object: 'account', id: url.pathname === '/v1/account' ? platformAccountId : stripeId, country: 'US',
@@ -96,7 +117,7 @@ async function checkPayoutReconciliation(
       }
       transfer = {
         id: 'tr_' + executionId.replaceAll('-', ''), object: 'transfer', amount: 95000, currency: 'lkr',
-        destination: stripeId, transfer_group: body.get('transfer_group'), livemode: false,
+        destination: stripeId, destination_payment: 'py_fixture', transfer_group: body.get('transfer_group'), livemode: false,
         metadata: { stagelink_payout_transfer: executionId }, reversed: false, amount_reversed: 0,
       };
       if (submissions > 1) return Response.json(transfer);
@@ -203,6 +224,7 @@ async function checkPayoutReconciliation(
     });
     payoutId = reserved.payout.id;
     const path = base + 'admin/payouts/' + payoutId + '/stripe-transfer';
+    const bankPath = path + '/bank-payout?bankPayoutId=po_fixture';
     const submit = (actor = admin, body: object = {}) => fetch(path, { method: 'POST', headers: actor.headers, body: JSON.stringify(body) });
     const webhookEvent = (type: string, reversal: number, details: object = {}) => ({
       id: 'evt_' + randomUUID().replaceAll('-', ''), object: 'event', type, livemode: false, created: Math.floor(Date.now() / 1000),
@@ -383,6 +405,7 @@ async function checkPayoutReconciliation(
     const uncertain = firstOutcome;
     assert.equal(uncertain.state, 'uncertain');
     assert.equal((await (await authorize(uncertain.id)).json()).code, 'STRIPE_RETRY_NOT_ELIGIBLE');
+    assert.equal((await fetch(bankPath, admin)).status, 409);
 
     reversedMinor = initialReversedMinor;
     const reconciliation = await submit(admin, { reconcileOnly: true });
@@ -406,6 +429,23 @@ async function checkPayoutReconciliation(
     assert.deepEqual(await (await submit()).json(), saved);
     const stored = await deps.db.stripePayoutTransfer.findUniqueOrThrow({ where: { id: saved.id }, include: { journal: true } });
     assert.equal(stored.journal?.source, 'stripe.test.payout.transfer');
+    if (!initialReversedMinor) {
+      assert.equal((await fetch(bankPath, provider)).status, 403);
+      assert.equal((await fetch(path + '/bank-payout?bankPayoutId=tr_fixture', admin)).status, 400);
+      const included = await fetch(bankPath, admin);
+      assert.equal(included.status, 200);
+      assert.equal(included.headers.get('cache-control'), 'no-store');
+      const reference = { transferId: saved.id, bankPayoutId: 'po_fixture' };
+      assert.deepEqual(await included.json(), {
+        ...reference, status: 'included', balanceTransactionId: 'txn_fixture', stripePayoutStatus: 'paid',
+      });
+      bankPayoutStatus = 'failed';
+      assert.deepEqual(await (await fetch(bankPath, admin)).json(), {
+        ...reference, status: 'review_required', balanceTransactionId: null, stripePayoutStatus: 'failed',
+      });
+      assert.deepEqual(await deps.db.stripePayoutTransfer.findUniqueOrThrow({ where: { id: saved.id }, include: { journal: true } }), stored);
+      assert.equal(await postedBalance(deps.db, reserved.account.id), 5000n);
+    }
 
     reversedMinor = 1000;
     const partial = await (await submit(admin, { reconcileOnly: true })).json();

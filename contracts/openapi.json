@@ -49558,6 +49558,98 @@
         ]
       }
     },
+    "/api/v1/admin/payouts/{id}/stripe-transfer/bank-payout": {
+      "get": {
+        "operationId": "StripePayoutTransfersController_bankPayout",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "bankPayoutId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "included",
+                        "not_included",
+                        "pending",
+                        "review_required",
+                        "unsupported",
+                        "unavailable"
+                      ]
+                    },
+                    "stripePayoutStatus": {
+                      "nullable": true,
+                      "type": "string",
+                      "enum": [
+                        "pending",
+                        "in_transit",
+                        "paid",
+                        "failed",
+                        "canceled"
+                      ]
+                    },
+                    "balanceTransactionId": {
+                      "nullable": true,
+                      "type": "string",
+                      "maxLength": 150,
+                      "pattern": "^txn_[A-Za-z0-9_]+$"
+                    },
+                    "transferId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "bankPayoutId": {
+                      "type": "string",
+                      "maxLength": 150,
+                      "pattern": "^po_[A-Za-z0-9_]+$"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "stripePayoutStatus",
+                    "balanceTransactionId",
+                    "transferId",
+                    "bankPayoutId"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Stripe test payout transfers"
+        ]
+      }
+    },
     "/api/v1/admin/payouts/{id}/stripe-transfer/attempts": {
       "get": {
         "operationId": "StripePayoutTransfersController_attempts",

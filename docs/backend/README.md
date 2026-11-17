@@ -174,6 +174,12 @@ An independent verified administrator can send `{transferId, reason}` to `POST /
 
 To begin a new attempt, send `{retryOfTransferId}` to the transfer endpoint using the approved transfer's ID. Use the same body to retry an uncertain response for that new attempt. A new attempt uses a new Stripe idempotency key and rechecks the current destination, captures, holds and reserve. An empty body returns the latest state after retry approval. Partial reversals and unresolved submissions remain held for review. Hosted LKR verification and bank payout execution remain open.
 
+#### Stripe test bank payout confirmation
+
+A verified administrator can use `GET /api/v1/admin/payouts/:id/stripe-transfer/bank-payout?bankPayoutId=po_…` to check the latest recorded unreversed transfer against a specific automatic standard LKR bank payout. StageLink retrieves the transfer with the platform test key, then checks the payout and its balance transactions on the linked connected account. `included` means Stripe currently reports the payout as paid and lists the transfer's exact full LKR credit among its reconciled balance transactions. The response may identify one transfer within a larger payout batch. [Stripe connected-account requests](https://docs.stripe.com/connect/authentication) · [Stripe payout balance transactions](https://docs.stripe.com/api/balance_transactions/list)
+
+The check returns the current Stripe payout state on each request. A later failure returns `review_required`, and reconciliation still in progress returns `pending`. The endpoint reads Stripe and leaves journal and fee settlement to their existing workflows. Hosted verification still needs a configured Stripe test platform and a supported LKR payout route. [Stripe payout statuses](https://docs.stripe.com/api/payouts/object)
+
 ## Booking documents
 
 List documents at `GET /api/v1/bookings/:id/documents`, preview a snapshot at `GET /api/v1/documents/:id`, and download the worker-rendered PDF at `GET /api/v1/documents/:id/download`. The worker must be running with access to the private object store. A failed render can be queued again with `POST /api/v1/documents/:id/render-retry`.

@@ -181,3 +181,5 @@ P12 adds audited retry authorization after a fully reversed Stripe test transfer
 P12 now records a definite first-submission Stripe test balance rejection with its provider request ID. The full reserve remains available for an audited retry. An uncertain transfer keeps its existing idempotency key and reconciliation flow.
 
 P12 reconciles existing Stripe test payout attempts from signed platform transfer events. The webhook confirms the Stripe object and platform, then records each event with the same journal logic as administrator reconciliation. Duplicate deliveries and older reversal totals preserve the posted balance.
+
+P12 adds an administrator read to match a recorded transfer's exact connected-account balance credit to a paid automatic LKR bank payout. The check reports pending reconciliation and later payout failures. Bank payout execution and financial posting remain open.

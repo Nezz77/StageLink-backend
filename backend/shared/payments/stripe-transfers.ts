@@ -4,6 +4,7 @@ import { stripeAccountId } from './stripe-capabilities.js';
 
 const stripe = 'https://api.stripe.com/v1/';
 const transferId = z.string().max(150).regex(/^tr_[A-Za-z0-9_]+$/);
+const destinationPayment = z.object({ destination_payment: z.string().max(150).regex(/^py_[A-Za-z0-9_]+$/) });
 export const stripeTransferReference = z.object({
   id: transferId, object: z.literal('transfer'), metadata: z.object({ stagelink_payout_transfer: z.uuid() }),
 });
@@ -75,11 +76,22 @@ export function matchStripePayoutTransfer(raw: unknown, expected: Transfer): Con
   return { id: data.id, reversedMinor: data.amount_reversed };
 }
 
-export async function retrieveStripePayoutTransfer(key: string, expected: Transfer & { providerTransferId: string }, send = fetch) {
-  if (!transferId.safeParse(expected.providerTransferId).success) return null;
+async function retrieveTransferObject(key: string, providerTransferId: string, send: typeof fetch) {
+  if (!transferId.safeParse(providerTransferId).success) return null;
   try {
-    return matchStripePayoutTransfer(await get(key, 'transfers/' + expected.providerTransferId, send), expected);
+    return await get(key, 'transfers/' + providerTransferId, send);
   } catch { return null; }
+}
+
+export async function retrieveStripePayoutTransfer(key: string, expected: Transfer & { providerTransferId: string }, send = fetch) {
+  return matchStripePayoutTransfer(await retrieveTransferObject(key, expected.providerTransferId, send), expected);
+}
+
+export async function retrieveStripePayoutTransferPayment(key: string, expected: Transfer & { providerTransferId: string }, send = fetch) {
+  const raw = await retrieveTransferObject(key, expected.providerTransferId, send);
+  const confirmed = matchStripePayoutTransfer(raw, expected);
+  const payment = destinationPayment.safeParse(raw);
+  return confirmed && payment.success ? { ...confirmed, paymentId: payment.data.destination_payment } : null;
 }
 
 export async function processStripePayoutTransfer(

@@ -1717,7 +1717,7 @@
       "ui_coverage_ids": [
         "UI-038"
       ],
-      "remaining": "Signed Stripe test transfer creation and reversal events reconcile existing attempts when Stripe confirms the transfer. Administrators can repair a stale payout destination and authorize a retry after a confirmed balance rejection or full reversal. Verify hosted event delivery, the LKR route and frontend/Figma wiring. Add bank payout confirmation and fee settlement. Investigate attempts without conclusive Stripe evidence."
+      "remaining": "Signed Stripe test transfer events reconcile existing attempts. Administrators can check whether Stripe included the linked transfer in a paid, reconciled automatic LKR bank payout. Verify hosted event delivery, the LKR route and frontend/Figma wiring. Add bank payout execution, journal and fee settlement. Investigate attempts without conclusive Stripe evidence."
     },
     {
       "id": "BE-049",

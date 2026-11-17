@@ -1,10 +1,11 @@
-import { Body, Controller, Get, HttpCode, Param, Post, Req } from '@nestjs/common';
-import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiParam, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, Header, HttpCode, Param, Post, Query, Req } from '@nestjs/common';
+import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { randomUUID } from 'node:crypto';
 import type { Request } from 'express';
 import { z } from 'zod';
 import type { Prisma, StripePayoutTransfer } from '../../../generated/prisma/client.js';
 import { postedBalance } from '../../../shared/payments/journal.js';
+import { checkStripeBankPayout, stripeBankPayoutEvidence, stripeBankPayoutId } from '../../../shared/payments/stripe-bank-payouts.js';
 import { readStripeTestAccounts } from '../../../shared/payments/stripe-capabilities.js';
 import { processStripePayoutTransfer, stripeTransferRejection, verifyStripeTransferCapture } from '../../../shared/payments/stripe-transfers.js';
 import { PublicError } from '../auth/errors.js';
@@ -178,6 +179,36 @@ export function makeStripePayoutTransfersController(auth: AuthService) {
       const payout = await loadPayout(db, parse(uuid, rawId));
       const latest = payout.stripeTransfers[0];
       return { transfer: latest ? present(latest) : null };
+    }
+
+    @Get('bank-payout')
+    @Header('Cache-Control', 'no-store')
+    @ApiParam({ name: 'id', format: 'uuid' })
+    @ApiQuery({ name: 'bankPayoutId', type: String })
+    @ApiOkResponse({ schema: schema(stripeBankPayoutEvidence.extend({ transferId: uuid, bankPayoutId: stripeBankPayoutId })) })
+    async bankPayout(@Req() req: Request, @Param('id') rawId: string, @Query('bankPayoutId') rawBankPayoutId: unknown) {
+      const actor = await admin(req);
+      const bankPayoutId = parse(stripeBankPayoutId, rawBankPayoutId);
+      const payout = await loadPayout(db, parse(uuid, rawId));
+      const attempt = payout.stripeTransfers[0];
+      if (!attempt?.providerTransferId || !attempt.journalId || attempt.status !== 'transferred' || attempt.reversedMinor !== 0) {
+        throw new PublicError(409, 'STRIPE_BANK_PAYOUT_NOT_ELIGIBLE', 'A recorded, unreversed Stripe transfer is required.');
+      }
+      const key = config.STRIPE_TEST_SECRET_KEY;
+      if (!key) throw new PublicError(503, 'STRIPE_TRANSFERS_DISABLED', 'Stripe test transfer verification is unavailable.');
+      await auth.limits.check('stripe-bank-payout-admin', actor.user.id, 10, 60);
+      await auth.limits.check('stripe-bank-payout-shared', 'shared', 20, 60);
+      const evidence = await checkStripeBankPayout(key, {
+        id: attempt.id, amountMinor: attempt.amountMinor, providerTransferId: attempt.providerTransferId,
+        stripeAccountId: attempt.destination.stripeAccountId, platformAccountId: attempt.destination.platformAccountId,
+      }, bankPayoutId);
+      if (evidence.status === 'included') {
+        const current = (await loadPayout(db, payout.id)).stripeTransfers[0];
+        if (current?.id !== attempt.id || current.status !== 'transferred' || current.reversedMinor !== 0) {
+          return { transferId: attempt.id, bankPayoutId, ...evidence, status: 'review_required', balanceTransactionId: null };
+        }
+      }
+      return { transferId: attempt.id, bankPayoutId, ...evidence };
     }
 
     @Get('attempts')

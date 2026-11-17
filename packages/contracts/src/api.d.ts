@@ -3237,6 +3237,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/payouts/{id}/stripe-transfer/bank-payout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["StripePayoutTransfersController_bankPayout"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/payouts/{id}/stripe-transfer/attempts": {
         parameters: {
             query?: never;
@@ -19420,6 +19436,38 @@ export interface operations {
                         createdAt: string;
                         /** Format: date-time */
                         updatedAt: string;
+                    };
+                };
+            };
+        };
+    };
+    StripePayoutTransfersController_bankPayout: {
+        parameters: {
+            query: {
+                bankPayoutId: string;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        status: "included" | "not_included" | "pending" | "review_required" | "unsupported" | "unavailable";
+                        /** @enum {string|null} */
+                        stripePayoutStatus: "pending" | "in_transit" | "paid" | "failed" | "canceled" | null;
+                        balanceTransactionId: string | null;
+                        /** Format: uuid */
+                        transferId: string;
+                        bankPayoutId: string;
                     };
                 };
             };
