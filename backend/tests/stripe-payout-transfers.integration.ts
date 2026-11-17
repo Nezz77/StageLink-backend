@@ -487,6 +487,9 @@ async function checkPayoutReconciliation(
       const replacement = await (await settleBank('po_replacement')).json();
       assert.equal(replacement.settlement.state, 'settled');
       assert.equal(await postedBalance(deps.db, reserved.account.id), 0n);
+      await deps.db.bookingPayoutHold.create({ data: {
+        bookingId, revision: ++holdRevision, held: true, reason: 'Review transfer reversal.', actorId: admin.id, createdAt: now,
+      } });
     }
 
     reversedMinor = 1000;
