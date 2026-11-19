@@ -582,6 +582,7 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
         await deps.db.bookingDocument.deleteMany({ where: { bookingId } });
         await deps.db.bookingAgreement.deleteMany({ where: { bookingId } });
         await deps.db.bookingQuotation.deleteMany({ where: { bookingId } });
+        await deps.db.bookingPayoutHold.deleteMany({ where: { bookingId } });
         await deps.db.paymentOrder.deleteMany({ where: { bookingId } });
         await deps.db.outboxEvent.deleteMany({ where: { payload: { path: ['sourceId'], equals: bookingId } } });
         await deps.db.booking.delete({ where: { id: bookingId } });
