@@ -13,7 +13,7 @@ import type { AuthService, Identity } from '../auth/service.js';
 import { lockBooking } from '../bookings/lifecycle.js';
 import { ProfileService } from '../profiles/service.js';
 import { parse, schema, uuid } from './orders.js';
-import { approvedStripeDeduction, assertPayoutProvider, payoutBlocked, payoutReservationAccount, stripePayoutCapture, stripePayoutCaptureInclude } from './payout-eligibility.js';
+import { approvedStripeArbitration, approvedStripeDeduction, assertPayoutProvider, payoutBlocked, payoutReservationAccount, stripePayoutCapture, stripePayoutCaptureInclude } from './payout-eligibility.js';
 import { reconcileBankSettlement } from './stripe-bank-payout-settlement.js';
 import { recordConfirmedStripeTransfer } from './stripe-transfer-settlement.js';
 
@@ -107,12 +107,19 @@ function requireOperator(actor: Identity, payout: Payout) {
 async function submissionEvidence(tx: Prisma.TransactionClient, payout: Payout) {
   if (payout.netMinor <= 0 || payout.providerId !== payout.booking.providerId) return null;
   const [blocked, link] = await Promise.all([
-    payoutBlocked(tx, payout.bookingId),
+    payoutBlocked(tx, payout.bookingId, payout.arbitrationId),
     tx.stripePayoutDestinationLink.findFirst({
       where: { providerId: payout.providerId, destinationRevision: payout.destinationRevision, endedAt: null },
     }),
   ]);
   if (blocked || !link) return null;
+
+  if (payout.arbitrationId) {
+    const award = await approvedStripeArbitration(tx, payout.arbitrationId, payout.bookingId);
+    if (!award || payout.netMinor !== award.decision.payoutMinor || payout.platformFeeMinor !== award.decision.feeMinor ||
+      payout.grossMinor !== award.decision.payoutMinor + award.decision.feeMinor) return null;
+    return { link, captures: award.captures };
+  }
 
   if (payout.damageClaimId) {
     const deduction = await approvedStripeDeduction(tx, payout.damageClaimId, payout.bookingId);

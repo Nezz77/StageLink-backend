@@ -3093,6 +3093,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/arbitrations/{id}/payout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["PayoutsController_reserveArbitration"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/bookings/{id}/payout-destination-repairs": {
         parameters: {
             query?: never;
@@ -3119,6 +3135,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["PayoutsController_repairDeductionDestination"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/arbitrations/{id}/payout-destination-repairs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["PayoutsController_repairArbitrationDestination"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6881,7 +6913,7 @@ export interface operations {
                         /** @enum {string} */
                         currency: "LKR";
                         /** @enum {string} */
-                        execution: "awaiting_gateway";
+                        execution: "awaiting_gateway" | "settled" | "review_required";
                         refundItems: {
                             /** Format: uuid */
                             orderId: string;
@@ -6890,6 +6922,8 @@ export interface operations {
                             /** @enum {string|null} */
                             stripeRefundState: "uncertain" | "pending" | "failed" | "succeeded" | null;
                         }[];
+                        /** Format: uuid */
+                        payoutId: string | null;
                     };
                 };
             };
@@ -16804,6 +16838,8 @@ export interface operations {
                                 destinationRevision: number;
                                 /** Format: uuid */
                                 damageClaimId?: string;
+                                /** Format: uuid */
+                                arbitrationId?: string;
                             };
                         }[];
                         /** Format: uuid */
@@ -16885,6 +16921,8 @@ export interface operations {
                             destinationRevision: number;
                             /** Format: uuid */
                             damageClaimId?: string;
+                            /** Format: uuid */
+                            arbitrationId?: string;
                         };
                     };
                 };
@@ -16963,6 +17001,8 @@ export interface operations {
                             destinationRevision: number;
                             /** Format: uuid */
                             damageClaimId?: string;
+                            /** Format: uuid */
+                            arbitrationId?: string;
                         };
                     };
                 };
@@ -18755,6 +18795,28 @@ export interface operations {
                                 /** Format: uuid */
                                 damageClaimId: string;
                             } | null;
+                            arbitrationPayout: {
+                                /** Format: uuid */
+                                id: string;
+                                /** Format: uuid */
+                                bookingId: string;
+                                /** Format: uuid */
+                                providerId: string;
+                                destinationRevision: number;
+                                /** Format: date-time */
+                                createdAt: string;
+                                grossMinor: number;
+                                platformFeeMinor: number;
+                                netMinor: number;
+                                /** @enum {string} */
+                                currency: "LKR";
+                                /** @enum {string} */
+                                status: "reserved" | "review_required";
+                                /** @enum {string|null} */
+                                stripeTransferStatus: "uncertain" | "transferred" | "review_required" | "rejected" | null;
+                                /** Format: uuid */
+                                arbitrationId: string;
+                            } | null;
                             /** @enum {string} */
                             currency: "LKR";
                         }[];
@@ -18843,6 +18905,28 @@ export interface operations {
                                 stripeTransferStatus: "uncertain" | "transferred" | "review_required" | "rejected" | null;
                                 /** Format: uuid */
                                 damageClaimId: string;
+                            } | null;
+                            arbitrationPayout: {
+                                /** Format: uuid */
+                                id: string;
+                                /** Format: uuid */
+                                bookingId: string;
+                                /** Format: uuid */
+                                providerId: string;
+                                destinationRevision: number;
+                                /** Format: date-time */
+                                createdAt: string;
+                                grossMinor: number;
+                                platformFeeMinor: number;
+                                netMinor: number;
+                                /** @enum {string} */
+                                currency: "LKR";
+                                /** @enum {string} */
+                                status: "reserved" | "review_required";
+                                /** @enum {string|null} */
+                                stripeTransferStatus: "uncertain" | "transferred" | "review_required" | "rejected" | null;
+                                /** Format: uuid */
+                                arbitrationId: string;
                             } | null;
                             /** @enum {string} */
                             currency: "LKR";
@@ -19025,6 +19109,54 @@ export interface operations {
             };
         };
     };
+    PayoutsController_reserveArbitration: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    destinationRevision: number;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uuid */
+                        bookingId: string;
+                        /** Format: uuid */
+                        providerId: string;
+                        destinationRevision: number;
+                        /** Format: date-time */
+                        createdAt: string;
+                        grossMinor: number;
+                        platformFeeMinor: number;
+                        netMinor: number;
+                        /** @enum {string} */
+                        currency: "LKR";
+                        /** @enum {string} */
+                        status: "reserved" | "review_required";
+                        /** @enum {string|null} */
+                        stripeTransferStatus: "uncertain" | "transferred" | "review_required" | "rejected" | null;
+                        /** Format: uuid */
+                        arbitrationId: string;
+                    };
+                };
+            };
+        };
+    };
     PayoutsController_repairDestination: {
         parameters: {
             query?: never;
@@ -19071,6 +19203,51 @@ export interface operations {
         };
     };
     PayoutsController_repairDeductionDestination: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    requestKey: string;
+                    expectedDestinationRevision: number;
+                    destinationRevision: number;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uuid */
+                        payoutId: string;
+                        /** Format: uuid */
+                        requestKey: string;
+                        previousDestinationRevision: number;
+                        destinationRevision: number;
+                        /** Format: uuid */
+                        actorId: string;
+                        reason: string;
+                        /** Format: date-time */
+                        createdAt: string;
+                    };
+                };
+            };
+        };
+    };
+    PayoutsController_repairArbitrationDestination: {
         parameters: {
             query?: never;
             header?: never;

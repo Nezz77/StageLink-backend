@@ -1116,6 +1116,7 @@ model PayoutOrder {
   id String @id @default(uuid()) @db.Uuid
   bookingId String @map("booking_id") @db.Uuid
   damageClaimId String? @unique @map("damage_claim_id") @db.Uuid
+  arbitrationId String? @unique @map("arbitration_id") @db.Uuid
   providerId String @map("provider_id") @db.Uuid
   destinationRevision Int @map("destination_revision")
   createdBy String @map("created_by") @db.Uuid
@@ -1126,6 +1127,7 @@ model PayoutOrder {
   reservationId String @unique @map("reservation_id") @db.Uuid
   booking Booking @relation(fields: [bookingId], references: [id], onDelete: Restrict)
   damageClaim DamageClaim? @relation(fields: [damageClaimId], references: [id], onDelete: Restrict)
+  arbitration ArbitrationDecision? @relation(fields: [arbitrationId], references: [id], onDelete: Restrict)
   destination PayoutDestinationVersion @relation(fields: [providerId, destinationRevision], references: [userId, revision], onDelete: Restrict, map: "payout_orders_destination_fkey")
   creator AuthUser @relation(fields: [createdBy], references: [id], onDelete: Restrict)
   reservation JournalTransaction @relation(fields: [reservationId], references: [id], onDelete: Restrict)
@@ -1732,6 +1734,7 @@ model ArbitrationDecision {
   destination PayoutDestinationVersion? @relation(fields: [providerId, destinationRevision], references: [userId, revision], onDelete: Restrict, map: "arbitration_decisions_destination_fkey")
   reservation JournalTransaction @relation(fields: [reservationId], references: [id], onDelete: Restrict)
   sources ArbitrationSource[]
+  payout PayoutOrder?
   @@map("arbitration_decisions")
 }
 

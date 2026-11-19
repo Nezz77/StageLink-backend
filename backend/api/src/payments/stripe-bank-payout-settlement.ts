@@ -47,7 +47,7 @@ export async function reconcileBankSettlement(
   }
   const reserved = await payoutReservationAccount(tx, payout);
   const fee = BigInt(payout.platformFeeMinor);
-  if (await payoutBlocked(tx, payout.bookingId) || !reserved || reserved !== transfer.reservedAccountId ||
+  if (await payoutBlocked(tx, payout.bookingId, payout.arbitrationId) || !reserved || reserved !== transfer.reservedAccountId ||
     transfer.amountMinor !== payout.netMinor || await postedBalance(tx, reserved) !== fee) {
     throw new PublicError(409, 'STRIPE_BANK_SETTLEMENT_NOT_ELIGIBLE', 'Review the booking hold, payment status, and payout reserve.');
   }

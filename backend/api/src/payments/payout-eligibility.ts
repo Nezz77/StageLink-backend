@@ -38,8 +38,8 @@ export async function payoutReservationAccount(tx: Prisma.TransactionClient, pay
     where: {
       transactionId: payout.reservationId, amountMinor: BigInt(payout.grossMinor),
       transaction: {
-        postedAt: { not: null }, source: payout.damageClaimId ? 'payout.sandbox.deduction.reserve' : 'payout.sandbox.reserve',
-        reference: payout.damageClaimId ?? payout.bookingId,
+        postedAt: { not: null }, source: payoutReservationSource(payout),
+        reference: payout.arbitrationId ?? payout.damageClaimId ?? payout.bookingId,
       },
       account: { scope: 'sandbox:payout:' + payout.id, kind: 'reserved', currency, purpose },
     }, select: { accountId: true },
@@ -51,9 +51,17 @@ export function payoutFund(payout: Pick<PayoutOrder, 'damageClaimId'>) {
   return { currency: 'LKR', purpose: payout.damageClaimId ? 'deposit' as const : 'service' as const };
 }
 
-export async function payoutBlocked(tx: Prisma.TransactionClient, bookingId: string) {
+export function payoutReservationSource(payout: Pick<PayoutOrder, 'damageClaimId' | 'arbitrationId'>) {
+  if (payout.arbitrationId) return 'payout.sandbox.arbitration.reserve';
+  return payout.damageClaimId ? 'payout.sandbox.deduction.reserve' : 'payout.sandbox.reserve';
+}
+
+export async function payoutBlocked(tx: Prisma.TransactionClient, bookingId: string, arbitrationId?: string | null) {
+  if (arbitrationId && !await tx.arbitrationDecision.count({
+    where: { id: arbitrationId, dispute: { bookingId, dismissedAt: null } },
+  })) return true;
   const hold = await tx.bookingPayoutHold.findFirst({ where: { bookingId }, orderBy: { revision: 'desc' }, select: { held: true } });
-  return hold?.held || await paymentBlocked(tx, bookingId);
+  return hold?.held || await paymentBlocked(tx, bookingId, !arbitrationId);
 }
 
 export const stripePayoutCaptureInclude = {
@@ -90,4 +98,32 @@ export async function approvedStripeDeduction(tx: Prisma.TransactionClient, clai
     reservationId: claim.reservationId, amountMinor: claim.deductionMinor,
     capture: { ...capture, refundMinor: claim.refundMinor, refundPaymentIntentId: refund?.paymentIntentId },
   };
+}
+
+export async function approvedStripeArbitration(tx: Prisma.TransactionClient, arbitrationId: string, bookingId: string) {
+  const decision = await tx.arbitrationDecision.findUnique({
+    where: { id: arbitrationId, dispute: { bookingId } },
+    include: {
+      dispute: { select: { id: true, dismissedAt: true, booking: { select: { providerId: true } } } },
+      sources: { orderBy: { orderId: 'asc' }, include: {
+        order: { include: stripePayoutCaptureInclude },
+        stripeExecution: { include: { settlement: { select: { source: true, reference: true, postedAt: true } } } },
+      } },
+    },
+  });
+  if (!decision || decision.dispute.dismissedAt || decision.providerId !== decision.dispute.booking.providerId ||
+    decision.payoutMinor <= 0 || decision.sources.reduce((sum, source) => sum + source.capturedMinor, 0) !== decision.heldMinor ||
+    decision.sources.reduce((sum, source) => sum + source.refundMinor, 0) !== decision.refundMinor) return null;
+  const captures = [];
+  for (const source of decision.sources) {
+    if (source.order.bookingId !== bookingId || source.order.purpose === 'deposit') return null;
+    const capture = stripePayoutCapture(source.order, source.capturedMinor);
+    if (!capture) return null;
+    const refund = source.stripeExecution;
+    if (source.refundMinor > 0 && (refund?.status !== 'succeeded' || refund.amountMinor !== source.refundMinor ||
+      !refund.settlement?.postedAt || refund.settlement.source !== 'stripe.test.refund.settle' ||
+      refund.settlement.reference !== refund.providerRefundId)) return null;
+    captures.push({ ...capture, refundMinor: source.refundMinor, refundPaymentIntentId: refund?.paymentIntentId });
+  }
+  return { decision, captures };
 }

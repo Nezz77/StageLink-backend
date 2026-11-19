@@ -21,7 +21,7 @@ const receipt = z.object({
 const settlement = z.object({
   version: z.literal(1), kind: z.literal('settlement'), issuedAt: time,
   grossMinor: minor, platformFeeMinor: minor, netMinor: minor,
-  destinationRevision: z.number().int().positive(), damageClaimId: z.uuid().optional(),
+  destinationRevision: z.number().int().positive(), damageClaimId: z.uuid().optional(), arbitrationId: z.uuid().optional(),
 });
 export const documentSnapshot = z.discriminatedUnion('kind', [invoice, receipt, settlement]);
 export async function issueDocument(
@@ -77,6 +77,7 @@ export function renderBookingDocument(record: Pick<BookingDocument, 'id' | 'kind
       break;
     case 'settlement':
       if (snapshot.damageClaimId) rows.push(['Damage claim', snapshot.damageClaimId]);
+      if (snapshot.arbitrationId) rows.push(['Arbitration decision', snapshot.arbitrationId]);
       rows.push([snapshot.damageClaimId ? 'Reserved deposit deduction' : 'Reserved service funds', amount(snapshot.grossMinor)], ['Platform fee', amount(snapshot.platformFeeMinor)],
         ['Provider net', amount(snapshot.netMinor)], ['Destination revision', String(snapshot.destinationRevision)],
         ['Settlement status', 'Funds reserved in sandbox']);

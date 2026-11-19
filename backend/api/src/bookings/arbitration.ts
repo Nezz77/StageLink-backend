@@ -35,7 +35,9 @@ const sourceView = z.object({
   orderId: uuid, capturedMinor: minor, refundMinor: minor,
   stripeRefundState: z.enum(['uncertain', 'pending', 'failed', 'succeeded']).nullable(),
 });
-const allocationDetails = allocation.extend({ refundItems: z.array(sourceView) });
+const allocationDetails = allocation.extend({
+  refundItems: z.array(sourceView), payoutId: uuid.nullable(), execution: z.enum(['awaiting_gateway', 'settled', 'review_required']),
+});
 const dispute = z.object({
   id: uuid, bookingId: uuid, openedBy: uuid, subject: z.string(), body: z.string(),
   assetIds: z.array(uuid), createdAt: timestamp, dismissedAt: timestamp.nullable(), dismissalReason: reason.nullable(),
@@ -95,7 +97,7 @@ async function eligibleFunds(tx: Prisma.TransactionClient, bookingId: string) {
         stripeAttempt: { select: { journalId: true } },
       },
     }),
-    tx.payoutOrder.findFirst({ where: { bookingId, damageClaimId: null }, select: { id: true } }),
+    tx.payoutOrder.findFirst({ where: { bookingId, damageClaimId: null, arbitrationId: null }, select: { id: true } }),
     tx.refundRequest.findUnique({ where: { bookingId }, select: { status: true } }),
   ]);
   if (!account || payout || (refund && refund.status !== 'declined') || !orders.length || orders.some(order =>
@@ -332,10 +334,26 @@ export function makeArbitrationController(auth: AuthService) {
       const userId = actor.user.id;
       const row = await db.arbitrationDecision.findFirst({
         where: { id: parse(uuid, id), ...(staff ? {} : { dispute: { booking: { OR: [{ customerId: userId }, { providerId: userId }] } } }) },
-        include: { sources: { orderBy: { orderId: 'asc' }, include: { stripeExecution: { select: { status: true } } } } },
+        include: {
+          sources: { orderBy: { orderId: 'asc' }, include: { stripeExecution: { select: { status: true } } } },
+          payout: { select: { id: true, stripeTransfers: {
+            orderBy: { attempt: 'desc' }, take: 1, select: {
+              status: true, reversedMinor: true, bankSettlements: { select: { journalId: true, reviewReason: true } },
+            },
+          } } },
+        },
       });
       if (!row) throw new PublicError(404, 'ARBITRATION_NOT_FOUND', 'This arbitration decision is unavailable.');
-      return { ...presentDecision(row), refundItems: row.sources.map(source => ({
+      const transfer = row.payout?.stripeTransfers[0];
+      const bankSettled = transfer?.bankSettlements.some(settlement => settlement.journalId && !settlement.reviewReason);
+      const refundsSettled = row.sources.every(source => source.refundMinor === 0 || source.stripeExecution?.status === 'succeeded');
+      const providerSettled = row.payoutMinor === 0 && row.feeMinor === 0 ||
+        transfer?.status === 'transferred' && transfer.reversedMinor === 0 && bankSettled;
+      const needsReview = row.sources.some(source => source.stripeExecution?.status === 'failed') ||
+        transfer?.status === 'rejected' || transfer?.status === 'review_required' ||
+        Boolean(transfer?.bankSettlements.length && !bankSettled);
+      const execution = needsReview ? 'review_required' : refundsSettled && providerSettled ? 'settled' : 'awaiting_gateway';
+      return { ...presentDecision(row), execution, payoutId: row.payout?.id ?? null, refundItems: row.sources.map(source => ({
         orderId: source.orderId, capturedMinor: source.capturedMinor, refundMinor: source.refundMinor,
         stripeRefundState: source.stripeExecution?.status ?? null,
       })) };
