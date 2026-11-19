@@ -388,7 +388,7 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
     await deps.db.verificationCase.create({ data: {
       providerId: arbitrationProvider.id, kind: 'artist', requestKey: randomUUID(), version: 1,
       subject: 'Arbitration provider identity', body: 'Verified fixture provider identity documents.',
-      status: 'approved', decidedBy: arbitrationAdmin.id, decidedAt: reviewedAt, reason: 'Independent fixture identity review.',
+      status: 'approved', createdAt: reviewedAt, decidedBy: arbitrationAdmin.id, decidedAt: reviewedAt, reason: 'Independent fixture identity review.',
     } });
 
     async function arbitration(refundMinor: number) {
