@@ -90,7 +90,7 @@ async function eligibleFunds(tx: Prisma.TransactionClient, bookingId: string) {
         stripeAttempt: { select: { journalId: true } },
       },
     }),
-    tx.payoutOrder.findUnique({ where: { bookingId }, select: { id: true } }),
+    tx.payoutOrder.findFirst({ where: { bookingId, damageClaimId: null }, select: { id: true } }),
     tx.refundRequest.findUnique({ where: { bookingId }, select: { status: true } }),
   ]);
   if (!account || payout || (refund && refund.status !== 'declined') || !orders.length || orders.some(order =>

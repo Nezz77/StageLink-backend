@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { processStripePayoutTransfer } from '../shared/payments/stripe-transfers.js';
+import { processStripePayoutTransfer, verifyStripeTransferCapture } from '../shared/payments/stripe-transfers.js';
 
 const expected = {
   id: '21ad5369-80f7-406c-a018-c2650a0f032a', amountMinor: 95000, providerTransferId: null,
@@ -12,6 +12,36 @@ const response = {
   destination: expected.stripeAccountId, transfer_group: group, metadata: { stagelink_payout_transfer: expected.id },
   reversed: false, amount_reversed: 0,
 };
+
+test('a payout capture requires the exact approved refunded total and matching payment intent', async () => {
+  const capture = { id: expected.id, sessionId: 'cs_test_fixture', amountMinor: 150000, expiresAt: new Date(1800000000000) };
+  let refundedMinor = 0;
+  const send: typeof fetch = async url => {
+    if (String(url).includes('/checkout/sessions/')) return Response.json({
+      id: capture.sessionId, object: 'checkout.session', client_reference_id: capture.id,
+      livemode: false, mode: 'payment', amount_total: capture.amountMinor, currency: 'lkr',
+      expires_at: capture.expiresAt.getTime() / 1000, status: 'complete', payment_status: 'paid', url: null,
+      payment_intent: 'pi_deposit',
+    });
+    return Response.json({
+      id: 'pi_deposit', object: 'payment_intent', livemode: false, currency: 'lkr', status: 'succeeded', amount_received: 150000,
+      latest_charge: {
+        object: 'charge', payment_intent: 'pi_deposit', livemode: false, currency: 'lkr', paid: true, captured: true,
+        disputed: false, amount_captured: 150000, amount_refunded: refundedMinor,
+      },
+    });
+  };
+  assert.equal(await verifyStripeTransferCapture('sk_test_fixture', capture, send), true);
+  refundedMinor = 55000;
+  assert.equal(await verifyStripeTransferCapture('sk_test_fixture', capture, send), false);
+  const deposit = { ...capture, refundMinor: 55000, refundPaymentIntentId: 'pi_deposit' };
+  assert.equal(await verifyStripeTransferCapture('sk_test_fixture', deposit, send), true);
+  assert.equal(await verifyStripeTransferCapture('sk_test_fixture', { ...deposit, refundPaymentIntentId: 'pi_other' }, send), false);
+  for (const amount of [0, 54999, 55001, 150000]) {
+    refundedMinor = amount;
+    assert.equal(await verifyStripeTransferCapture('sk_test_fixture', deposit, send), false);
+  }
+});
 
 test('Stripe test transfers reuse the same idempotency key within its retry window', async () => {
   const requests: Request[] = [];

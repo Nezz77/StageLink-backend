@@ -3,10 +3,8 @@ import type { PayoutOrder, Prisma, StripeBankPayoutSettlement, StripePayoutTrans
 import { openAccount, postedBalance, postJournal } from '../../../shared/payments/journal.js';
 import type { checkStripeBankPayout } from '../../../shared/payments/stripe-bank-payouts.js';
 import { PublicError } from '../auth/errors.js';
-import { paymentBlocked } from '../bookings/lifecycle.js';
-import { payoutReservationAccount } from './payout-eligibility.js';
+import { payoutBlocked, payoutFund, payoutReservationAccount } from './payout-eligibility.js';
 
-const fund = { currency: 'LKR', purpose: 'service' } as const;
 type Evidence = Awaited<ReturnType<typeof checkStripeBankPayout>>;
 
 export function activeBankSettlement(tx: Prisma.TransactionClient, transferId: string) {
@@ -22,7 +20,7 @@ export async function reverseBankSettlement(
     where: { id: row.journalId! }, include: { entries: true },
   });
   const reversalJournalId = await postJournal(tx, {
-    ...fund, source: 'stripe.test.bank_payout.reversal', reference: row.id,
+    currency: journal.currency, purpose: journal.purpose, source: 'stripe.test.bank_payout.reversal', reference: row.id,
   }, journal.entries.map(entry => ({ accountId: entry.accountId, amountMinor: -entry.amountMinor })));
   return tx.stripeBankPayoutSettlement.update({
     where: { id: row.id }, data: {
@@ -47,15 +45,15 @@ export async function reconcileBankSettlement(
   if (await activeBankSettlement(tx, transfer.id)) {
     throw new PublicError(409, 'STRIPE_BANK_PAYOUT_ALREADY_SETTLED', 'Reconcile the recorded bank payout before posting another.');
   }
-  const hold = await tx.bookingPayoutHold.findFirst({ where: { bookingId: payout.bookingId }, orderBy: { revision: 'desc' } });
   const reserved = await payoutReservationAccount(tx, payout);
   const fee = BigInt(payout.platformFeeMinor);
-  if (hold?.held || await paymentBlocked(tx, payout.bookingId) || !reserved || reserved !== transfer.reservedAccountId ||
+  if (await payoutBlocked(tx, payout.bookingId) || !reserved || reserved !== transfer.reservedAccountId ||
     transfer.amountMinor !== payout.netMinor || await postedBalance(tx, reserved) !== fee) {
     throw new PublicError(409, 'STRIPE_BANK_SETTLEMENT_NOT_ELIGIBLE', 'Review the booking hold, payment status, and payout reserve.');
   }
 
   const id = randomUUID();
+  const fund = payoutFund(payout);
   const stripe = await openAccount(tx, { ...fund, scope: 'gateway:stripe:test', kind: 'clearing' });
   const bank = await openAccount(tx, { ...fund, scope: 'gateway:stripe:test:bank', kind: 'clearing' });
   const amount = BigInt(transfer.amountMinor);

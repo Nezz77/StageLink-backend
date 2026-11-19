@@ -10,7 +10,7 @@ import { lockBooking, paymentBlocked } from '../bookings/lifecycle.js';
 import { ProfileService } from '../profiles/service.js';
 import { lockPaymentOrder } from './capture.js';
 import { parse, schema, uuid } from './orders.js';
-import { findRefundReserve, refundTarget, requireRecentIndependentAdmin, settleRefund, type RefundKey, type RefundTarget } from './refund-reservations.js';
+import { findReservedFunds, refundTarget, requireRecentIndependentAdmin, settleRefund, type RefundKey, type RefundTarget } from './refund-reservations.js';
 
 const empty = z.object({}).strict();
 const execution = z.object({
@@ -99,7 +99,7 @@ export function makePayHereRefundExecutionController(auth: AuthService) {
 
       const current = target.payHereExecution;
       if (current && (current.id !== prior?.id || current.status !== 'pending')) return { response: present(current) };
-      const reserved = await findRefundReserve(tx, target.reservationId, target.reserve, target.amountMinor);
+      const reserved = await findReservedFunds(tx, target.reservationId, target.reserve, target.amountMinor);
       if (!reserved) throw notEligible();
       if (current) {
         if (current.paymentId !== paymentId || !current.providerRefundId || current.amountMinor !== target.amountMinor) throw notEligible();

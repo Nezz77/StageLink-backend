@@ -214,6 +214,10 @@ The renter opens return inspection at `POST /api/v1/inspections/:id/return`. Boo
 
 The renter submits a proposal at `POST /api/v1/damage-claims` after the customer acknowledges the return. The customer responds at `POST /api/v1/damage-claims/:id/respond`. Administrators review the response and record a decision at `POST /api/v1/admin/damage-claims/:id/resolve`. Positive deductions require evidence and are capped at the collected deposit. The `reserved` state represents an internal sandbox allocation pending gateway execution.
 
+For a resolved claim backed by a Stripe test deposit, an administrator can send `{destinationRevision}` to `POST /api/v1/admin/damage-claims/:id/payout`. StageLink requires verified renter identity, a current approved payout destination, clear payout controls, and a confirmed Stripe test refund for any customer share. The deduction gets its own payout and sandbox statement. The net equals the approved deduction and the platform fee is zero.
+
+Use the returned payout ID with the existing administrator Stripe transfer and bank settlement endpoints. Before submitting a transfer, StageLink verifies the captured deposit and exact refunded total with Stripe. Transfer reversals restore the deduction to its payout reserve and reverse any posted bank settlement. The earnings and admin payments views list the reservation under `deductionPayout`. If the destination revision changes, use `POST /api/v1/admin/damage-claims/:id/payout-destination-repairs` with the standard repair body, then review the Stripe test link for the new revision. [Stripe Charge object](https://docs.stripe.com/api/charges/object) · [Stripe Transfer API](https://docs.stripe.com/api/transfers/create)
+
 ## AI operations
 
 Administrators can read `GET /api/v1/admin/ai/status`, `GET /api/v1/admin/ai/config` and `GET /api/v1/admin/ai/metrics`. Use `PUT /api/v1/admin/ai/config` with `{expectedRevision, weights}` to save weights that total 100. The status endpoint checks the configured internal FastAPI origin. Metrics report stored observations. Model generation and usage recording are pending.

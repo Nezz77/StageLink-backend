@@ -1,11 +1,12 @@
-import type { Prisma, StripePayoutTransfer } from '../../../generated/prisma/client.js';
+import type { PayoutOrder, Prisma, StripePayoutTransfer } from '../../../generated/prisma/client.js';
 import { openAccount, postJournal } from '../../../shared/payments/journal.js';
 import type { ConfirmedStripeTransfer } from '../../../shared/payments/stripe-transfers.js';
+import { payoutFund } from './payout-eligibility.js';
 import { activeBankSettlement, reverseBankSettlement } from './stripe-bank-payout-settlement.js';
 
 // The caller holds the booking lock and has matched the observations to this attempt.
 export async function recordConfirmedStripeTransfer(
-  tx: Prisma.TransactionClient, current: StripePayoutTransfer, observed: ConfirmedStripeTransfer,
+  tx: Prisma.TransactionClient, payout: Pick<PayoutOrder, 'damageClaimId'>, current: StripePayoutTransfer, observed: ConfirmedStripeTransfer,
 ) {
   if (current.status === 'rejected' || current.retryAuthorizedAt ||
     (current.providerTransferId && current.providerTransferId !== observed.id) ||
@@ -20,7 +21,7 @@ export async function recordConfirmedStripeTransfer(
     if (settlement) await reverseBankSettlement(tx, settlement, 'transfer_reversed', null);
   }
 
-  const fund = { currency: 'LKR', purpose: 'service' } as const;
+  const fund = payoutFund(payout);
   const clearing = await openAccount(tx, { ...fund, scope: 'gateway:stripe:test', kind: 'clearing' });
   if (!journalId) {
     const amount = BigInt(current.amountMinor);

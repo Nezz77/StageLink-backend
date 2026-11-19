@@ -10,10 +10,10 @@ import { readStripeTestAccounts } from '../../../shared/payments/stripe-capabili
 import { processStripePayoutTransfer, stripeTransferRejection, verifyStripeTransferCapture } from '../../../shared/payments/stripe-transfers.js';
 import { PublicError } from '../auth/errors.js';
 import type { AuthService, Identity } from '../auth/service.js';
-import { lockBooking, paymentBlocked } from '../bookings/lifecycle.js';
+import { lockBooking } from '../bookings/lifecycle.js';
 import { ProfileService } from '../profiles/service.js';
 import { parse, schema, uuid } from './orders.js';
-import { assertPayoutProvider, payoutReservationAccount } from './payout-eligibility.js';
+import { approvedStripeDeduction, assertPayoutProvider, payoutBlocked, payoutReservationAccount, stripePayoutCapture, stripePayoutCaptureInclude } from './payout-eligibility.js';
 import { reconcileBankSettlement } from './stripe-bank-payout-settlement.js';
 import { recordConfirmedStripeTransfer } from './stripe-transfer-settlement.js';
 
@@ -106,22 +106,29 @@ function requireOperator(actor: Identity, payout: Payout) {
 
 async function submissionEvidence(tx: Prisma.TransactionClient, payout: Payout) {
   if (payout.netMinor <= 0 || payout.providerId !== payout.booking.providerId) return null;
-  const [completion, hold, blocked, link, orders] = await Promise.all([
-    tx.bookingCompletion.findUnique({ where: { bookingId: payout.bookingId } }),
-    tx.bookingPayoutHold.findFirst({ where: { bookingId: payout.bookingId }, orderBy: { revision: 'desc' } }),
-    paymentBlocked(tx, payout.bookingId),
+  const [blocked, link] = await Promise.all([
+    payoutBlocked(tx, payout.bookingId),
     tx.stripePayoutDestinationLink.findFirst({
       where: { providerId: payout.providerId, destinationRevision: payout.destinationRevision, endedAt: null },
     }),
+  ]);
+  if (blocked || !link) return null;
+
+  if (payout.damageClaimId) {
+    const deduction = await approvedStripeDeduction(tx, payout.damageClaimId, payout.bookingId);
+    if (!deduction || payout.grossMinor !== deduction.amountMinor || payout.netMinor !== deduction.amountMinor ||
+      payout.platformFeeMinor !== 0) return null;
+    return { link, captures: [deduction.capture] };
+  }
+
+  const [completion, orders] = await Promise.all([
+    tx.bookingCompletion.findUnique({ where: { bookingId: payout.bookingId } }),
     tx.paymentOrder.findMany({
       where: { bookingId: payout.bookingId, purpose: { in: ['advance', 'balance'] } }, orderBy: { purpose: 'asc' },
-      include: {
-        payhereAttempt: { select: { id: true } },
-        stripeAttempt: { include: { journal: { select: { postedAt: true, source: true, reference: true } } } },
-      },
+      include: stripePayoutCaptureInclude,
     }),
   ]);
-  if (!completion?.verifiedAt || hold?.held || blocked || !link ||
+  if (!completion?.verifiedAt ||
     completion.advanceMinor + completion.balanceMinor !== payout.grossMinor ||
     completion.platformFeeMinor !== payout.platformFeeMinor ||
     payout.netMinor !== payout.grossMinor - payout.platformFeeMinor) return null;
@@ -130,11 +137,9 @@ async function submissionEvidence(tx: Prisma.TransactionClient, payout: Payout) 
   if (orders.length !== (amounts.balance > 0 ? 2 : 1)) return null;
   const captures = [];
   for (const order of orders) {
-    const attempt = order.stripeAttempt;
-    if (order.status !== 'paid' || order.currency !== 'LKR' || order.amountMinor !== amounts[order.purpose] ||
-      order.payhereAttempt || !attempt?.sessionId || !attempt.journal?.postedAt ||
-      attempt.journal.reference !== attempt.sessionId || attempt.journal.source !== 'stripe.test.capture') return null;
-    captures.push({ id: attempt.id, sessionId: attempt.sessionId, amountMinor: order.amountMinor, expiresAt: attempt.expiresAt });
+    const capture = stripePayoutCapture(order, amounts[order.purpose]);
+    if (!capture) return null;
+    captures.push(capture);
   }
   return { link, captures };
 }
@@ -401,7 +406,7 @@ export function makeStripePayoutTransfersController(auth: AuthService) {
             },
           }));
         }
-        const settled = result ? await recordConfirmedStripeTransfer(tx, current, result) : current;
+        const settled = result ? await recordConfirmedStripeTransfer(tx, source, current, result) : current;
         if (!settled.leaseId) return present(settled);
         return present(await tx.stripePayoutTransfer.update({
           where: { id: current.id }, data: {

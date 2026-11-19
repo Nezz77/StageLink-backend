@@ -28,7 +28,7 @@ export async function reconcileStripeTransferEvent(db: Resources['db'], key: str
 
   const attempt = await db.stripePayoutTransfer.findUnique({
     where: { id: transferId },
-    include: { destination: true, payout: { select: { bookingId: true } } },
+    include: { destination: true, payout: { select: { bookingId: true, damageClaimId: true } } },
   });
   if (!attempt) return;
   const expected = { ...attempt, stripeAccountId: attempt.destination.stripeAccountId };
@@ -54,6 +54,6 @@ export async function reconcileStripeTransferEvent(db: Resources['db'], key: str
         observedReversedMinor: observed.reversedMinor, createdAt: new Date(event.created * 1000),
       }, skipDuplicates: true,
     });
-    if (receipt.count) await recordConfirmedStripeTransfer(tx, current, observed);
+    if (receipt.count) await recordConfirmedStripeTransfer(tx, attempt.payout, current, observed);
   });
 }

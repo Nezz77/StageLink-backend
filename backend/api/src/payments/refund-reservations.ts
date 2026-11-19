@@ -72,7 +72,7 @@ export async function refundTarget(tx: Prisma.TransactionClient, key: RefundKey)
 export type RefundTarget = Awaited<ReturnType<typeof refundTarget>>;
 type Reserved = { accountId: string; purpose: 'deposit' | 'service' };
 
-export async function findRefundReserve(
+export async function findReservedFunds(
   tx: Prisma.TransactionClient, reservationId: string,
   fund: { purpose: Reserved['purpose']; source: string; scope: string; reference?: string }, amountMinor: number,
 ): Promise<Reserved | null> {

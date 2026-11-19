@@ -1,5 +1,6 @@
 import type { AuthRole, Booking, PayoutOrder, Prisma, VerificationStatus } from '../../../generated/prisma/client.js';
 import { PublicError } from '../auth/errors.js';
+import { paymentBlocked } from '../bookings/lifecycle.js';
 import { assertReviewedDestination } from '../profiles/service.js';
 
 type BookingProvider = Pick<Booking, 'providerId' | 'targetKind'>;
@@ -32,12 +33,61 @@ export async function assertPayoutProvider(
 }
 
 export async function payoutReservationAccount(tx: Prisma.TransactionClient, payout: PayoutOrder) {
+  const { purpose, currency } = payoutFund(payout);
   const posting = await tx.journalEntry.findFirst({
     where: {
       transactionId: payout.reservationId, amountMinor: BigInt(payout.grossMinor),
-      transaction: { postedAt: { not: null }, source: 'payout.sandbox.reserve', reference: payout.bookingId },
-      account: { scope: 'sandbox:payout:' + payout.id, kind: 'reserved', currency: 'LKR', purpose: 'service' },
+      transaction: {
+        postedAt: { not: null }, source: payout.damageClaimId ? 'payout.sandbox.deduction.reserve' : 'payout.sandbox.reserve',
+        reference: payout.damageClaimId ?? payout.bookingId,
+      },
+      account: { scope: 'sandbox:payout:' + payout.id, kind: 'reserved', currency, purpose },
     }, select: { accountId: true },
   });
   return posting?.accountId ?? null;
+}
+
+export function payoutFund(payout: Pick<PayoutOrder, 'damageClaimId'>) {
+  return { currency: 'LKR', purpose: payout.damageClaimId ? 'deposit' as const : 'service' as const };
+}
+
+export async function payoutBlocked(tx: Prisma.TransactionClient, bookingId: string) {
+  const hold = await tx.bookingPayoutHold.findFirst({ where: { bookingId }, orderBy: { revision: 'desc' }, select: { held: true } });
+  return hold?.held || await paymentBlocked(tx, bookingId);
+}
+
+export const stripePayoutCaptureInclude = {
+  payhereAttempt: { select: { id: true } },
+  stripeAttempt: { include: { journal: { select: { postedAt: true, source: true, reference: true } } } },
+} satisfies Prisma.PaymentOrderInclude;
+
+export function stripePayoutCapture(order: Prisma.PaymentOrderGetPayload<{ include: typeof stripePayoutCaptureInclude }>, amountMinor: number) {
+  const attempt = order.stripeAttempt;
+  if (order.status !== 'paid' || order.currency !== 'LKR' || order.amountMinor !== amountMinor ||
+    order.payhereAttempt || !attempt?.sessionId || !attempt.journal?.postedAt ||
+    attempt.journal.reference !== attempt.sessionId || attempt.journal.source !== 'stripe.test.capture') return null;
+  return { id: attempt.id, sessionId: attempt.sessionId, amountMinor, expiresAt: attempt.expiresAt };
+}
+
+export async function approvedStripeDeduction(tx: Prisma.TransactionClient, claimId: string, bookingId: string) {
+  const claim = await tx.damageClaim.findUnique({
+    where: { id: claimId, bookingId },
+    include: {
+      booking: { select: { targetKind: true } }, depositOrder: { include: stripePayoutCaptureInclude },
+      stripeExecution: { include: { settlement: { select: { postedAt: true, source: true, reference: true } } } },
+    },
+  });
+  if (!claim?.resolvedAt || !claim.reservationId || claim.booking.targetKind !== 'rental' || !claim.deductionMinor ||
+    claim.refundMinor === null || claim.deductionMinor + claim.refundMinor !== claim.depositMinor ||
+    claim.depositOrder?.purpose !== 'deposit' || claim.depositOrder.bookingId !== bookingId) return null;
+  const capture = stripePayoutCapture(claim.depositOrder, claim.depositMinor);
+  if (!capture) return null;
+  const refund = claim.stripeExecution;
+  if (claim.refundMinor > 0 && (refund?.status !== 'succeeded' || refund.orderId !== claim.depositOrder.id ||
+    refund.amountMinor !== claim.refundMinor || !refund.settlement?.postedAt ||
+    refund.settlement.source !== 'stripe.test.refund.settle' || refund.settlement.reference !== refund.providerRefundId)) return null;
+  return {
+    reservationId: claim.reservationId, amountMinor: claim.deductionMinor,
+    capture: { ...capture, refundMinor: claim.refundMinor, refundPaymentIntentId: refund?.paymentIntentId },
+  };
 }

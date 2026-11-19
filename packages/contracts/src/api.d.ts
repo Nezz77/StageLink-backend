@@ -3077,6 +3077,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/damage-claims/{id}/payout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["PayoutsController_reserveDeduction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/bookings/{id}/payout-destination-repairs": {
         parameters: {
             query?: never;
@@ -3087,6 +3103,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["PayoutsController_repairDestination"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/damage-claims/{id}/payout-destination-repairs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["PayoutsController_repairDeductionDestination"];
         delete?: never;
         options?: never;
         head?: never;
@@ -16746,6 +16778,8 @@ export interface operations {
                                 platformFeeMinor: number;
                                 netMinor: number;
                                 destinationRevision: number;
+                                /** Format: uuid */
+                                damageClaimId?: string;
                             };
                         }[];
                         /** Format: uuid */
@@ -16825,6 +16859,8 @@ export interface operations {
                             platformFeeMinor: number;
                             netMinor: number;
                             destinationRevision: number;
+                            /** Format: uuid */
+                            damageClaimId?: string;
                         };
                     };
                 };
@@ -16901,6 +16937,8 @@ export interface operations {
                             platformFeeMinor: number;
                             netMinor: number;
                             destinationRevision: number;
+                            /** Format: uuid */
+                            damageClaimId?: string;
                         };
                     };
                 };
@@ -18671,6 +18709,28 @@ export interface operations {
                                 /** @enum {string|null} */
                                 stripeTransferStatus: "uncertain" | "transferred" | "review_required" | "rejected" | null;
                             } | null;
+                            deductionPayout: {
+                                /** Format: uuid */
+                                id: string;
+                                /** Format: uuid */
+                                bookingId: string;
+                                /** Format: uuid */
+                                providerId: string;
+                                destinationRevision: number;
+                                /** Format: date-time */
+                                createdAt: string;
+                                grossMinor: number;
+                                platformFeeMinor: number;
+                                netMinor: number;
+                                /** @enum {string} */
+                                currency: "LKR";
+                                /** @enum {string} */
+                                status: "reserved" | "review_required";
+                                /** @enum {string|null} */
+                                stripeTransferStatus: "uncertain" | "transferred" | "review_required" | "rejected" | null;
+                                /** Format: uuid */
+                                damageClaimId: string;
+                            } | null;
                             /** @enum {string} */
                             currency: "LKR";
                         }[];
@@ -18737,6 +18797,28 @@ export interface operations {
                                 status: "reserved" | "review_required";
                                 /** @enum {string|null} */
                                 stripeTransferStatus: "uncertain" | "transferred" | "review_required" | "rejected" | null;
+                            } | null;
+                            deductionPayout: {
+                                /** Format: uuid */
+                                id: string;
+                                /** Format: uuid */
+                                bookingId: string;
+                                /** Format: uuid */
+                                providerId: string;
+                                destinationRevision: number;
+                                /** Format: date-time */
+                                createdAt: string;
+                                grossMinor: number;
+                                platformFeeMinor: number;
+                                netMinor: number;
+                                /** @enum {string} */
+                                currency: "LKR";
+                                /** @enum {string} */
+                                status: "reserved" | "review_required";
+                                /** @enum {string|null} */
+                                stripeTransferStatus: "uncertain" | "transferred" | "review_required" | "rejected" | null;
+                                /** Format: uuid */
+                                damageClaimId: string;
                             } | null;
                             /** @enum {string} */
                             currency: "LKR";
@@ -18871,7 +18953,100 @@ export interface operations {
             };
         };
     };
+    PayoutsController_reserveDeduction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    destinationRevision: number;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uuid */
+                        bookingId: string;
+                        /** Format: uuid */
+                        providerId: string;
+                        destinationRevision: number;
+                        /** Format: date-time */
+                        createdAt: string;
+                        grossMinor: number;
+                        platformFeeMinor: number;
+                        netMinor: number;
+                        /** @enum {string} */
+                        currency: "LKR";
+                        /** @enum {string} */
+                        status: "reserved" | "review_required";
+                        /** @enum {string|null} */
+                        stripeTransferStatus: "uncertain" | "transferred" | "review_required" | "rejected" | null;
+                        /** Format: uuid */
+                        damageClaimId: string;
+                    };
+                };
+            };
+        };
+    };
     PayoutsController_repairDestination: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    requestKey: string;
+                    expectedDestinationRevision: number;
+                    destinationRevision: number;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uuid */
+                        payoutId: string;
+                        /** Format: uuid */
+                        requestKey: string;
+                        previousDestinationRevision: number;
+                        destinationRevision: number;
+                        /** Format: uuid */
+                        actorId: string;
+                        reason: string;
+                        /** Format: date-time */
+                        createdAt: string;
+                    };
+                };
+            };
+        };
+    };
+    PayoutsController_repairDeductionDestination: {
         parameters: {
             query?: never;
             header?: never;

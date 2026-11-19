@@ -12,7 +12,7 @@ import { lockBooking, paymentBlocked } from '../bookings/lifecycle.js';
 import { ProfileService } from '../profiles/service.js';
 import { lockPaymentOrder } from './capture.js';
 import { parse, schema, uuid } from './orders.js';
-import { findRefundReserve, refundTarget, requireRecentIndependentAdmin, settleRefund, type RefundKey, type RefundTarget } from './refund-reservations.js';
+import { findReservedFunds, refundTarget, requireRecentIndependentAdmin, settleRefund, type RefundKey, type RefundTarget } from './refund-reservations.js';
 
 const empty = z.object({}).strict();
 const execution = z.object({
@@ -99,7 +99,7 @@ export function makeStripeRefundExecutionController(auth: AuthService) {
       if (prior && (['succeeded', 'failed'].includes(prior.status) || (prior.leaseUntil && prior.leaseUntil > now))) {
         return { response: present(prior) };
       }
-      const reserved = await findRefundReserve(tx, current.reservationId, current.reserve, current.amountMinor);
+      const reserved = await findReservedFunds(tx, current.reservationId, current.reserve, current.amountMinor);
       if (!reserved || (prior && (prior.amountMinor !== current.amountMinor || prior.paymentIntentId !== intentId))) throw notEligible();
       const allowSubmit = current.order.status === 'paid' &&
         (!current.damageClaimId || !await paymentBlocked(tx, current.booking.id, false));

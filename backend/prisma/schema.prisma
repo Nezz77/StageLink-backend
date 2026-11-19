@@ -660,7 +660,7 @@ model Booking {
   overtimeProposals OvertimeProposal[]
   completion BookingCompletion?
   refundRequest RefundRequest?
-  payoutOrder PayoutOrder?
+  payoutOrders PayoutOrder[]
   payoutHolds BookingPayoutHold[]
   documents BookingDocument[]
   review BookingReview?
@@ -1111,7 +1111,8 @@ model BookingPayoutHold {
 
 model PayoutOrder {
   id String @id @default(uuid()) @db.Uuid
-  bookingId String @unique @map("booking_id") @db.Uuid
+  bookingId String @map("booking_id") @db.Uuid
+  damageClaimId String? @unique @map("damage_claim_id") @db.Uuid
   providerId String @map("provider_id") @db.Uuid
   destinationRevision Int @map("destination_revision")
   createdBy String @map("created_by") @db.Uuid
@@ -1121,11 +1122,13 @@ model PayoutOrder {
   netMinor Int @map("net_minor")
   reservationId String @unique @map("reservation_id") @db.Uuid
   booking Booking @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  damageClaim DamageClaim? @relation(fields: [damageClaimId], references: [id], onDelete: Restrict)
   destination PayoutDestinationVersion @relation(fields: [providerId, destinationRevision], references: [userId, revision], onDelete: Restrict, map: "payout_orders_destination_fkey")
   creator AuthUser @relation(fields: [createdBy], references: [id], onDelete: Restrict)
   reservation JournalTransaction @relation(fields: [reservationId], references: [id], onDelete: Restrict)
   stripeTransfers StripePayoutTransfer[]
   destinationRepairs PayoutDestinationRepair[]
+  @@index([bookingId])
   @@index([providerId])
   @@map("payout_orders")
 }
@@ -1402,6 +1405,7 @@ model DamageClaim {
   reservation JournalTransaction? @relation(fields: [reservationId], references: [id], onDelete: Restrict)
   stripeExecution StripeRefundExecution?
   payHereExecution PayHereRefundExecution?
+  deductionPayout PayoutOrder?
   @@map("damage_claims")
 }
 

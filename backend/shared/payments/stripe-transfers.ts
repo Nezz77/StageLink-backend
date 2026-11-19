@@ -20,7 +20,7 @@ const paymentIntent = z.object({
   latest_charge: z.object({
     object: z.literal('charge'), payment_intent: z.string(), livemode: z.literal(false), currency: z.literal('lkr'),
     paid: z.literal(true), captured: z.literal(true), disputed: z.literal(false),
-    amount_captured: z.number().int().positive(), amount_refunded: z.literal(0),
+    amount_captured: z.number().int().positive(), amount_refunded: z.number().int().nonnegative(),
   }),
 });
 const replayWindowMs = 23 * 60 * 60_000;
@@ -32,7 +32,7 @@ const insufficientBalance = z.object({
   error: stripeTransferRejection.pick({ code: true }).extend({ type: z.literal('invalid_request_error') }),
 });
 
-type Capture = Parameters<typeof observeStripe>[1];
+type Capture = Parameters<typeof observeStripe>[1] & { refundMinor?: number; refundPaymentIntentId?: string };
 type Transfer = { id: string; amountMinor: number; providerTransferId: string | null; stripeAccountId: string };
 export type ConfirmedStripeTransfer = { id: string; reversedMinor: number };
 
@@ -56,13 +56,15 @@ async function get(key: string, path: string, send: typeof fetch): Promise<unkno
 export async function verifyStripeTransferCapture(key: string, attempt: Capture, send = fetch) {
   if (!key.startsWith('sk_test_')) return false;
   const observed = await observeStripe(key, attempt, send);
-  if (observed.status !== 'captured' || !observed.paymentIntentId) return false;
+  if (observed.status !== 'captured' || !observed.paymentIntentId ||
+    (attempt.refundPaymentIntentId && observed.paymentIntentId !== attempt.refundPaymentIntentId)) return false;
   try {
     const id = observed.paymentIntentId;
     const raw = await get(key, 'payment_intents/' + encodeURIComponent(id) + '?expand%5B%5D=latest_charge', send);
     const data = paymentIntent.parse(raw);
     return data.id === id && data.latest_charge.payment_intent === id &&
-      data.amount_received === attempt.amountMinor && data.latest_charge.amount_captured === attempt.amountMinor;
+      data.amount_received === attempt.amountMinor && data.latest_charge.amount_captured === attempt.amountMinor &&
+      data.latest_charge.amount_refunded === (attempt.refundMinor ?? 0);
   } catch { return false; }
 }
 

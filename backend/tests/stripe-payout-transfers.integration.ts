@@ -13,6 +13,7 @@ import { resources } from '../shared/resources.js';
 const testConfig = readConfig({
   ...process.env,
   STRIPE_TEST_PAYOUT_TRANSFERS: 'true', STRIPE_TEST_SECRET_KEY: 'sk_test_transfer', STRIPE_TEST_WEBHOOK_SECRET: 'whsec_transfer',
+  STRIPE_TEST_REFUND_EXECUTION: 'true',
 });
 if (testConfig.NODE_ENV !== 'test' || !new URL(testConfig.DATABASE_URL).pathname.endsWith('_test')) {
   throw new Error('Stripe payout transfers require an isolated *_test database.');
@@ -26,11 +27,13 @@ test('a definitive Stripe test balance rejection preserves the reserve for an au
   checkPayoutReconciliation(t, { rejectFirst: true }));
 test('signed Stripe transfer events reconcile a lost response and ignore duplicate or stale reversals', t =>
   checkPayoutReconciliation(t, { useWebhooks: true }));
+test('an approved rental deduction has a separate reserve, transfer and bank settlement', t =>
+  checkPayoutReconciliation(t, { damageDeduction: true }));
 
 async function checkPayoutReconciliation(
   t: TestContext,
-  { initialReversedMinor = 0, rejectFirst = false, useWebhooks = false }:
-    { initialReversedMinor?: number; rejectFirst?: boolean; useWebhooks?: boolean } = {},
+  { initialReversedMinor = 0, rejectFirst = false, useWebhooks = false, damageDeduction = false }:
+    { initialReversedMinor?: number; rejectFirst?: boolean; useWebhooks?: boolean; damageDeduction?: boolean } = {},
 ) {
   const config = { ...testConfig, AUTH_RATE_PREFIX: 'stripe-transfer-test-' + randomUUID() };
   const localFetch = globalThis.fetch;
@@ -39,6 +42,7 @@ async function checkPayoutReconciliation(
   let platformAccountId = 'acct_platform';
   let disputed = false;
   let cardBalanceMinor = 100000;
+  let depositRefundedMinor = 0;
   let reversedMinor = 0;
   let bankPayoutStatus = 'paid';
   let transfer: Record<string, unknown> | null = null;
@@ -90,13 +94,24 @@ async function checkPayoutReconciliation(
     }
     if (url.pathname.startsWith('/v1/payment_intents/')) {
       const id = url.pathname.split('/').at(-1)!;
+      const amount = id === 'pi_deposit' ? 150000 : 50000;
       assert.equal(url.searchParams.get('expand[]'), 'latest_charge');
       return Response.json({
-        object: 'payment_intent', id, livemode: false, currency: 'lkr', amount_received: 50000, status: 'succeeded',
+        object: 'payment_intent', id, livemode: false, currency: 'lkr', amount_received: amount, status: 'succeeded',
         latest_charge: {
           object: 'charge', payment_intent: id, livemode: false, currency: 'lkr',
-          paid: true, captured: true, disputed, amount_captured: 50000, amount_refunded: 0,
+          paid: true, captured: true, disputed, amount_captured: amount, amount_refunded: id === 'pi_deposit' ? depositRefundedMinor : 0,
         },
+      });
+    }
+    if (url.pathname === '/v1/refunds' && init?.method === 'POST' && damageDeduction) {
+      const body = init.body as URLSearchParams;
+      assert.equal(body.get('payment_intent'), 'pi_deposit');
+      assert.equal(body.get('amount'), '55000');
+      depositRefundedMinor = 55000;
+      return Response.json({
+        id: 're_' + stripeId.slice(5), object: 'refund', amount: depositRefundedMinor, currency: 'lkr',
+        payment_intent: 'pi_deposit', status: 'succeeded', metadata: { stagelink_refund_execution: body.get('metadata[stagelink_refund_execution]') },
       });
     }
     if (url.pathname === '/v1/transfers' && init?.method === 'POST') {
@@ -120,7 +135,7 @@ async function checkPayoutReconciliation(
         destination: stripeId, destination_payment: 'py_fixture', transfer_group: body.get('transfer_group'), livemode: false,
         metadata: { stagelink_payout_transfer: executionId }, reversed: false, amount_reversed: 0,
       };
-      if (submissions > 1) return Response.json(transfer);
+      if (damageDeduction || submissions > 1) return Response.json(transfer);
       sent();
       await waitForResponse;
       return new Response(null, { status: 500 });
@@ -143,7 +158,7 @@ async function checkPayoutReconciliation(
   try {
     await app.listen(0, '127.0.0.1');
     const base = await app.getUrl() + '/api/v1/';
-    async function fixture(role: 'admin' | 'customer' | 'artist') {
+    async function fixture(role: 'admin' | 'customer' | 'artist' | 'renter') {
       const user = await deps.db.authUser.create({ data: {
         roles: [role], email: randomUUID() + '@stagelink.test', emailVerifiedAt: new Date(),
         displayName: 'Transfer fixture', passwordHash: 'unused',
@@ -162,12 +177,13 @@ async function checkPayoutReconciliation(
     }
     const admin = await fixture('admin');
     const customer = await fixture('customer');
-    const provider = await fixture('artist');
+    const providerRole = damageDeduction ? 'renter' : 'artist';
+    const provider = await fixture(providerRole);
     const now = new Date();
     const startsAt = new Date(now.getTime() - 7200_000);
     const booking = await deps.db.booking.create({ data: {
       customerId: customer.id, providerId: provider.id, requestKey: randomUUID(), requestDigest: '0'.repeat(64),
-      targetKind: 'gig', targetId: randomUUID(), targetVersion: 1, startsAt, holdExpiresAt: startsAt,
+      targetKind: damageDeduction ? 'rental' : 'gig', targetId: randomUUID(), targetVersion: 1, startsAt, holdExpiresAt: startsAt,
       endsAt: new Date(now.getTime() - 3600_000), snapshot: {},
     } });
     bookingId = booking.id;
@@ -182,7 +198,7 @@ async function checkPayoutReconciliation(
       data: { ...dest, reviewerId: admin.id, reviewedAt: now, reviewReason: 'Independent fixture review approved.' },
     });
     await deps.db.verificationCase.create({ data: {
-      providerId: provider.id, kind: 'artist', requestKey: randomUUID(), version: 1,
+      providerId: provider.id, kind: providerRole, requestKey: randomUUID(), version: 1,
       subject: 'Provider fixture identity', body: 'Fixture documentation for provider identity.',
       status: 'approved', createdAt: now, decidedBy: admin.id, decidedAt: now, reason: 'Independent fixture review approved.',
     } });
@@ -191,18 +207,23 @@ async function checkPayoutReconciliation(
       accountCountry: 'US', linkedBy: admin.id, requestKey: randomUUID(), reason: 'Verified the provider account.',
     } });
 
+    async function captureOrder(tx: Parameters<typeof recordCapture>[0], purpose: 'advance' | 'balance' | 'deposit', amountMinor: number) {
+      const order = await tx.paymentOrder.create({ data: { bookingId: booking.id, purpose, amountMinor, status: 'paid' } });
+      const sessionId = 'cs_test_' + randomUUID().replaceAll('-', '');
+      const journalId = await recordCapture(tx, order, 'stripe', sessionId, 'paid', now);
+      const expiresAt = new Date(Math.floor(now.getTime() / 1000 + 2000) * 1000);
+      const attempt = await tx.stripeAttempt.create({ data: { orderId: order.id, sessionId, journalId, expiresAt, createdAt: now, returnUrl: 'https://stage.test' } });
+      sessions.set(sessionId, {
+        id: sessionId, client_reference_id: attempt.id, object: 'checkout.session', livemode: false, mode: 'payment',
+        currency: 'lkr', amount_total: amountMinor, status: 'complete', payment_status: 'paid', url: null,
+        expires_at: expiresAt.getTime() / 1000, payment_intent: 'pi_' + purpose,
+      });
+      return order;
+    }
+
     const reserved = await deps.db.$transaction(async tx => {
       for (const purpose of ['advance', 'balance'] as const) {
-        const order = await tx.paymentOrder.create({ data: { bookingId: booking.id, purpose, amountMinor: 50000, status: 'paid' } });
-        const sessionId = 'cs_test_' + randomUUID().replaceAll('-', '');
-        const journalId = await recordCapture(tx, order, 'stripe', sessionId, 'paid', now);
-        const expiresAt = new Date(Math.floor(now.getTime() / 1000 + 2000) * 1000);
-        const attempt = await tx.stripeAttempt.create({ data: { orderId: order.id, sessionId, journalId, expiresAt, createdAt: now, returnUrl: 'https://stage.test' } });
-        sessions.set(sessionId, {
-          id: sessionId, client_reference_id: attempt.id, object: 'checkout.session', livemode: false, mode: 'payment',
-          currency: 'lkr', amount_total: 50000, status: 'complete', payment_status: 'paid', url: null,
-          expires_at: expiresAt.getTime() / 1000, payment_intent: 'pi_' + purpose,
-        });
+        await captureOrder(tx, purpose, 50000);
       }
       const id = randomUUID();
       const fund = { currency: 'LKR', purpose: 'service' } as const;
@@ -223,6 +244,106 @@ async function checkPayoutReconciliation(
       return { payout, account };
     });
     payoutId = reserved.payout.id;
+    if (damageDeduction) {
+      const deposit = await deps.db.$transaction(tx => captureOrder(tx, 'deposit', 150000));
+      const inspection = await deps.db.equipmentInspection.create({ data: { bookingId, stage: 'quarantined', revision: 2, accessories: [] } });
+      await deps.db.equipmentInspectionReport.create({ data: {
+        inspectionId: inspection.id, revision: 2, phase: 'return', evidence: {}, submittedBy: provider.id,
+        decidedBy: customer.id, decidedAt: now, decision: 'acknowledged',
+      } });
+      const claim = await deps.db.damageClaim.create({ data: {
+        bookingId, inspectionId: inspection.id, reportRevision: 2, depositOrderId: deposit.id,
+        depositMinor: deposit.amountMinor, proposedMinor: 95000, reason: 'Repair required for damaged equipment.',
+      } });
+      const damagePath = base + 'admin/damage-claims/' + claim.id;
+      const post = (url: string, body: object = {}, actor = admin) => fetch(url, { method: 'POST', headers: actor.headers, body: JSON.stringify(body) });
+      const reserveDeduction = (actor = admin) => post(damagePath + '/payout', { destinationRevision: 1 }, actor);
+      assert.equal((await reserveDeduction(provider)).status, 403);
+      assert.equal((await reserveDeduction()).status, 409);
+      assert.equal((await post(base + 'damage-claims/' + claim.id + '/respond', { response: 'accepted' }, customer)).status, 200);
+      assert.equal((await post(damagePath + '/resolve', { approveDeduction: true, reason: 'Reviewed the repair evidence and amount.' })).status, 200);
+      assert.equal((await reserveDeduction()).status, 409);
+      assert.equal(await deps.db.payoutOrder.count({ where: { damageClaimId: claim.id } }), 0);
+      const refund = await post(damagePath + '/stripe-refund');
+      assert.equal((await refund.json()).state, 'succeeded');
+      const holdPath = base + 'admin/bookings/' + booking.id + '/holds';
+      assert.equal((await post(holdPath, { held: true, expectedRevision: 0, reason: 'Review the deduction.' })).status, 200);
+      assert.equal((await reserveDeduction()).status, 409);
+      assert.equal((await post(holdPath, { held: false, expectedRevision: 1, reason: 'Deduction review completed.' })).status, 200);
+
+      const results = await Promise.all([reserveDeduction(), reserveDeduction()]);
+      assert.ok(results.every(result => result.status === 200));
+      const [deduction, replay] = await Promise.all(results.map(result => result.json()));
+      assert.deepEqual(replay, deduction);
+      assert.equal(deduction.damageClaimId, claim.id);
+      assert.equal(deduction.netMinor, 95000);
+      assert.equal(deduction.platformFeeMinor, 0);
+      assert.equal(await deps.db.payoutOrder.count({ where: { bookingId } }), 2);
+      const account = (scope: string) => deps.db.financialAccount.findFirstOrThrow({ where: { scope, purpose: 'deposit', kind: 'reserved' } });
+      const deductionAccount = await account('sandbox:payout:' + deduction.id);
+      assert.equal(await postedBalance(deps.db, deductionAccount.id), 95000n);
+      assert.equal(await postedBalance(deps.db, (await account(`sandbox:damage:${claim.id}:provider`)).id), 0n);
+      assert.equal(await postedBalance(deps.db, (await account(`sandbox:damage:${claim.id}:customer`)).id), 0n);
+
+      const newer = { ...dest, revision: 2 };
+      await deps.db.payoutDestinationVersion.create({ data: {
+        ...newer, reviewerId: admin.id, reviewedAt: now, reviewReason: 'Reviewed updated destination for the deduction.',
+      } });
+      await deps.db.payoutDestination.update({ where: { userId: provider.id }, data: newer });
+      const repairInput = {
+        requestKey: randomUUID(), expectedDestinationRevision: 1, destinationRevision: 2,
+        reason: 'Reviewed the updated deduction payout destination.',
+      };
+      const repairPath = damagePath + '/payout-destination-repairs';
+      const repaired = await post(repairPath, repairInput);
+      assert.equal(repaired.status, 200);
+      const repair = await repaired.json();
+      assert.equal(repair.payoutId, deduction.id);
+      assert.deepEqual(await (await post(repairPath, repairInput)).json(), repair);
+      assert.equal((await deps.db.payoutOrder.findUniqueOrThrow({ where: { id: payoutId } })).destinationRevision, 1);
+      const statement = await deps.db.bookingDocument.findFirstOrThrow({ where: { sourceId: repair.id } });
+      assert.equal((statement.snapshot as { damageClaimId: string }).damageClaimId, claim.id);
+      assert.equal((await post(base + 'admin/providers/' + provider.id + '/stripe-destination', {
+        requestKey: randomUUID(), expectedLinkId: link.id, destinationRevision: 2,
+        accountId: stripeId, reason: repairInput.reason,
+      })).status, 200);
+
+      const transferPath = base + 'admin/payouts/' + deduction.id + '/stripe-transfer';
+      depositRefundedMinor++;
+      assert.equal((await post(transferPath)).status, 409);
+      assert.equal(submissions, 0);
+      depositRefundedMinor--;
+      const sent = await (await post(transferPath)).json();
+      assert.equal(sent.state, 'transferred');
+      assert.equal(sent.amountMinor, 95000);
+      assert.equal(await postedBalance(deps.db, deductionAccount.id), 0n);
+      const overview = (await (await fetch(base + 'me/earnings', provider)).json()).items[0];
+      assert.equal(overview.payout.id, payoutId);
+      assert.equal(overview.deductionPayout.id, deduction.id);
+      assert.equal(overview.deductionPayout.stripeTransferStatus, 'transferred');
+
+      const settlementPath = transferPath + '/bank-settlements';
+      const settled = await (await post(settlementPath, { bankPayoutId: 'po_fixture' })).json();
+      assert.equal(settled.settlement.state, 'settled');
+      const journal = await deps.db.journalTransaction.findUniqueOrThrow({ where: { id: settled.settlement.journalId }, include: { entries: true } });
+      assert.equal(journal.purpose, 'deposit');
+      assert.equal(journal.entries.length, 2);
+      const from = new Date(now.getTime() - 86_400_000).toISOString().slice(0, 10);
+      const to = new Date(now.getTime() + 86_400_000).toISOString().slice(0, 10);
+      const report = () => fetch(base + `me/analytics?from=${from}&to=${to}&environment=sandbox`, provider).then(result => result.json());
+      const analytics = await report();
+      assert.equal(analytics.money.payoutReservedMinor, '190000');
+      assert.equal(analytics.settled.paidOutMinor, '95000');
+      assert.equal(analytics.settled.feeRevenueMinor, '0');
+      reversedMinor = 95000;
+      const reversed = await (await post(transferPath, { reconcileOnly: true })).json();
+      assert.equal(reversed.state, 'review_required');
+      assert.equal(await postedBalance(deps.db, deductionAccount.id), 95000n);
+      assert.equal((await report()).settled.paidOutMinor, '0');
+      assert.equal(await postedBalance(deps.db, reserved.account.id), 100000n);
+      assert.equal(submissions, 1);
+      return;
+    }
     const path = base + 'admin/payouts/' + payoutId + '/stripe-transfer';
     const bankPath = path + '/bank-payout?bankPayoutId=po_fixture';
     const settlementPath = path + '/bank-settlements';
@@ -617,14 +738,18 @@ async function checkPayoutReconciliation(
   } finally {
     release();
     try {
-      if (payoutId) {
-        await deps.db.stripeBankPayoutSettlement.deleteMany({ where: { transfer: { payoutId } } });
-        await deps.db.stripePayoutTransferEvent.deleteMany({ where: { transfer: { payoutId } } });
-        await deps.db.stripePayoutTransfer.deleteMany({ where: { payoutId } });
-        await deps.db.payoutDestinationRepair.deleteMany({ where: { payoutId } });
-        await deps.db.payoutOrder.delete({ where: { id: payoutId } });
-      }
       if (bookingId) {
+        const payout = { bookingId };
+        await deps.db.stripeBankPayoutSettlement.deleteMany({ where: { transfer: { payout } } });
+        await deps.db.stripePayoutTransferEvent.deleteMany({ where: { transfer: { payout } } });
+        await deps.db.stripePayoutTransfer.deleteMany({ where: { payout } });
+        await deps.db.payoutDestinationRepair.deleteMany({ where: { payout } });
+        await deps.db.payoutOrder.deleteMany({ where: payout });
+        await deps.db.stripeRefundExecution.deleteMany({ where: { damageClaim: { bookingId } } });
+        await deps.db.damageClaim.deleteMany({ where: { bookingId } });
+        await deps.db.equipmentInspectionReport.deleteMany({ where: { inspection: { bookingId } } });
+        await deps.db.equipmentInspection.deleteMany({ where: { bookingId } });
+        await deps.db.outboxEvent.deleteMany({ where: { payload: { path: ['sourceId'], equals: bookingId } } });
         await deps.db.stripeAttempt.deleteMany({ where: { order: { bookingId } } });
         await deps.db.bookingPayoutHold.deleteMany({ where: { bookingId } });
         await deps.db.bookingCompletion.deleteMany({ where: { bookingId } });
