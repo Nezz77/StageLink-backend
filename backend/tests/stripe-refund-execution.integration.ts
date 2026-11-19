@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createHmac, randomUUID } from 'node:crypto';
+import { createHash, createHmac, randomUUID } from 'node:crypto';
 import { test } from 'node:test';
 import { SignJWT } from 'jose';
 import { createApp } from '../api/src/app.js';
@@ -24,6 +24,7 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
   const providerRefunds = new Map<string, { id: string; status: string }>();
   const submissions: string[] = [];
   const damageRefundMinor = 120001;
+  const refundAmounts = new Map([['pi_service', 150001], ['pi_deposit', 150001], ['pi_damage', damageRefundMinor]]);
   let payHereAttemptId: string | undefined;
   let payHereSubmissions = 0;
   let payHereReads = 0;
@@ -68,7 +69,8 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
       const body = init.body as URLSearchParams;
       const intent = body.get('payment_intent')!;
       const executionId = body.get('metadata[stagelink_refund_execution]')!;
-      const amount = intent === 'pi_damage' ? damageRefundMinor : 150001;
+      const amount = refundAmounts.get(intent);
+      assert.ok(amount);
       assert.equal(body.get('amount'), String(amount));
       assert.equal(new Headers(init.headers).get('Idempotency-Key'), 'stagelink-refund-' + executionId);
       submissions.push(intent);
@@ -374,6 +376,114 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
     assert.equal((await dashboard(renter)).settled.refundedMinor, String(damageRefundMinor + 150001));
     const depositView = await (await fetch(base + 'bookings/' + full.bookingId + '/damage-claim', customer)).json();
     assert.equal(depositView.claim.payHereRefundState, 'succeeded');
+
+    const arbitrationAdmin = await fixture('admin');
+    const arbitrationProvider = await fixture('artist');
+    const reviewedAt = new Date();
+    const destination = { userId: arbitrationProvider.id, revision: 1, accountLast4: '1234', sealedDetails: 'fixture', status: 'approved' };
+    await deps.db.payoutDestination.create({ data: destination });
+    await deps.db.payoutDestinationVersion.create({ data: {
+      ...destination, reviewerId: arbitrationAdmin.id, reviewedAt, reviewReason: 'Verified fixture payout destination.',
+    } });
+    await deps.db.verificationCase.create({ data: {
+      providerId: arbitrationProvider.id, kind: 'artist', requestKey: randomUUID(), version: 1,
+      subject: 'Arbitration provider identity', body: 'Verified fixture provider identity documents.',
+      status: 'approved', decidedBy: arbitrationAdmin.id, decidedAt: reviewedAt, reason: 'Independent fixture identity review.',
+    } });
+
+    async function arbitration(refundMinor: number) {
+      const booking = await deps.db.booking.create({ data: {
+        customerId: customer.id, providerId: arbitrationProvider.id, requestKey: randomUUID(), requestDigest: '0'.repeat(64),
+        targetKind: 'gig', targetId: randomUUID(), targetVersion: 1, startsAt, holdExpiresAt: startsAt,
+        endsAt: new Date(startsAt.getTime() + 3600_000), agreedAt: reviewedAt, snapshot: {},
+      } });
+      bookingIds.push(booking.id);
+      const quotation = await deps.db.bookingQuotation.create({ data: {
+        bookingId: booking.id, version: 1, authorId: arbitrationProvider.id, lines: [], terms: 'Fixture agreement.', totalMinor: 300002,
+      } });
+      const artifact = JSON.stringify({ version: 1, currency: 'LKR', totalMinor: 300002, serviceAdvanceMinor: 150001, depositMinor: 0 });
+      await deps.db.bookingAgreement.create({ data: {
+        bookingId: booking.id, quotationId: quotation.id, artifact, digest: createHash('sha256').update(artifact).digest('hex'),
+      } });
+      const orders = [];
+      let remaining = refundMinor;
+      for (const purpose of ['advance', 'balance'] as const) {
+        const order = await deps.db.$transaction(async tx => {
+          const order = await tx.paymentOrder.create({ data: { bookingId: booking.id, purpose, amountMinor: 150001, status: 'paid' } });
+          const intent = 'pi_arbitration_' + order.id.replaceAll('-', '');
+          await stripeCapture(tx, order, intent);
+          refundAmounts.set(intent, Math.min(remaining, order.amountMinor));
+          remaining -= Math.min(remaining, order.amountMinor);
+          return order;
+        });
+        orders.push(order);
+      }
+      const dispute = await fetch(base + 'bookings/' + booking.id + '/disputes', {
+        method: 'POST', headers: customer.headers, body: JSON.stringify({ subject: 'Booking payment review', body: 'Please review the captured service payments for this booking.' }),
+      });
+      assert.equal(dispute.status, 200);
+      const disputeId = (await dispute.json()).id;
+      const mode = refundMinor === 300002 ? 'refund' : refundMinor === 0 ? 'provider' : 'split';
+      const decision = await fetch(base + 'admin/disputes/' + disputeId + '/decisions', {
+        method: 'POST', headers: arbitrationAdmin.headers,
+        body: JSON.stringify({ mode, expectedHeldMinor: 300002, refundMinor, destinationRevision: mode === 'refund' ? null : 1,
+          reason: 'Reviewed the captured payments and approved this allocation.', evidenceReviewed: true }),
+      });
+      assert.equal(decision.status, 200, await decision.clone().text());
+      return { decision: await decision.json(), orders, bookingId: booking.id };
+    }
+    const arbitrationPath = (id: string, orderId: string) => base + 'admin/arbitrations/' + id + '/items/' + orderId + '/stripe-refund';
+    const executeArbitration = (id: string, orderId: string, actor = arbitrationAdmin) => fetch(arbitrationPath(id, orderId), {
+      method: 'POST', headers: actor.headers, body: '{}',
+    });
+    const reserveBalance = async (id: string, recipient: string) => {
+      const account = await deps.db.financialAccount.findFirstOrThrow({
+        where: { scope: 'sandbox:arbitration:' + id + ':' + recipient, purpose: 'service', kind: 'reserved' },
+      });
+      return postedBalance(deps.db, account.id);
+    };
+    const split = await arbitration(200001);
+    const [first, second] = split.orders;
+    assert.ok(first && second);
+    assert.equal((await executeArbitration(split.decision.id, first.id, customer)).status, 403);
+    assert.equal((await (await executeArbitration(split.decision.id, first.id, old)).json()).code, 'RECENT_LOGIN_REQUIRED');
+    assert.equal((await executeArbitration(split.decision.id, advance.id)).status, 404);
+    const initialView = await fetch(base + 'arbitrations/' + split.decision.id, customer);
+    assert.ok((await initialView.json()).refundItems.every((item: { stripeRefundState: string | null }) => item.stripeRefundState === null));
+    const initialExecutions = await Promise.all(split.orders.map(order => executeArbitration(split.decision.id, order.id)));
+    assert.ok((await Promise.all(initialExecutions.map(response => response.json()))).every(value => value.state === 'uncertain'));
+    assert.equal(await reserveBalance(split.decision.id, 'customer'), 200001n);
+    const settlements = await Promise.all([first, second, first].map(order => executeArbitration(split.decision.id, order.id)));
+    assert.ok((await Promise.all(settlements.map(response => response.json()))).every(value => value.state === 'succeeded' || value.state === 'processing'));
+    assert.equal(await reserveBalance(split.decision.id, 'customer'), 0n);
+    assert.equal(await reserveBalance(split.decision.id, 'fee'), BigInt(split.decision.feeMinor));
+    assert.equal(await reserveBalance(split.decision.id, 'provider'), BigInt(split.decision.payoutMinor));
+    const saved = await (await executeArbitration(split.decision.id, first.id)).json();
+    assert.equal(saved.arbitrationId, split.decision.id);
+    assert.deepEqual((await (await fetch(arbitrationPath(split.decision.id, first.id), arbitrationAdmin)).json()).execution, saved);
+    const finalView = await (await fetch(base + 'arbitrations/' + split.decision.id, customer)).json();
+    assert.ok(finalView.refundItems.every((item: { stripeRefundState: string }) => item.stripeRefundState === 'succeeded'));
+    assert.equal((await fetch(base + 'arbitrations/' + split.decision.id, outsider)).status, 404);
+    const arbitrationRows = await deps.db.stripeRefundExecution.findMany({ where: { arbitrationId: split.decision.id }, include: { settlement: true } });
+    assert.equal(arbitrationRows.length, 2);
+    assert.deepEqual(arbitrationRows.map(row => row.amountMinor).sort((a, b) => a - b), [50000, 150001]);
+    assert.ok(arbitrationRows.every(row => row.settlement?.source === 'stripe.test.refund.settle'));
+    assert.equal((await dashboard(arbitrationProvider)).settled.refundedMinor, '200001');
+
+    const complete = await arbitration(300002);
+    for (const order of complete.orders) {
+      assert.equal((await (await executeArbitration(complete.decision.id, order.id)).json()).state, 'uncertain');
+      assert.equal((await (await executeArbitration(complete.decision.id, order.id)).json()).state, 'succeeded');
+    }
+    assert.equal(await reserveBalance(complete.decision.id, 'customer'), 0n);
+    assert.equal(await deps.db.stripeRefundExecution.count({ where: { arbitrationId: complete.decision.id } }), 2);
+    const providerOnly = await arbitration(0);
+    const countBeforeZero = submissions.length;
+    for (const order of providerOnly.orders) {
+      assert.equal((await (await executeArbitration(providerOnly.decision.id, order.id)).json()).code, 'STRIPE_REFUND_NOT_ELIGIBLE');
+    }
+    assert.equal(submissions.length, countBeforeZero);
+    assert.equal(await reserveBalance(providerOnly.decision.id, 'provider'), BigInt(providerOnly.decision.payoutMinor));
   } finally {
     release();
     try {
@@ -384,6 +494,11 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
         await deps.db.refundRequest.delete({ where: { id: refundId } });
       }
       for (const bookingId of bookingIds) {
+        const arbitration = { decision: { dispute: { bookingId } } };
+        await deps.db.stripeRefundExecution.deleteMany({ where: { arbitrationSource: arbitration } });
+        await deps.db.arbitrationSource.deleteMany({ where: arbitration });
+        await deps.db.arbitrationDecision.deleteMany({ where: { dispute: { bookingId } } });
+        await deps.db.bookingDispute.deleteMany({ where: { bookingId } });
         await deps.db.stripeRefundExecution.deleteMany({ where: { damageClaim: { bookingId } } });
         await deps.db.payHereRefundExecution.deleteMany({ where: { damageClaim: { bookingId } } });
         await deps.db.damageClaim.deleteMany({ where: { bookingId } });
@@ -393,10 +508,13 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
         await deps.db.payHereAttempt.deleteMany({ where: { order: { bookingId } } });
         await deps.db.stripeAttempt.deleteMany({ where: { order: { bookingId } } });
         await deps.db.bookingDocument.deleteMany({ where: { bookingId } });
+        await deps.db.bookingAgreement.deleteMany({ where: { bookingId } });
+        await deps.db.bookingQuotation.deleteMany({ where: { bookingId } });
         await deps.db.paymentOrder.deleteMany({ where: { bookingId } });
         await deps.db.outboxEvent.deleteMany({ where: { payload: { path: ['sourceId'], equals: bookingId } } });
         await deps.db.booking.delete({ where: { id: bookingId } });
       }
+      await deps.db.verificationCase.deleteMany({ where: { providerId: { in: users } } });
       await deps.db.authUser.deleteMany({ where: { id: { in: users } } });
     } finally { await app.close(); }
   }

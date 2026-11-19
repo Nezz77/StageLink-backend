@@ -31,6 +31,11 @@ const allocation = z.object({
   id: uuid, disputeId: uuid, mode, heldMinor: minor, refundMinor: minor, feeMinor: minor, payoutMinor: minor,
   reason, createdAt: timestamp, currency: z.literal('LKR'), execution: z.literal('awaiting_gateway'),
 });
+const sourceView = z.object({
+  orderId: uuid, capturedMinor: minor, refundMinor: minor,
+  stripeRefundState: z.enum(['uncertain', 'pending', 'failed', 'succeeded']).nullable(),
+});
+const allocationDetails = allocation.extend({ refundItems: z.array(sourceView) });
 const dispute = z.object({
   id: uuid, bookingId: uuid, openedBy: uuid, subject: z.string(), body: z.string(),
   assetIds: z.array(uuid), createdAt: timestamp, dismissedAt: timestamp.nullable(), dismissalReason: reason.nullable(),
@@ -320,16 +325,20 @@ export function makeArbitrationController(auth: AuthService) {
 
     @Get('arbitrations/:id')
     @ApiParam({ name: 'id', format: 'uuid' })
-    @ApiOkResponse({ schema: schema(allocation) })
+    @ApiOkResponse({ schema: schema(allocationDetails) })
     async allocation(@Req() req: Request, @Param('id') id: string) {
       const actor = await identity(req);
       const staff = actor.session.activeRole === 'admin' && Boolean(actor.user.emailVerifiedAt);
       const userId = actor.user.id;
       const row = await db.arbitrationDecision.findFirst({
         where: { id: parse(uuid, id), ...(staff ? {} : { dispute: { booking: { OR: [{ customerId: userId }, { providerId: userId }] } } }) },
+        include: { sources: { orderBy: { orderId: 'asc' }, include: { stripeExecution: { select: { status: true } } } } },
       });
       if (!row) throw new PublicError(404, 'ARBITRATION_NOT_FOUND', 'This arbitration decision is unavailable.');
-      return presentDecision(row);
+      return { ...presentDecision(row), refundItems: row.sources.map(source => ({
+        orderId: source.orderId, capturedMinor: source.capturedMinor, refundMinor: source.refundMinor,
+        stripeRefundState: source.stripeExecution?.status ?? null,
+      })) };
     }
   }
   return ArbitrationController;

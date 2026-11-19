@@ -30,9 +30,34 @@ async function refundItem(tx: Prisma.TransactionClient, requestId: string, order
   return row;
 }
 
-export type RefundKey = { requestId: string; orderId: string } | { claimId: string };
+export type RefundKey = { requestId: string; orderId: string } | { claimId: string } | { arbitrationId: string; orderId: string };
 
 export async function refundTarget(tx: Prisma.TransactionClient, key: RefundKey) {
+  if ('arbitrationId' in key) {
+    const source = await tx.arbitrationSource.findUnique({
+      where: { decisionId_orderId: { decisionId: key.arbitrationId, orderId: key.orderId } },
+      include: {
+        decision: { include: { dispute: { include: { booking: { select: { id: true, customerId: true, providerId: true } } } } } },
+        order: { include: refundOrderInclude }, stripeExecution: true,
+      },
+    });
+    if (!source) throw new PublicError(404, 'ARBITRATION_SOURCE_NOT_FOUND', 'This arbitration payment allocation is unavailable.');
+    const { decision, order } = source;
+    const { dispute } = decision;
+    return {
+      booking: dispute.booking, order, reservationId: decision.reservationId, amountMinor: source.refundMinor,
+      reserveAmountMinor: decision.refundMinor, stripeExecution: source.stripeExecution, payHereExecution: null,
+      requestId: null, damageClaimId: null, arbitrationId: decision.id,
+      approved: !dispute.dismissedAt && decision.providerId === dispute.booking.providerId &&
+        order.bookingId === dispute.bookingId && order.purpose !== 'deposit' && order.currency === 'LKR' &&
+        source.capturedMinor === order.amountMinor && source.refundMinor > 0 && source.refundMinor <= source.capturedMinor &&
+        source.refundMinor <= decision.refundMinor,
+      reserve: {
+        purpose: 'service' as const, source: 'arbitration.sandbox.reserve',
+        scope: 'sandbox:arbitration:' + decision.id + ':customer', reference: dispute.id,
+      },
+    };
+  }
   if ('claimId' in key) {
     const claim = await tx.damageClaim.findUnique({
       where: { id: key.claimId },
@@ -45,9 +70,9 @@ export async function refundTarget(tx: Prisma.TransactionClient, key: RefundKey)
     const order = claim.depositOrder;
     const amountMinor = claim.refundMinor ?? 0;
     return {
-      booking: claim.booking, order, reservationId: claim.reservationId, amountMinor,
+      booking: claim.booking, order, reservationId: claim.reservationId, amountMinor, reserveAmountMinor: amountMinor,
       stripeExecution: claim.stripeExecution, payHereExecution: claim.payHereExecution,
-      requestId: null, damageClaimId: claim.id,
+      requestId: null, damageClaimId: claim.id, arbitrationId: null,
       approved: Boolean(claim.resolvedAt && claim.booking.targetKind === 'rental' && order?.purpose === 'deposit' &&
         order.bookingId === claim.bookingId && order.currency === 'LKR' && order.amountMinor === claim.depositMinor &&
         amountMinor > 0 && claim.deductionMinor !== null && amountMinor + claim.deductionMinor === claim.depositMinor),
@@ -57,9 +82,9 @@ export async function refundTarget(tx: Prisma.TransactionClient, key: RefundKey)
   const item = await refundItem(tx, key.requestId, key.orderId);
   return {
     booking: { id: item.request.bookingId, ...item.request.booking }, order: item.order,
-    reservationId: item.reservationId, amountMinor: item.amountMinor,
+    reservationId: item.reservationId, amountMinor: item.amountMinor, reserveAmountMinor: item.amountMinor,
     stripeExecution: item.stripeExecution, payHereExecution: item.payHereExecution,
-    requestId: item.requestId, damageClaimId: null,
+    requestId: item.requestId, damageClaimId: null, arbitrationId: null,
     approved: item.request.status === 'approved' && item.order.bookingId === item.request.bookingId &&
       item.order.currency === 'LKR' && item.amountMinor === item.order.amountMinor,
     reserve: {
@@ -74,13 +99,13 @@ type Reserved = { accountId: string; purpose: 'deposit' | 'service' };
 
 export async function findReservedFunds(
   tx: Prisma.TransactionClient, reservationId: string,
-  fund: { purpose: Reserved['purpose']; source: string; scope: string; reference?: string }, amountMinor: number,
+  fund: { purpose: Reserved['purpose']; source: string; scope: string; reference?: string }, amountMinor: number, originalAmountMinor = amountMinor,
 ): Promise<Reserved | null> {
   const { purpose, source, scope, reference } = fund;
   const amount = BigInt(amountMinor);
   const posting = await tx.journalEntry.findFirst({
     where: {
-      transactionId: reservationId, amountMinor: amount,
+      transactionId: reservationId, amountMinor: BigInt(originalAmountMinor),
       transaction: { source, reference, postedAt: { not: null } },
       account: { scope, kind: 'reserved', currency: 'LKR', purpose },
     },

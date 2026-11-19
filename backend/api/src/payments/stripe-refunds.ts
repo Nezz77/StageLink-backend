@@ -22,9 +22,11 @@ const execution = z.object({
 });
 const view = execution.extend({ requestId: uuid });
 const depositView = execution.extend({ claimId: uuid });
+const arbitrationView = execution.extend({ arbitrationId: uuid });
 function present(row: StripeRefundExecution) {
-  const { id, orderId, requestId, damageClaimId, status, amountMinor, createdAt, updatedAt } = row;
-  return { id, orderId, ...(damageClaimId ? { claimId: damageClaimId } : { requestId }), amountMinor,
+  const { id, orderId, requestId, damageClaimId, arbitrationId, status, amountMinor, createdAt, updatedAt } = row;
+  const target = arbitrationId ? { arbitrationId } : damageClaimId ? { claimId: damageClaimId } : { requestId };
+  return { id, orderId, ...target, amountMinor,
     state: row.leaseUntil && row.leaseUntil > new Date() ? 'processing' : status,
     createdAt: createdAt.toISOString(), updatedAt: updatedAt.toISOString() };
 }
@@ -90,7 +92,7 @@ export function makeStripeRefundExecutionController(auth: AuthService) {
       const current = await refundTarget(tx, targetKey);
       requireRecentIndependentAdmin(currentAdmin, current.booking);
       if (!current.reservationId || current.order?.id !== orderId || !hasValidCapture(current) ||
-        current.reservationId !== source.reservationId || current.amountMinor !== source.amountMinor ||
+        current.reservationId !== source.reservationId || current.amountMinor !== source.amountMinor || current.reserveAmountMinor !== source.reserveAmountMinor ||
         current.order.stripeAttempt?.sessionId !== attempt.sessionId || current.order.stripeAttempt.journalId !== attempt.journalId) {
         throw notEligible();
       }
@@ -99,16 +101,16 @@ export function makeStripeRefundExecutionController(auth: AuthService) {
       if (prior && (['succeeded', 'failed'].includes(prior.status) || (prior.leaseUntil && prior.leaseUntil > now))) {
         return { response: present(prior) };
       }
-      const reserved = await findReservedFunds(tx, current.reservationId, current.reserve, current.amountMinor);
+      const reserved = await findReservedFunds(tx, current.reservationId, current.reserve, current.amountMinor, current.reserveAmountMinor);
       if (!reserved || (prior && (prior.amountMinor !== current.amountMinor || prior.paymentIntentId !== intentId))) throw notEligible();
       const allowSubmit = current.order.status === 'paid' &&
-        (!current.damageClaimId || !await paymentBlocked(tx, current.booking.id, false));
+        (current.requestId !== null || !await paymentBlocked(tx, current.booking.id, false));
       if (!prior && !allowSubmit) throw notEligible();
       const lease = { leaseId: randomUUID(), leaseUntil: new Date(now.getTime() + 30_000), updatedAt: now };
       const row = prior
         ? await tx.stripeRefundExecution.update({ where: { id: prior.id }, data: lease })
         : await tx.stripeRefundExecution.create({ data: {
-          requestId: current.requestId, damageClaimId: current.damageClaimId, orderId,
+          requestId: current.requestId, damageClaimId: current.damageClaimId, arbitrationId: current.arbitrationId, orderId,
           actorId: currentAdmin.user.id, paymentIntentId: intentId!,
           amountMinor: current.amountMinor, ...lease,
         } });
@@ -179,6 +181,26 @@ export function makeStripeRefundExecutionController(auth: AuthService) {
     @ApiOkResponse({ schema: schema(depositView) })
     executeDeposit(@Req() req: Request, @Param('id') id: string, @Body() body: unknown) {
       return runRefund(req, body, () => ({ claimId: parse(uuid, id) }));
+    }
+
+    @Get('admin/arbitrations/:id/items/:orderId/stripe-refund')
+    @ApiParam({ name: 'id', format: 'uuid' })
+    @ApiParam({ name: 'orderId', format: 'uuid' })
+    @ApiOkResponse({ schema: schema(z.object({ execution: arbitrationView.nullable() })) })
+    async arbitrationStatus(@Req() req: Request, @Param('id') id: string, @Param('orderId') orderId: string) {
+      await admin(req);
+      const target = await refundTarget(db, { arbitrationId: parse(uuid, id), orderId: parse(uuid, orderId) });
+      return { execution: target.stripeExecution ? present(target.stripeExecution) : null };
+    }
+
+    @Post('admin/arbitrations/:id/items/:orderId/stripe-refund')
+    @HttpCode(200)
+    @ApiParam({ name: 'id', format: 'uuid' })
+    @ApiParam({ name: 'orderId', format: 'uuid' })
+    @ApiBody({ schema: schema(empty) })
+    @ApiOkResponse({ schema: schema(arbitrationView) })
+    executeArbitration(@Req() req: Request, @Param('id') id: string, @Param('orderId') orderId: string, @Body() body: unknown) {
+      return runRefund(req, body, () => ({ arbitrationId: parse(uuid, id), orderId: parse(uuid, orderId) }));
     }
   }
   return StripeRefundExecutionController;

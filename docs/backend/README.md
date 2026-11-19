@@ -292,6 +292,10 @@ When an access token expires, reconnect with a refreshed token and rejoin the co
 
 Booking participants can open a dispute at `POST /api/v1/bookings/:id/disputes` and attach private images uploaded with purpose `evidence`. Administrators review the case and eligible service balance under `/api/v1/admin/disputes`. A dismissal releases the dispute hold. A financial decision requires the reviewed balance and reserves the sandbox refund, fee and provider amounts atomically. `GET /api/v1/arbitrations/:id` reports the reservation as `awaiting_gateway`.
 
+The arbitration read includes `refundItems` with the captured amount, approved refund amount and recorded `stripeRefundState` for each source payment. For a positive Stripe test allocation, a verified administrator with a recent sign-in sends `{}` to `POST /api/v1/admin/arbitrations/:id/items/:orderId/stripe-refund` with the standard origin and CSRF headers. Enable the existing `STRIPE_TEST_REFUND_EXECUTION` setting. The server submits the saved payment allocation and settles that amount from the customer reserve after Stripe confirms the exact refund.
+
+Use `GET` on the same execution path to read local state. Repeat `POST` to reconcile a pending or uncertain result using its original reference. Different source payments can reconcile against the shared customer reserve, and each settlement posts once. Provider and fee execution, PayHere arbitration refunds and hosted verification are tracked in the completion backlog. [Stripe refund API](https://docs.stripe.com/api/refunds/create) · [Stripe idempotent requests](https://docs.stripe.com/api/idempotent_requests)
+
 ## Booking reminders
 
 Set `BOOKING_EMAIL_REMINDERS=true` to have the worker queue and send email reminders for eligible bookings. Development Compose uses Mailpit. Administrators can inspect and manage rows at `/api/v1/admin/reminders`. SMTP acceptance means the receiving server accepted the message. An unknown send outcome requires reconciliation before any resend.
