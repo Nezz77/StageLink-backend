@@ -105,6 +105,8 @@ model AuthUser {
   stripePayoutRetryApprovals StripePayoutTransfer[] @relation("StripeTransferRetryReviewer")
   stripeBankPayoutSettlements StripeBankPayoutSettlement[] @relation("StripeBankSettlementActor")
   stripeBankPayoutReviews StripeBankPayoutSettlement[] @relation("StripeBankSettlementReviewer")
+  stripeArbitrationFees StripeArbitrationFeeSettlement[] @relation("StripeArbitrationFeeActor")
+  stripeArbitrationFeeReviews StripeArbitrationFeeSettlement[] @relation("StripeArbitrationFeeReviewer")
   payoutDestinationRepairs PayoutDestinationRepair[]
   payHereRefundExecutions PayHereRefundExecution[]
   openedDisputes BookingDispute[] @relation("DisputeOpener")
@@ -826,6 +828,8 @@ model JournalTransaction {
   stripePayoutTransfer StripePayoutTransfer?
   stripeBankPayoutSettlement StripeBankPayoutSettlement? @relation("StripeBankSettlementJournal")
   stripeBankPayoutReversal StripeBankPayoutSettlement? @relation("StripeBankSettlementReversal")
+  stripeArbitrationFee StripeArbitrationFeeSettlement? @relation("StripeArbitrationFeeJournal")
+  stripeArbitrationFeeReversal StripeArbitrationFeeSettlement? @relation("StripeArbitrationFeeReversal")
   payHereRefundSettlement PayHereRefundExecution?
   refundReservation RefundItem?
   payoutReservation PayoutOrder?
@@ -1735,7 +1739,25 @@ model ArbitrationDecision {
   reservation JournalTransaction @relation(fields: [reservationId], references: [id], onDelete: Restrict)
   sources ArbitrationSource[]
   payout PayoutOrder?
+  feeSettlement StripeArbitrationFeeSettlement?
   @@map("arbitration_decisions")
+}
+
+model StripeArbitrationFeeSettlement {
+  arbitrationId String @id @map("arbitration_id") @db.Uuid
+  amountMinor Int @map("amount_minor")
+  actorId String @map("actor_id") @db.Uuid
+  journalId String @unique @map("journal_id") @db.Uuid
+  reversalJournalId String? @unique @map("reversal_journal_id") @db.Uuid
+  reviewActorId String? @map("review_actor_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
+  arbitration ArbitrationDecision @relation(fields: [arbitrationId], references: [id], onDelete: Restrict)
+  actor AuthUser @relation("StripeArbitrationFeeActor", fields: [actorId], references: [id], onDelete: Restrict)
+  reviewer AuthUser? @relation("StripeArbitrationFeeReviewer", fields: [reviewActorId], references: [id], onDelete: Restrict)
+  journal JournalTransaction @relation("StripeArbitrationFeeJournal", fields: [journalId], references: [id], onDelete: Restrict)
+  reversalJournal JournalTransaction? @relation("StripeArbitrationFeeReversal", fields: [reversalJournalId], references: [id], onDelete: Restrict)
+  @@map("stripe_arbitration_fee_settlements")
 }
 
 model ArbitrationSource {

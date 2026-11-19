@@ -112,7 +112,7 @@ export async function approvedStripeArbitration(tx: Prisma.TransactionClient, ar
     },
   });
   if (!decision || decision.dispute.dismissedAt || decision.providerId !== decision.dispute.booking.providerId ||
-    decision.payoutMinor <= 0 || decision.sources.reduce((sum, source) => sum + source.capturedMinor, 0) !== decision.heldMinor ||
+    decision.sources.reduce((sum, source) => sum + source.capturedMinor, 0) !== decision.heldMinor ||
     decision.sources.reduce((sum, source) => sum + source.refundMinor, 0) !== decision.refundMinor) return null;
   const captures = [];
   for (const source of decision.sources) {

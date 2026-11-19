@@ -3429,6 +3429,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/arbitrations/{id}/stripe-fee": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["StripeArbitrationFeesController_read"];
+        put?: never;
+        post: operations["StripeArbitrationFeesController_settle"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -6924,6 +6940,8 @@ export interface operations {
                         }[];
                         /** Format: uuid */
                         payoutId: string | null;
+                        /** @enum {string|null} */
+                        stripeFeeState: "settled" | "review_required" | null;
                     };
                 };
             };
@@ -20398,6 +20416,94 @@ export interface operations {
                         updatedAt: string;
                         /** Format: uuid */
                         arbitrationId: string;
+                    };
+                };
+            };
+        };
+    };
+    StripeArbitrationFeesController_read: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        settlement: {
+                            /** Format: uuid */
+                            arbitrationId: string;
+                            amountMinor: number;
+                            /** Format: uuid */
+                            actorId: string;
+                            /** Format: uuid */
+                            journalId: string;
+                            /** Format: uuid */
+                            reversalJournalId: string | null;
+                            /** Format: uuid */
+                            reviewActorId: string | null;
+                            /** @enum {string} */
+                            state: "settled" | "review_required";
+                            /** Format: date-time */
+                            createdAt: string;
+                            /** Format: date-time */
+                            updatedAt: string;
+                        } | null;
+                    };
+                };
+            };
+        };
+    };
+    StripeArbitrationFeesController_settle: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        evidence: "verified" | "unavailable" | "review_required";
+                        settlement: {
+                            /** Format: uuid */
+                            arbitrationId: string;
+                            amountMinor: number;
+                            /** Format: uuid */
+                            actorId: string;
+                            /** Format: uuid */
+                            journalId: string;
+                            /** Format: uuid */
+                            reversalJournalId: string | null;
+                            /** Format: uuid */
+                            reviewActorId: string | null;
+                            /** @enum {string} */
+                            state: "settled" | "review_required";
+                            /** Format: date-time */
+                            createdAt: string;
+                            /** Format: date-time */
+                            updatedAt: string;
+                        } | null;
                     };
                 };
             };

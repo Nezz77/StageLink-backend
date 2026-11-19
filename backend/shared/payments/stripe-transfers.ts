@@ -19,7 +19,7 @@ const paymentIntent = z.object({
   amount_received: z.number().int().positive(), status: z.literal('succeeded'),
   latest_charge: z.object({
     object: z.literal('charge'), payment_intent: z.string(), livemode: z.literal(false), currency: z.literal('lkr'),
-    paid: z.literal(true), captured: z.literal(true), disputed: z.literal(false),
+    paid: z.literal(true), captured: z.literal(true), disputed: z.boolean(),
     amount_captured: z.number().int().positive(), amount_refunded: z.number().int().nonnegative(),
   }),
 });
@@ -53,19 +53,24 @@ async function get(key: string, path: string, send: typeof fetch): Promise<unkno
   return response.json();
 }
 
-export async function verifyStripeTransferCapture(key: string, attempt: Capture, send = fetch) {
-  if (!key.startsWith('sk_test_')) return false;
+export async function inspectStripeTransferCapture(key: string, attempt: Capture, send = fetch) {
+  if (!key.startsWith('sk_test_')) return 'unavailable' as const;
   const observed = await observeStripe(key, attempt, send);
   if (observed.status !== 'captured' || !observed.paymentIntentId ||
-    (attempt.refundPaymentIntentId && observed.paymentIntentId !== attempt.refundPaymentIntentId)) return false;
+    (attempt.refundPaymentIntentId && observed.paymentIntentId !== attempt.refundPaymentIntentId)) return 'unavailable' as const;
   try {
     const id = observed.paymentIntentId;
     const raw = await get(key, 'payment_intents/' + encodeURIComponent(id) + '?expand%5B%5D=latest_charge', send);
     const data = paymentIntent.parse(raw);
-    return data.id === id && data.latest_charge.payment_intent === id &&
-      data.amount_received === attempt.amountMinor && data.latest_charge.amount_captured === attempt.amountMinor &&
-      data.latest_charge.amount_refunded === (attempt.refundMinor ?? 0);
-  } catch { return false; }
+    if (data.id !== id || data.latest_charge.payment_intent !== id ||
+      data.amount_received !== attempt.amountMinor || data.latest_charge.amount_captured !== attempt.amountMinor) return 'unavailable' as const;
+    return data.latest_charge.disputed || data.latest_charge.amount_refunded !== (attempt.refundMinor ?? 0)
+      ? 'review_required' as const : 'verified' as const;
+  } catch { return 'unavailable' as const; }
+}
+
+export async function verifyStripeTransferCapture(key: string, attempt: Capture, send = fetch) {
+  return await inspectStripeTransferCapture(key, attempt, send) === 'verified';
 }
 
 export function matchStripePayoutTransfer(raw: unknown, expected: Transfer): ConfirmedStripeTransfer | null {

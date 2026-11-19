@@ -147,7 +147,7 @@ async function deductionAmounts(tx: Prisma.TransactionClient, booking: Booking, 
 
 async function arbitrationAmounts(tx: Prisma.TransactionClient, booking: Booking, arbitrationId: string, revision: number) {
   const award = await approvedStripeArbitration(tx, arbitrationId, booking.id);
-  if (!award || await payoutBlocked(tx, booking.id, arbitrationId)) notEligible();
+  if (!award || award.decision.payoutMinor <= 0 || await payoutBlocked(tx, booking.id, arbitrationId)) notEligible();
   const destinationRevision = await assertPayoutProvider(tx, booking, revision);
   return {
     ...award,

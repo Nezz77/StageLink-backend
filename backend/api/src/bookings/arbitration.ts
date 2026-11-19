@@ -37,6 +37,7 @@ const sourceView = z.object({
 });
 const allocationDetails = allocation.extend({
   refundItems: z.array(sourceView), payoutId: uuid.nullable(), execution: z.enum(['awaiting_gateway', 'settled', 'review_required']),
+  stripeFeeState: z.enum(['settled', 'review_required']).nullable(),
 });
 const dispute = z.object({
   id: uuid, bookingId: uuid, openedBy: uuid, subject: z.string(), body: z.string(),
@@ -335,6 +336,7 @@ export function makeArbitrationController(auth: AuthService) {
       const row = await db.arbitrationDecision.findFirst({
         where: { id: parse(uuid, id), ...(staff ? {} : { dispute: { booking: { OR: [{ customerId: userId }, { providerId: userId }] } } }) },
         include: {
+          feeSettlement: { select: { reversalJournalId: true } },
           sources: { orderBy: { orderId: 'asc' }, include: { stripeExecution: { select: { status: true } } } },
           payout: { select: { id: true, stripeTransfers: {
             orderBy: { attempt: 'desc' }, take: 1, select: {
@@ -347,13 +349,14 @@ export function makeArbitrationController(auth: AuthService) {
       const transfer = row.payout?.stripeTransfers[0];
       const bankSettled = transfer?.bankSettlements.some(settlement => settlement.journalId && !settlement.reviewReason);
       const refundsSettled = row.sources.every(source => source.refundMinor === 0 || source.stripeExecution?.status === 'succeeded');
-      const providerSettled = row.payoutMinor === 0 && row.feeMinor === 0 ||
+      const stripeFeeState = row.feeSettlement ? row.feeSettlement.reversalJournalId ? 'review_required' : 'settled' : null;
+      const providerSettled = row.payoutMinor === 0 && (row.feeMinor === 0 || stripeFeeState === 'settled') ||
         transfer?.status === 'transferred' && transfer.reversedMinor === 0 && bankSettled;
       const needsReview = row.sources.some(source => source.stripeExecution?.status === 'failed') ||
         transfer?.status === 'rejected' || transfer?.status === 'review_required' ||
-        Boolean(transfer?.bankSettlements.length && !bankSettled);
+        Boolean(transfer?.bankSettlements.length && !bankSettled) || stripeFeeState === 'review_required';
       const execution = needsReview ? 'review_required' : refundsSettled && providerSettled ? 'settled' : 'awaiting_gateway';
-      return { ...presentDecision(row), execution, payoutId: row.payout?.id ?? null, refundItems: row.sources.map(source => ({
+      return { ...presentDecision(row), execution, stripeFeeState, payoutId: row.payout?.id ?? null, refundItems: row.sources.map(source => ({
         orderId: source.orderId, capturedMinor: source.capturedMinor, refundMinor: source.refundMinor,
         stripeRefundState: source.stripeExecution?.status ?? null,
       })) };

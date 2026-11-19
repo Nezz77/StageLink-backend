@@ -148,6 +148,14 @@ async function financialFacts(tx: Prisma.TransactionClient, period: Period, prov
       WHERE (a.scope = 'gateway:stripe:test:bank' AND a.kind = 'clearing')
          OR (a.scope = 'platform:stripe:test:fees' AND a.kind = 'available')
       UNION ALL
+      SELECT j.posted_at, d.booking_id, 'feeRevenueMinor', e.amount_minor
+      FROM journal j JOIN stripe_arbitration_fee_settlements s ON j.id = s.journal_id OR j.id = s.reversal_journal_id
+      JOIN arbitration_decisions a ON a.id = s.arbitration_id
+      JOIN booking_disputes d ON d.id = a.dispute_id
+      JOIN journal_entries e ON e.transaction_id = j.id
+      JOIN financial_accounts f ON f.id = e.account_id AND f.scope = 'platform:stripe:test:fees' AND f.kind = 'available'
+      WHERE j.source IN ('stripe.test.arbitration.fee.settle', 'stripe.test.arbitration.fee.reversal')
+      UNION ALL
       SELECT j.posted_at, d.booking_id, split.metric, split.minor
       FROM journal j JOIN damage_claims d ON d.reservation_id = j.id
       CROSS JOIN LATERAL (VALUES ('refundReservedMinor', d.refund_minor), ('payoutReservedMinor', d.deduction_minor)) AS split(metric, minor)
