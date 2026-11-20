@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createHash, createHmac, randomUUID } from 'node:crypto';
+import { createHash, createHmac, randomInt, randomUUID } from 'node:crypto';
 import { test } from 'node:test';
 import { SignJWT } from 'jose';
 import { createApp } from '../api/src/app.js';
@@ -37,7 +37,8 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
   let payHereAmount = '1500.01';
   const paymentId = '320025071278';
   let activePayHerePaymentId = paymentId;
-  let providerRefundId = 560034010257;
+  const firstProviderRefundId = randomInt(100_000_000_000, 900_000_000_000);
+  let providerRefundId = firstProviderRefundId;
   let nextPayHerePaymentId = 320025071281;
   let payHereResponseGate: Promise<void> | undefined;
   let payHereSubmitted: (() => void) | undefined;
@@ -100,7 +101,7 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
       assert.equal(new Headers(init.headers).get('Idempotency-Key'), 'stagelink-refund-' + executionId);
       submissions.push(intent);
       const response = {
-        id: intent.replace(/^pi_/, 're_'), status: intent === 'pi_service' ? 'pending' : 'succeeded',
+        id: 're_' + randomUUID().replaceAll('-', ''), status: intent === 'pi_service' ? 'pending' : 'succeeded',
         object: 'refund', amount, currency: 'lkr', payment_intent: intent, metadata: { stagelink_refund_execution: executionId },
       };
       providerRefunds.set(intent, response);
@@ -113,7 +114,7 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
       const matching = providerRefunds.get(url.searchParams.get('payment_intent')!);
       return Response.json({ object: 'list', has_more: false, data: matching ? [matching] : [] });
     }
-    assert.equal(url.pathname, '/v1/refunds/re_service');
+    assert.equal(url.pathname, '/v1/refunds/' + providerRefunds.get('pi_service')!.id);
     return Response.json({ ...providerRefunds.get('pi_service'), status: 'succeeded' });
   });
 
@@ -285,7 +286,7 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
       where: { id: payHereSettled.id }, include: { settlement: true },
     });
     assert.equal(completedPayHere.paymentId, paymentId);
-    assert.equal(completedPayHere.providerRefundId, '560034010257');
+    assert.equal(completedPayHere.providerRefundId, String(firstProviderRefundId));
     assert.equal(completedPayHere.settlement?.source, 'payhere.sandbox.refund.settle');
 
     const renter = await fixture('renter');
@@ -384,7 +385,7 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
     const fullReserve = await reserveAccount(full.id, 'customer');
     payHereStatus = 'RECEIVED';
     payHereMethod = 'FRIMI';
-    providerRefundId = 560034010258;
+    providerRefundId = firstProviderRefundId + 1;
     assert.equal((await (await executePayHereClaim(full.id)).json()).code, 'PAYHERE_CARD_PAYMENT_REQUIRED');
     assert.equal((await (await fetch(payHereClaimPath(full.id), admin)).json()).execution, null);
     assert.equal(payHereSubmissions, 1);
