@@ -252,6 +252,8 @@ Supply a fresh UUID for each intended generation. Reuse that key and the same fi
 
 Administrators review source documents and approve each manufacturer/model reference with `POST /api/v1/admin/equipment-spec-sources`. Supply `manufacturer`, `model`, `specs`, an HTTPS `url`, a document `title` and an optional `locator` such as the page number. Use listing-format values for wattage, SPL, frequency and weight. One reference can be active per manufacturer and model. List references with the admin GET route and retire a reference with `POST /api/v1/admin/equipment-spec-sources/:id/retire` and a reason.
 
+Administrators can also review 12 manufacturer references and approve a selection using its preview digest. [Manufacturer reference bundle](Equipment-Reference-Bundle.md).
+
 Verified renters can submit `requestKey`, `model` and optionally `manufacturer` to `POST /api/v1/ai/generations/equipment-specs`. The backend compares the full model name after case and whitespace normalization. An ambiguous or unknown match returns empty specs. Matching suggestions include a source citation and can be reopened by their owner at `GET /api/v1/ai/generations/:id`. After retirement, saved suggestions retain the citation and return `withdrawn` with empty specs. Reuse the request key to reopen a lookup or use a fresh one to check the current catalog. Renters review suggestions and save applicable values through the existing listing editor. The lookup uses approved catalog records and has a rolling limit of 30 new searches per renter over 24 hours.
 
 ## Published gig embeddings

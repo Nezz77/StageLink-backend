@@ -4,6 +4,10 @@ Updated 20 November 2026. Scope comes from the final proposal, sections 4, 5 and
 
 ## Completed backend work
 
+The PayHere recovery build at `52e0102` passed Node and Python tests, API contract checks, and both container builds. [Run 44688362522](https://github.com/Nezz77/StageLink-backend/actions/runs/44688362522).
+
+Full PayHere sandbox arbitration refunds and audited recovery are on `main`. Recovery covers uncertain full card refunds for cancellations, rental deposits and arbitration. It checks fresh payment evidence, settles the original reservation once, and records the administrator and journal. Hosted verification and partial PayHere refunds remain open.
+
 | Area | Implemented |
 | --- | --- |
 | Accounts and onboarding | Registration, email verification, recovery, role-scoped sessions, provider profiles and approvals, and private media with publication review |
@@ -17,15 +21,16 @@ Updated 20 November 2026. Scope comes from the final proposal, sections 4, 5 and
 
 | Order | Task | Completion criteria |
 | --- | --- | --- |
-| 1 | Sandbox payments and reconciliation, P11–P14 | Verify PayHere and Stripe test callbacks, retrieval and audited recovery with merchant accounts. Confirm supported LKR and Connect capabilities. |
-| 2 | Refunds, payouts and arbitration, P12–P16 | Execute approved money movements through the gateways and record settlements, retries and failure recovery. Use settled data for production documents and P18 financial analytics. |
-| 3 | Equipment references and verification evidence, P15–P16 | Populate the equipment catalog from approved manufacturer sources and verify private PDF evidence handling on staging storage. |
-| 4 | Hosted communication, P10 and P17 | Verify live SMTP reminders and campaigns, add consent-based SMS and delivery reconciliation, and verify WebSocket upgrades and booking chat on the hosted proxy. |
-| 5 | Frontend and release, all phases | Connect each supported workflow in the frontend and update its Figma flow. Run staging end-to-end, access control, accessibility, load, backup restore and rollback checks. |
+| 1 | Equipment reference catalog, P15 | Review and approve the 12 bundled references on staging, then expand coverage against the rental catalog. |
+| 2 | Hosted payment verification, P11–P16 | Verify PayHere and Stripe test callbacks, retrieval and audited recovery with merchant accounts. Confirm Stripe LKR and Connect eligibility. Verify sandbox refunds, transfers, rental deductions and arbitration settlements with the supported routes. |
+| 3 | Remaining payment implementation, P12–P16 | Establish exact provider evidence for partial PayHere refunds, then implement supported reconciliation. Complete PayHere deduction, provider payout and fee settlement and manual bank payouts. Issue production documents and report live financial totals after confirming live settlements. |
+| 4 | AI and private evidence, P15–P16 | Smoke test hosted models, evaluate ranking against representative listings and event briefs, and verify private PDF access on staging storage. |
+| 5 | Hosted communication, P10 and P17 | Verify SMTP reminders and campaigns, WebSocket upgrades and reconnect through the hosted proxy. Implement consent-based SMS reminders and campaigns with delivery reconciliation. |
+| 6 | Frontend and release, all phases | Connect supported workflows in the frontend and update their Figma flows. Run staging end-to-end, access control, accessibility, load, backup restore and rollback checks. |
 
 ## Backend build order
 
-A checked box marks implemented backend code. PostgreSQL integration, client wiring, and external provider checks are tracked below.
+A checked box marks implemented backend code. Client wiring and hosted checks have their own entries.
 
 - [x] P00–P04 foundation, accounts, profiles and reviewed media.
 - [x] P05 catalog. Versioned gigs and packages, equipment, venues, bundles, rate plans, refundable deposit policies, serialized inventory and rental galleries.
@@ -84,7 +89,8 @@ A checked box marks implemented backend code. PostgreSQL integration, client wir
 - [x] P15 Administrator indexing and status checks for versioned public gig embeddings.
 - [x] P15 Opt-in semantic reranking, weighted fallback, embedding provenance and repeatable synthetic ranking evaluation.
 - [ ] P15 Live model smoke test and ranking evaluation against a representative catalog and event briefs.
-- [ ] P15 Populate approved manufacturer references.
+- [x] P15 Manufacturer reference bundle with 12 cited models, administrator preview, digest-based approval and safeguards for duplicate, conflicting and retired entries. [Bundle guide](Equipment-Reference-Bundle.md).
+- [ ] P15 Approve the bundled references on staging and expand coverage against the rental catalog.
 - [x] P16 Private provider verification submissions, administrative review and resubmission history.
 - [x] P16 Role-specific provider identity approval for sandbox payout and arbitration reservations.
 - [x] P16 Support tickets, member/staff replies, private notes, assignments and reopen history.
@@ -109,6 +115,8 @@ A checked box marks implemented backend code. PostgreSQL integration, client wir
 - [ ] P18 Live financial totals for supported workflows and release verification for security, accessibility, backup and rollback.
 
 ## Verification and client integration
+
+- [x] GitHub CI passed for uncertain PayHere refund recovery and matching database audit evidence at `52e0102`. See [run 44688362522](https://github.com/Nezz77/StageLink-backend/actions/runs/44688362522).
 
 - [x] GitHub CI passed through `78705a3` using PostgreSQL, Redis, Mailpit and S3Mock. See [run 43754928062](https://github.com/Nezz77/StageLink-backend/actions/runs/43754928062).
 - [x] Local listing-embedding checks passed with all migrations applied to isolated PGlite, Redis, mocked model calls, 37 Node unit tests and 21 FastAPI tests.

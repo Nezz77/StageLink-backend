@@ -1,6 +1,10 @@
 # StageLink backend checkpoint
 
-Updated 16 November 2026. Backend development uses `main` in [Nezz77/StageLink-backend](https://github.com/Nezz77/StageLink-backend). The [completion backlog](StageLink-Completion-Backlog.md) tracks current status. The entries below record the checks and implementation as each phase landed.
+Updated 20 November 2026. Backend development uses `main` in [Nezz77/StageLink-backend](https://github.com/Nezz77/StageLink-backend). The [completion backlog](StageLink-Completion-Backlog.md) tracks current status. The entries below record the checks and implementation as each phase landed. Later entries supersede historical open-work notes.
+
+The PayHere refund recovery build at `52e0102` includes full sandbox recovery and matching audit evidence constraints. The Node and Python jobs passed, including integration tests, API contract consistency and both container builds. [GitHub run 44688362522](https://github.com/Nezz77/StageLink-backend/actions/runs/44688362522).
+
+P15 combines the six tested starter references with six Yamaha and CHAUVET DJ references in one administrator workflow. The pack uses a digest of the reviewed measurements and citations. Approval records the acting administrator and preserves existing approvals. Staging approval, broader catalog coverage, and frontend and Figma wiring remain open. [Manufacturer reference bundle](Equipment-Reference-Bundle.md).
 
 ## Completed
 

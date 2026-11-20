@@ -1124,7 +1124,7 @@
         "src/components/EquipmentSpecsEditor.tsx",
         "src/lib/equipmentSpecs.ts"
       ],
-      "proposed_contract": "POST /ai/generations/equipment-specs; GET /ai/generations/:id; GET and POST /admin/equipment-spec-sources; POST /admin/equipment-spec-sources/:id/retire",
+      "proposed_contract": "POST /ai/generations/equipment-specs; GET /ai/generations/:id; GET and POST /admin/equipment-spec-sources; POST /admin/equipment-spec-sources/:id/retire; GET /admin/equipment-spec-sources/reference-bundle; POST /admin/equipment-spec-sources/reference-bundle/approve",
       "entities": [
         "generation_jobs",
         "sourced_specs",
@@ -1140,7 +1140,7 @@
       "ui_coverage_ids": [
         "UI-021"
       ],
-      "remaining": "Populate reviewed manufacturer references and connect the existing listing editor and Figma review flow. Exact catalog lookup is available without an AI provider."
+      "remaining": "Approve the 12 bundled manufacturer references on staging, expand coverage against the rental catalog, and connect the listing editor and Figma review flow. Exact catalog lookup is available without an AI provider."
     },
     {
       "id": "BE-032",
@@ -2314,6 +2314,29 @@
   "implementation_repository": "https://github.com/Nezz77/StageLink-backend",
   "remote_frontend_repository": "https://github.com/Nezz77/StageLink",
   "implementation_checkout": "/Users/nezz/Desktop/UOM/Software Project/StageLink-backend",
-  "updated_at": "2026-11-03",
-  "remote_frontend_branch": "frontend"
+  "updated_at": "2026-11-20",
+  "remote_frontend_branch": "frontend",
+  "status_authority": "StageLink-Completion-Backlog.md",
+  "phase_status_note": "Phase and ticket status values are historical planning checkpoints. StageLink-Completion-Backlog.md records the current implementation and remaining hosted, client and release verification.",
+  "latest_verified_build": {
+    "verified_on": "2026-11-20",
+    "repository": "https://github.com/Nezz77/StageLink-backend",
+    "branch": "main",
+    "commit": "52e0102363caf3b21c2018e319fa14326bb9dcb3",
+    "local_matches_remote": true,
+    "ci_conclusion": "success",
+    "ci_url": "https://github.com/Nezz77/StageLink-backend/actions/runs/44688362522",
+    "verified_checks": [
+      "Node unit and integration tests",
+      "API contract regeneration and consistency",
+      "Backend container build",
+      "Python tests",
+      "AI container build"
+    ],
+    "does_not_establish": [
+      "Hosted merchant verification",
+      "Frontend integration",
+      "Deployment readiness"
+    ]
+  }
 }
