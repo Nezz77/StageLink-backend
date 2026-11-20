@@ -142,6 +142,8 @@ To recover an `uncertain` full card refund after a lost response, an independent
 
 Use `GET /api/v1/admin/payhere-refund-executions/:id/recovery` to read the audit record. Repeating the same recovery command returns that record. A changed command, stale execution, pending refund, chargeback or mismatched evidence cannot settle the funds. Recovery applies to approved cancellation items, resolved full rental deposit refunds and full arbitration allocations. Hosted verification and partial refund evidence remain pending.
 
+PostgreSQL requires a matching recovery record when a successful execution has no provider refund number. The audit must match the execution, captured payment, amount and settlement journal. Removing or changing that evidence fails the transaction.
+
 For a resolved rental deposit claim with a zero deduction, use `POST /api/v1/admin/damage-claims/:id/payhere-refund` with the same `{}` body and administrator checks. StageLink requires authenticated evidence of the matching LKR card payment. Once PayHere reports the payment as refunded, repeating the `POST` settles the customer reserve. Use `GET` on the same path to check execution. Booking participants can read `payHereRefundState` at `GET /api/v1/bookings/:id/damage-claim`.
 
 Partial deposit refunds need hosted confirmation of both provider support and evidence of the exact refunded amount. PayHere’s Refund API shows an amount parameter, while its refund guide describes full refunds and its Retrieval API reports payment status. [PayHere Refund API](https://support.payhere.lk/api-%26-mobile-sdk/refund-api) · [PayHere Refund Process](https://support.payhere.lk/refund-process) · [PayHere Retrieval API](https://support.payhere.lk/api-%26-mobile-sdk/retrieval-api)

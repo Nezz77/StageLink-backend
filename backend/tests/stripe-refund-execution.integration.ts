@@ -6,7 +6,7 @@ import { createApp } from '../api/src/app.js';
 import { csrfFor } from '../api/src/auth/security.js';
 import { recordCapture } from '../api/src/payments/capture.js';
 import { readConfig } from '../shared/config.js';
-import { openAccount, postedBalance, postJournal } from '../shared/payments/journal.js';
+import { hasJournalSqlState, openAccount, postedBalance, postJournal } from '../shared/payments/journal.js';
 import { resources } from '../shared/resources.js';
 
 const config = readConfig({
@@ -692,7 +692,7 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
     await resetPayHereLimit();
     payHereStatus = 'REFUNDED';
     const recoveredResponses = await Promise.all([recoverPayHere(uncertain.id), recoverPayHere(uncertain.id)]);
-    assert.ok(recoveredResponses.every(response => response.status === 200));
+    for (const response of recoveredResponses) assert.equal(response.status, 200, await response.clone().text());
     const recoveries = await Promise.all(recoveredResponses.map(response => response.json()));
     assert.deepEqual(recoveries[0], recoveries[1]);
     const recovery = recoveries[0];
@@ -710,6 +710,12 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
     assert.equal(recoveredExecution.settlement?.reference, 'recovery:' + uncertain.id);
     assert.equal(await reserveBalance(uncertainPayHere.decision.id, 'customer'), 0n);
     assert.equal(await deps.db.payHereRefundRecovery.count({ where: { executionId: uncertain.id } }), 1);
+    await assert.rejects(deps.db.$executeRaw`
+      UPDATE payhere_refund_recoveries SET payment_id = '999999999999' WHERE execution_id = ${uncertain.id}::uuid
+    `, error => hasJournalSqlState(error, '23514'));
+    await assert.rejects(deps.db.$executeRaw`
+      DELETE FROM payhere_refund_recoveries WHERE execution_id = ${uncertain.id}::uuid
+    `, error => hasJournalSqlState(error, '23514'));
     assert.equal(payHereSubmissions, afterUncertainSubmission);
     assert.equal((await (await executePayHereArbitration(uncertainPayHere.decision.id, uncertainSource.id)).json()).state, 'succeeded');
     assert.equal((await (await fetch(base + 'arbitrations/' + uncertainPayHere.decision.id, customer)).json()).refundItems.find((item: { orderId: string }) => item.orderId === uncertainSource.id).payHereRefundState, 'succeeded');
@@ -722,6 +728,11 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
     await selectPayHerePayment(lostDeposit.depositOrderId);
     const lostDepositExecution = await (await executePayHereClaim(lostDeposit.id, otherRecoveryAdmin)).json();
     assert.equal(lostDepositExecution.state, 'uncertain');
+    const depositReservation = await deps.db.damageClaim.findUniqueOrThrow({ where: { id: lostDeposit.id } });
+    await assert.rejects(deps.db.$executeRaw`
+      UPDATE payhere_refund_executions SET status = 'succeeded', settlement_id = ${depositReservation.reservationId}::uuid
+      WHERE id = ${lostDepositExecution.id}::uuid
+    `, error => hasJournalSqlState(error, '23514'));
     payHereStatus = 'REFUNDED';
     const depositRecovery = await recoverPayHere(lostDepositExecution.id, {
       ...recoveryCommand, requestKey: randomUUID(), expectedUpdatedAt: lostDepositExecution.updatedAt,
@@ -780,7 +791,11 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
   } finally {
     release();
     try {
-      await deps.db.payHereRefundRecovery.deleteMany({ where: { actorId: { in: users } } });
+      await deps.db.$transaction(async tx => {
+        const recoveries = await tx.payHereRefundRecovery.findMany({ where: { actorId: { in: users } }, select: { executionId: true } });
+        await tx.payHereRefundRecovery.deleteMany({ where: { actorId: { in: users } } });
+        await tx.payHereRefundExecution.deleteMany({ where: { id: { in: recoveries.map(row => row.executionId) } } });
+      });
       if (refundId) {
         await deps.db.payHereRefundExecution.deleteMany({ where: { requestId: refundId } });
         await deps.db.stripeRefundExecution.deleteMany({ where: { requestId: refundId } });
