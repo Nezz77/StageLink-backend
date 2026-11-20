@@ -437,6 +437,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/equipment-spec-sources/reference-bundle": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["EquipmentSourcesController_previewBundle"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/equipment-spec-sources/reference-bundle/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["EquipmentSourcesController_approveBundle"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/equipment-spec-sources": {
         parameters: {
             query?: never;
@@ -5588,6 +5620,102 @@ export interface operations {
                                 approvedAt: string;
                             } | null;
                         };
+                    };
+                };
+            };
+        };
+    };
+    EquipmentSourcesController_previewBundle: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        version: string;
+                        reviewedOn: string;
+                        digest: string;
+                        entries: {
+                            manufacturer: string;
+                            model: string;
+                            specs: {
+                                specWattage?: string;
+                                specSpl?: string;
+                                specFrequency?: string;
+                                specWeight?: string;
+                            };
+                            /** Format: uri */
+                            url: string;
+                            title: string;
+                            locator?: string;
+                            notes: string;
+                            /** @enum {string} */
+                            state: "new" | "approved" | "conflict" | "retired";
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    EquipmentSourcesController_approveBundle: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    digest: string;
+                    models?: ("DXR15mkII" | "DXR12mkII" | "DXR10mkII" | "DXR8mkII" | "Intimidator Spot 160 ILS" | "Intimidator Spot 160" | "SM58" | "SM57" | "DBR10" | "DBR12" | "DBR15" | "K12.2")[];
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        version: string;
+                        digest: string;
+                        created: number;
+                        unchanged: number;
+                        items: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uri */
+                            url: string;
+                            title: string;
+                            locator: string | null;
+                            /** Format: date-time */
+                            approvedAt: string;
+                            manufacturer: string;
+                            model: string;
+                            specs: {
+                                specWattage?: string;
+                                specSpl?: string;
+                                specFrequency?: string;
+                                specWeight?: string;
+                            };
+                            /** Format: uuid */
+                            approvedBy: string;
+                            /** Format: date-time */
+                            retiredAt: string | null;
+                            /** Format: uuid */
+                            retiredBy: string | null;
+                            retirementReason: string | null;
+                        }[];
                     };
                 };
             };

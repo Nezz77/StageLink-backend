@@ -8,6 +8,7 @@ import type { AuthService } from '../auth/service.js';
 import { rentalSpecs } from '../catalog/equipment-specs.js';
 import { schema } from '../payments/orders.js';
 import { ProfileService } from '../profiles/service.js';
+import { equipmentReferenceBundle, equipmentReferenceBundleDigest } from '../../../shared/equipment-reference-bundle.js';
 
 const label = (max: number) => z.string().trim().min(1).max(max).refine(value => !value.includes('\0'));
 const modelName = label(120);
@@ -35,6 +36,17 @@ const adminSource = citation.extend({
   approvedBy: z.uuid(), retiredAt: z.iso.datetime().nullable(),
   retiredBy: z.uuid().nullable(), retirementReason: z.string().nullable(),
 });
+const bundledModel = z.enum(equipmentReferenceBundle.entries.map(entry => entry.model));
+const bundleCommand = z.object({
+  digest: z.string().regex(/^[a-f0-9]{64}$/),
+  models: z.array(bundledModel).min(1).max(equipmentReferenceBundle.entries.length)
+    .refine(models => new Set(models).size === models.length).optional(),
+}).strict();
+const bundlePreview = z.object({
+  version: z.string(), reviewedOn: z.string(), digest: z.string(),
+  entries: z.array(sourceInput.extend({ notes: z.string(), state: z.enum(['new', 'approved', 'conflict', 'retired']) })),
+});
+const bundleResult = z.object({ version: z.string(), digest: z.string(), created: z.number(), unchanged: z.number(), items: z.array(adminSource) });
 export const equipmentLookup = z.object({
   requestKey: z.uuid(), manufacturer: modelName.optional(), model: modelName,
 }).strict();
@@ -44,6 +56,33 @@ export const equipmentSuggestion = z.object({
 });
 
 export const equipmentKey = (value: string) => value.normalize('NFC').trim().replace(/\s+/gu, ' ').toLowerCase();
+
+function sameReference(row: EquipmentSpecSource, input: z.infer<typeof sourceInput>) {
+  const saved = factualSpecs.safeParse(row.specs);
+  return saved.success && row.url === input.url && row.title === input.title && row.locator === (input.locator ?? null) &&
+    Object.keys(saved.data).length === Object.keys(input.specs).length &&
+    Object.entries(input.specs).every(([key, value]) => saved.data[key as keyof typeof saved.data] === value);
+}
+
+async function lockReferenceCatalog(tx: Prisma.TransactionClient) {
+  await tx.$queryRaw`SELECT pg_advisory_xact_lock(176012, 15)::text`;
+}
+
+async function referenceBundlePreview(db: Prisma.TransactionClient) {
+  const entries = [];
+  for (const candidate of equipmentReferenceBundle.entries) {
+    const { notes, ...raw } = candidate;
+    const input = sourceInput.parse(raw);
+    const row = await db.equipmentSpecSource.findFirst({
+      where: { manufacturerKey: equipmentKey(input.manufacturer), modelKey: equipmentKey(input.model) },
+      orderBy: { retiredAt: { sort: 'desc', nulls: 'first' } },
+    });
+    const state = !row ? 'new' : row.retiredAt ? 'retired' : sameReference(row, input) ? 'approved' : 'conflict';
+    entries.push({ ...input, notes, state });
+  }
+  return bundlePreview.parse({ version: equipmentReferenceBundle.version, reviewedOn: equipmentReferenceBundle.reviewedOn,
+    digest: equipmentReferenceBundleDigest, entries });
+}
 
 function parse<T>(type: z.ZodType<T>, data: unknown) {
   const result = type.safeParse(data);
@@ -116,6 +155,46 @@ export function makeEquipmentSourcesController(auth: AuthService) {
   @ApiBearerAuth()
   @Controller('admin/equipment-spec-sources')
   class EquipmentSourcesController {
+    @Get('reference-bundle')
+    @ApiOkResponse({ schema: schema(bundlePreview) })
+    async previewBundle(@Req() req: Request) {
+      await admin(req);
+      return referenceBundlePreview(db);
+    }
+
+    @Post('reference-bundle/approve')
+    @HttpCode(200)
+    @ApiBody({ schema: schema(bundleCommand) })
+    @ApiOkResponse({ schema: schema(bundleResult) })
+    approveBundle(@Req() req: Request, @Body() raw: unknown) {
+      const command = parse(bundleCommand, raw);
+      return mutation(req, async (tx, approvedBy) => {
+        if (command.digest !== equipmentReferenceBundleDigest) {
+          throw new PublicError(409, 'REFERENCE_BUNDLE_CHANGED', 'Reload and review the current equipment reference bundle before approving.');
+        }
+        // Serialize imports and manual source approval/retirement across different administrators.
+        await lockReferenceCatalog(tx);
+        const preview = await referenceBundlePreview(tx);
+        const selected = preview.entries.filter(entry => !command.models || command.models.includes(entry.model));
+        if (selected.some(entry => entry.state === 'conflict' || entry.state === 'retired')) {
+          throw new PublicError(409, 'REFERENCE_BUNDLE_CONFLICT', 'An equipment reference differs or was retired. Review those models individually; no bundle changes were saved.');
+        }
+        const items = [];
+        let created = 0;
+        for (const entry of selected) {
+          const { notes: _notes, state, ...input } = entry;
+          const keys = { manufacturerKey: equipmentKey(input.manufacturer), modelKey: equipmentKey(input.model) };
+          if (state === 'new') {
+            items.push(present(await tx.equipmentSpecSource.create({ data: { ...input, ...keys, approvedBy } })));
+            created++;
+          } else {
+            items.push(present(await tx.equipmentSpecSource.findFirstOrThrow({ where: { ...keys, retiredAt: null } })));
+          }
+        }
+        return bundleResult.parse({ version: preview.version, digest: preview.digest, created, unchanged: items.length - created, items });
+      });
+    }
+
     @Get()
     @ApiQuery({ name: 'cursor', type: String, required: false })
     @ApiOkResponse({ schema: schema(z.object({ items: z.array(adminSource), nextCursor: z.uuid().nullable() })) })
@@ -136,6 +215,7 @@ export function makeEquipmentSourcesController(auth: AuthService) {
     approve(@Req() req: Request, @Body() raw: unknown) {
       const input = parse(sourceInput, raw);
       return mutation(req, async (tx, approvedBy) => {
+        await lockReferenceCatalog(tx);
         const [created] = await tx.equipmentSpecSource.createManyAndReturn({
           data: {
             ...input, manufacturerKey: equipmentKey(input.manufacturer), modelKey: equipmentKey(input.model), approvedBy,
@@ -156,6 +236,7 @@ export function makeEquipmentSourcesController(auth: AuthService) {
       const id = parse(z.uuid(), rawId);
       const { reason } = parse(retirement, raw);
       return mutation(req, async (tx, retiredBy) => {
+        await lockReferenceCatalog(tx);
         await tx.equipmentSpecSource.updateMany({
           where: { id, retiredAt: null }, data: { retiredAt: new Date(), retiredBy, retirementReason: reason },
         });

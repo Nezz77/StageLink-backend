@@ -6,6 +6,7 @@ import { createApp } from '../api/src/app.js';
 import { csrfFor } from '../api/src/auth/security.js';
 import { readConfig } from '../shared/config.js';
 import { resources } from '../shared/resources.js';
+import { equipmentReferenceBundle, equipmentReferenceBundleDigest } from '../shared/equipment-reference-bundle.js';
 
 const baseConfig = readConfig();
 if (baseConfig.NODE_ENV !== 'test' || !new URL(baseConfig.DATABASE_URL).pathname.endsWith('_test')) {
@@ -21,10 +22,10 @@ test('equipment lookup retains approved sources, matches exact models and hides 
   try {
     await app.listen(0, '127.0.0.1');
     const root = (await app.getUrl()) + '/api/v1/';
-    async function actor(role: 'admin' | 'renter' | 'customer') {
+    async function actor(role: 'admin' | 'renter' | 'customer', verified = true) {
       const user = await deps.db.authUser.create({ data: {
         roles: [role], email: randomUUID() + '@stagelink.test', displayName: 'Equipment reference fixture',
-        passwordHash: 'unused', emailVerifiedAt: new Date(),
+        passwordHash: 'unused', emailVerifiedAt: verified ? new Date() : null,
       } });
       users.push(user.id);
       const session = await deps.db.authSession.create({ data: {
@@ -115,10 +116,74 @@ test('equipment lookup retains approved sources, matches exact models and hides 
     assert.equal((await request(renter, lookup)).data.suggestion.match, 'withdrawn');
     assert.equal(await deps.db.aiModelCall.count({ where: { generation: { ownerId: { in: users } } } }), 0);
     assert.equal(await deps.db.rentalListing.count({ where: { ownerId: { in: users } } }), 0);
+
+    const bundlePath = catalog + '/reference-bundle';
+    const importPath = bundlePath + '/approve';
+    const bundleCommand = { digest: equipmentReferenceBundleDigest };
+    const allModels = equipmentReferenceBundle.entries.map(entry => entry.model);
+    assert.equal((await request(renter, bundlePath)).status, 403);
+    assert.equal((await request(renter, importPath, bundleCommand)).status, 403);
+    assert.equal((await request(await actor('admin', false), importPath, bundleCommand)).status, 403);
+    assert.equal((await request({ ...admin, 'X-CSRF-Token': 'invalid' }, importPath, bundleCommand)).status, 403);
+    assert.equal((await request({ ...admin, Origin: 'https://untrusted.example' }, importPath, bundleCommand)).status, 403);
+    assert.equal((await request(admin, importPath, { digest: '0'.repeat(64) })).status, 409);
+    assert.equal((await request(admin, importPath, { ...bundleCommand, approvedBy: users[1] })).status, 400);
+    for (const models of [[], ['Unknown model'], ['DXR15mkII', 'DXR15mkII']]) {
+      assert.equal((await request(admin, importPath, { ...bundleCommand, models })).status, 400);
+    }
+    const preview = await request(admin, bundlePath);
+    assert.equal(preview.status, 200);
+    assert.equal(preview.data.entries.length, 12);
+    assert.ok(preview.data.entries.every((entry: { state: string }) => entry.state === 'new'));
+    assert.equal(preview.data.digest, equipmentReferenceBundleDigest);
+
+    // A conflict in the last entry cannot cause earlier entries to be partially imported.
+    const { notes: _notes, ...last } = equipmentReferenceBundle.entries.at(-1)!;
+    const conflicting = await request(admin, catalog, { ...last, specs: { specWeight: '5' } });
+    assert.equal(conflicting.status, 200);
+    sourceIds.push(conflicting.data.id);
+    assert.equal((await request(admin, importPath, bundleCommand)).status, 409);
+    assert.equal((await request(admin, bundlePath)).data.entries.filter((entry: { state: string }) => entry.state === 'new').length, allModels.length - 1);
+    await request(admin, `${catalog}/${conflicting.data.id}/retire`, { reason: 'Fixture withdrawal must survive bulk approval.' });
+    assert.equal((await request(admin, importPath, bundleCommand)).status, 409);
+    assert.equal((await request(admin, bundlePath)).data.entries.at(-1).state, 'retired');
+    await deps.db.equipmentSpecSource.delete({ where: { id: conflicting.data.id } });
+
+    const anotherAdmin = await actor('admin');
+    const imports = await Promise.all([
+      request(admin, importPath, { ...bundleCommand, models: allModels }),
+      request(anotherAdmin, importPath, bundleCommand),
+    ]);
+    assert.deepEqual(imports.map(result => result.status), [200, 200]);
+    assert.deepEqual(imports.map(result => result.data.created).sort(), [0, allModels.length]);
+    const imported = imports.find(result => result.data.created === allModels.length)!.data.items;
+    sourceIds.push(...imported.map((entry: { id: string }) => entry.id));
+    const retry = await request(admin, importPath, bundleCommand);
+    assert.equal(retry.data.created, 0);
+    assert.equal(retry.data.unchanged, allModels.length);
+    assert.deepEqual(retry.data.items.map((entry: { id: string }) => entry.id), imported.map((entry: { id: string }) => entry.id));
+    assert.deepEqual(retry.data.items.map((entry: { approvedBy: string }) => entry.approvedBy), imported.map((entry: { approvedBy: string }) => entry.approvedBy));
+    for (const entry of equipmentReferenceBundle.entries) {
+      const result = await request(renter, search, { requestKey: randomUUID(), manufacturer: entry.manufacturer, model: entry.model });
+      assert.equal(result.status, 200);
+      assert.equal(result.data.suggestion.match, 'matched');
+      assert.deepEqual(result.data.suggestion.specs, entry.specs);
+      assert.equal(result.data.suggestion.source.url, entry.url);
+      assert.equal('packageInclusions' in result.data.suggestion.specs, false);
+    }
+    const unreviewedVariant = await request(renter, search, { requestKey: randomUUID(), manufacturer: 'Yamaha', model: 'DXR15' });
+    assert.equal(unreviewedVariant.data.suggestion.match, 'unknown', 'A mkII source must never auto-fill the original model');
+    await request(admin, `${catalog}/${imported[0].id}/retire`, { reason: 'Keep this reference withdrawn on future imports.' });
+    assert.equal((await request(admin, importPath, bundleCommand)).status, 409);
+    const subset = await request(admin, importPath, { ...bundleCommand, models: ['Intimidator Spot 160 ILS'] });
+    assert.equal(subset.status, 200, 'A retired unselected source cannot block reviewed unrelated selections');
+    assert.equal(subset.data.items.length, 1);
+    assert.equal(subset.data.unchanged, 1);
+    assert.equal((await request(renter, search, { requestKey: randomUUID(), model: 'DXR15mkII' })).data.suggestion.match, 'unknown');
   } finally {
     try {
       await deps.db.aiGenerationJob.deleteMany({ where: { ownerId: { in: users } } });
-      await deps.db.equipmentSpecSource.deleteMany({ where: { id: { in: sourceIds } } });
+      await deps.db.equipmentSpecSource.deleteMany({ where: { OR: [{ id: { in: sourceIds } }, { approvedBy: { in: users } }] } });
       await deps.db.authUser.deleteMany({ where: { id: { in: users } } });
     } finally {
       await app.close();
