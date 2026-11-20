@@ -8,7 +8,7 @@ import type { AuthService } from '../auth/service.js';
 import { PublicError } from '../auth/errors.js';
 import { ProfileService } from '../profiles/service.js';
 import { parse, schema, uuid } from '../payments/orders.js';
-import { smsDigest, smsPayload, sriLankaMobile } from '../../../shared/sms.js';
+import { smsDeliveryStatus, smsDigest, smsPayload, sriLankaMobile } from '../../../shared/sms.js';
 import { payloadContext, sealSmsNumber, contactContext, verifiedNumber } from '../../../shared/sms-verification.js';
 const revision = z.number().int().min(0).max(2147483646);
 const requestBody = z.object({ revision, number: sriLankaMobile }).strict();
@@ -17,6 +17,10 @@ const consentBody = z.object({ revision, bookingConsent: z.boolean(), marketingC
 const revokeBody = z.object({ revision }).strict();
 const view = z.object({ revision, enabled: z.boolean(), verified: z.boolean(), last4: z.string().nullable(), verifiedAt: z.iso.datetime().nullable(), bookingConsent: z.boolean(), marketingConsent: z.boolean(), pending: z.object({ id: uuid, last4: z.string(), expiresAt: z.iso.datetime(), status: z.string() }).nullable() });
 const history = z.object({ items: z.array(z.object({ id: uuid, status: z.string(), last4: z.string(), createdAt: z.iso.datetime(), confirmedAt: z.iso.datetime().nullable(), lastCode: z.string().nullable() })) });
+const reminderHistory = z.object({ items: z.array(z.object({
+    id: uuid, bookingId: uuid, startsAt: z.iso.datetime(), dueAt: z.iso.datetime(),
+    offsetHours: z.union([z.literal(2), z.literal(24)]), status: smsDeliveryStatus, checkedAt: z.iso.datetime().nullable(),
+})) });
 const conflict = () => new PublicError(409, 'SMS_REVISION_CONFLICT', 'Reload your SMS contact before changing it.');
 export function makeSmsContactsController(auth: AuthService) {
     const db = auth.deps.db, profiles = new ProfileService(auth);
@@ -37,6 +41,17 @@ export function makeSmsContactsController(auth: AuthService) {
         async history(
         @Req()
         req: Request) { const actor = await auth.authenticate(req.get('Authorization')); return { items: (await db.smsVerification.findMany({ where: { userId: actor.user.id }, orderBy: { createdAt: 'desc' }, take: 20 })).map(r => ({ id: r.id, status: r.status, last4: r.last4, createdAt: r.createdAt.toISOString(), confirmedAt: r.confirmedAt?.toISOString() ?? null, lastCode: r.lastCode })) }; }
+        @Get('booking-sms-reminders')
+        @ApiOkResponse({ schema: schema(reminderHistory) })
+        async reminders(@Req() req: Request) {
+            const actor = await auth.authenticate(req.get('Authorization'));
+            const rows = await db.bookingSmsReminder.findMany({
+                where: { recipientId: actor.user.id }, orderBy: [{ dueAt: 'desc' }, { id: 'desc' }], take: 20,
+                select: { id: true, bookingId: true, startsAt: true, dueAt: true, offsetHours: true, status: true, checkedAt: true },
+            });
+            return { items: rows.map(row => ({ ...row, startsAt: row.startsAt.toISOString(), dueAt: row.dueAt.toISOString(),
+                checkedAt: row.checkedAt?.toISOString() ?? null })) };
+        }
         @Post('sms-contact/verification')
         @HttpCode(200)
         @ApiBody({ schema: schema(requestBody) })

@@ -9,6 +9,7 @@ import { createMailer, deliverAuthMail } from '../../shared/auth-mail.js';
 import { MediaStore } from '../../shared/media-store.js';
 import { processMediaBatch, cleanupMediaBatch } from '../../shared/media-processing.js';
 import { processSmsVerifications } from '../../shared/sms-verification.js';
+import { processBookingSmsReminders } from '../../shared/booking-sms-reminders.js';
 import { processBookingReminders } from '../../shared/booking-reminders.js';
 import { processBookingDocuments } from '../../shared/booking-documents.js';
 import { processPromotionalEmail } from '../../shared/campaign-delivery.js';
@@ -53,7 +54,11 @@ async function main() {
   async function scanReminders() {
     if (stopping || remindersRunning) return;
     remindersRunning = true;
-    try { await processBookingReminders(deps.db, config, mailer); await processSmsVerifications(deps.db,config); }
+    try {
+      await processBookingReminders(deps.db, config, mailer);
+      await processSmsVerifications(deps.db, config);
+      await processBookingSmsReminders(deps.db, config);
+    }
     catch { log('reminder.scan_failed', { code: 'REMINDER_PROCESSING_UNAVAILABLE' }); }
     finally { remindersRunning = false; }
   }

@@ -1013,6 +1013,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/booking-sms-reminders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["SmsContactsController_reminders"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/sms-contact/verification": {
         parameters: {
             query?: never;
@@ -7586,6 +7602,41 @@ export interface operations {
                             /** Format: date-time */
                             confirmedAt: string | null;
                             lastCode: string | null;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    SmsContactsController_reminders: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            bookingId: string;
+                            /** Format: date-time */
+                            startsAt: string;
+                            /** Format: date-time */
+                            dueAt: string;
+                            offsetHours: 2 | 24;
+                            /** @enum {string} */
+                            status: "queued" | "sending" | "accepted" | "delivered" | "failed" | "unknown" | "cancelled";
+                            /** Format: date-time */
+                            checkedAt: string | null;
                         }[];
                     };
                 };
