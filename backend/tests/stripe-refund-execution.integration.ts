@@ -34,6 +34,7 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
   let payHereReads = 0;
   let payHereStatus = 'RECEIVED';
   let payHereMethod: string | undefined;
+  let payHereAmount = '1500.01';
   const paymentId = '320025071278';
   let activePayHerePaymentId = paymentId;
   let providerRefundId = 560034010257;
@@ -57,7 +58,7 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
         payHereReads++;
         assert.equal(url.searchParams.get('order_id'), payHereAttemptId);
         return Response.json({ status: 1, data: [{
-          payment_id: activePayHerePaymentId, order_id: payHereAttemptId, currency: 'LKR', amount: '1500.01', status: payHereStatus,
+          payment_id: activePayHerePaymentId, order_id: payHereAttemptId, currency: 'LKR', amount: payHereAmount, status: payHereStatus,
           payment_method: payHereMethod ? { method: payHereMethod } : undefined,
         }] });
       }
@@ -184,21 +185,24 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
       activePayHerePaymentId = capturedPaymentId;
     }
 
-    async function reserve(purpose: 'advance' | 'deposit' | 'balance', gateway: 'stripe' | 'payhere' = 'stripe') {
+    async function reserve(
+      purpose: 'advance' | 'deposit' | 'balance', gateway: 'stripe' | 'payhere' = 'stripe',
+      targetBooking = booking, targetRefund = refund, capturedPaymentId = paymentId,
+    ) {
       return deps.db.$transaction(async tx => {
-        const order = await tx.paymentOrder.create({ data: { bookingId: booking.id, purpose, amountMinor: 150001, status: 'paid' } });
+        const order = await tx.paymentOrder.create({ data: { bookingId: targetBooking.id, purpose, amountMinor: 150001, status: 'paid' } });
         if (gateway === 'stripe') {
           await stripeCapture(tx, order, purpose === 'advance' ? 'pi_service' : 'pi_deposit');
         } else {
-          await payHereCapture(tx, order, paymentId);
+          await payHereCapture(tx, order, capturedPaymentId);
         }
         const fund = { currency: 'LKR', purpose: purpose === 'deposit' ? 'deposit' as const : 'service' as const };
-        const available = await openAccount(tx, { ...fund, scope: 'sandbox:booking:' + booking.id, kind: 'available' });
-        const reserved = await openAccount(tx, { ...fund, scope: 'sandbox:refund:' + refund.id + ':' + order.id, kind: 'reserved' });
-        const reservationId = await postJournal(tx, { ...fund, source: 'refund.sandbox.reserve', reference: refund.id + ':' + order.id }, [
+        const available = await openAccount(tx, { ...fund, scope: 'sandbox:booking:' + targetBooking.id, kind: 'available' });
+        const reserved = await openAccount(tx, { ...fund, scope: 'sandbox:refund:' + targetRefund.id + ':' + order.id, kind: 'reserved' });
+        const reservationId = await postJournal(tx, { ...fund, source: 'refund.sandbox.reserve', reference: targetRefund.id + ':' + order.id }, [
           { accountId: available.id, amountMinor: -150001n }, { accountId: reserved.id, amountMinor: 150001n },
         ]);
-        await tx.refundItem.create({ data: { requestId: refund.id, orderId: order.id, amountMinor: 150001, reservationId } });
+        await tx.refundItem.create({ data: { requestId: targetRefund.id, orderId: order.id, amountMinor: 150001, reservationId } });
         return { id: order.id, accountId: reserved.id };
       });
     }
@@ -651,9 +655,132 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
     assert.deepEqual(await (await executePayHereArbitration(uncertainPayHere.decision.id, uncertainSource.id)).json(), uncertain);
     assert.equal(payHereSubmissions, afterUncertainSubmission);
     assert.equal(await reserveBalance(uncertainPayHere.decision.id, 'customer'), 150001n);
+
+    const recoveryAdmin = await fixture('admin');
+    const recoveryPath = (id: string) => base + 'admin/payhere-refund-executions/' + id;
+    const recoveryCommand = { requestKey: randomUUID(), expectedUpdatedAt: uncertain.updatedAt, reason: 'Reconcile the full refund after a lost gateway response.' };
+    const recoverPayHere = (id: string, command = recoveryCommand, actor = recoveryAdmin) => fetch(recoveryPath(id) + '/recover', {
+      method: 'POST', headers: actor.headers, body: JSON.stringify(command),
+    });
+    const resetPayHereLimit = () => deps.redis.del(`${config.AUTH_RATE_PREFIX}:reconciliation-gateway:${gatewayKey}`);
+    assert.equal((await recoverPayHere(uncertain.id, recoveryCommand, customer)).status, 403);
+    assert.equal((await (await recoverPayHere(uncertain.id, recoveryCommand, old)).json()).code, 'RECENT_LOGIN_REQUIRED');
+    assert.equal((await recoverPayHere(uncertain.id, recoveryCommand, { ...recoveryAdmin, headers: { ...recoveryAdmin.headers, Origin: 'https://other.test' } })).status, 403);
+    assert.equal((await recoverPayHere(uncertain.id, recoveryCommand, { ...recoveryAdmin, headers: { ...recoveryAdmin.headers, 'X-CSRF-Token': 'incorrect' } })).status, 403);
+    assert.equal((await recoverPayHere(uncertain.id, { ...recoveryCommand, reason: 'short' })).status, 400);
+    assert.equal((await recoverPayHere(randomUUID())).status, 404);
+    assert.equal((await fetch(recoveryPath(uncertain.id) + '/recovery', customer)).status, 403);
+    assert.equal((await (await fetch(recoveryPath(uncertain.id) + '/recovery', recoveryAdmin)).json()).recovery, null);
+    const readsBeforeStale = payHereReads;
+    assert.equal((await (await recoverPayHere(uncertain.id, { ...recoveryCommand, expectedUpdatedAt: new Date(0).toISOString() })).json()).code, 'PAYHERE_RECOVERY_NOT_ELIGIBLE');
+    assert.equal(payHereReads, readsBeforeStale);
+    for (const scenario of ['captured', 'wrong_payment', 'non_card', 'wrong_amount', 'chargeback']) {
+      await resetPayHereLimit();
+      const originalPaymentId = activePayHerePaymentId;
+      payHereStatus = scenario === 'captured' ? 'RECEIVED' : scenario === 'chargeback' ? 'CHARGEBACKED' : 'REFUNDED';
+      if (scenario === 'wrong_payment') activePayHerePaymentId = '999999999999';
+      if (scenario === 'non_card') payHereMethod = 'FRIMI';
+      if (scenario === 'wrong_amount') payHereAmount = '1500.00';
+      const rejected = await recoverPayHere(uncertain.id);
+      assert.equal((await rejected.json()).code, 'PAYHERE_REFUND_NOT_CONFIRMED', scenario);
+      activePayHerePaymentId = originalPaymentId;
+      payHereMethod = 'VISA';
+      payHereAmount = '1500.01';
+      assert.equal(await reserveBalance(uncertainPayHere.decision.id, 'customer'), 150001n);
+      assert.equal(await deps.db.payHereRefundRecovery.count({ where: { executionId: uncertain.id } }), 0);
+    }
+    await resetPayHereLimit();
+    payHereStatus = 'REFUNDED';
+    const recoveredResponses = await Promise.all([recoverPayHere(uncertain.id), recoverPayHere(uncertain.id)]);
+    assert.ok(recoveredResponses.every(response => response.status === 200));
+    const recoveries = await Promise.all(recoveredResponses.map(response => response.json()));
+    assert.deepEqual(recoveries[0], recoveries[1]);
+    const recovery = recoveries[0];
+    assert.equal(recovery.actorId, recoveryAdmin.id);
+    assert.equal(recovery.paymentId, activePayHerePaymentId);
+    assert.equal(recovery.amountMinor, 150001);
+    assert.deepEqual(await (await recoverPayHere(uncertain.id)).json(), recovery);
+    assert.deepEqual((await (await fetch(recoveryPath(uncertain.id) + '/recovery', recoveryAdmin)).json()).recovery, recovery);
+    assert.equal((await (await recoverPayHere(uncertain.id, { ...recoveryCommand, reason: 'Changed reason for the recorded command.' })).json()).code, 'REQUEST_KEY_REUSED');
+    assert.equal((await (await recoverPayHere(uncertain.id, { ...recoveryCommand, requestKey: randomUUID() })).json()).code, 'REQUEST_KEY_REUSED');
+    const recoveredExecution = await deps.db.payHereRefundExecution.findUniqueOrThrow({ where: { id: uncertain.id }, include: { settlement: true } });
+    assert.equal(recoveredExecution.status, 'succeeded');
+    assert.equal(recoveredExecution.providerRefundId, null);
+    assert.equal(recoveredExecution.settlementId, recovery.journalId);
+    assert.equal(recoveredExecution.settlement?.reference, 'recovery:' + uncertain.id);
+    assert.equal(await reserveBalance(uncertainPayHere.decision.id, 'customer'), 0n);
+    assert.equal(await deps.db.payHereRefundRecovery.count({ where: { executionId: uncertain.id } }), 1);
+    assert.equal(payHereSubmissions, afterUncertainSubmission);
+    assert.equal((await (await executePayHereArbitration(uncertainPayHere.decision.id, uncertainSource.id)).json()).state, 'succeeded');
+    assert.equal((await (await fetch(base + 'arbitrations/' + uncertainPayHere.decision.id, customer)).json()).refundItems.find((item: { orderId: string }) => item.orderId === uncertainSource.id).payHereRefundState, 'succeeded');
+    assert.equal((await (await recoverPayHere(payHereRows[0]!.id, { ...recoveryCommand, expectedUpdatedAt: payHereRows[0]!.updatedAt.toISOString() })).json()).code, 'PAYHERE_RECOVERY_NOT_ELIGIBLE');
+
+    const otherRecoveryAdmin = await fixture('admin');
+    const lostDeposit = await createDamageClaim(0, String(nextPayHerePaymentId++));
+    await resolveDamageClaim(lostDeposit.id);
+    assert.ok(lostDeposit.depositOrderId);
+    await selectPayHerePayment(lostDeposit.depositOrderId);
+    const lostDepositExecution = await (await executePayHereClaim(lostDeposit.id, otherRecoveryAdmin)).json();
+    assert.equal(lostDepositExecution.state, 'uncertain');
+    payHereStatus = 'REFUNDED';
+    const depositRecovery = await recoverPayHere(lostDepositExecution.id, {
+      ...recoveryCommand, requestKey: randomUUID(), expectedUpdatedAt: lostDepositExecution.updatedAt,
+    }, otherRecoveryAdmin);
+    assert.equal(depositRecovery.status, 200);
+    assert.equal(await postedBalance(deps.db, (await reserveAccount(lostDeposit.id, 'customer')).id), 0n);
+    assert.equal((await (await fetch(base + 'bookings/' + lostDeposit.bookingId + '/damage-claim', customer)).json()).claim.payHereRefundState, 'succeeded');
+
+    const cancelledBooking = await deps.db.booking.create({ data: {
+      customerId: customer.id, providerId: artist.id, requestKey: randomUUID(), requestDigest: '0'.repeat(64),
+      targetKind: 'gig', targetId: randomUUID(), targetVersion: 1, startsAt, holdExpiresAt: startsAt,
+      endsAt: new Date(startsAt.getTime() + 3600_000), snapshot: {},
+    } });
+    bookingIds.push(cancelledBooking.id);
+    const cancelledRefund = await deps.db.refundRequest.create({ data: {
+      bookingId: cancelledBooking.id, status: 'approved', createdAt: new Date(), decidedAt: new Date(), decidedBy: admin.id,
+      reason: 'Recover a cancelled booking refund.', decisionReason: 'Approved complete cancellation refund.',
+    } });
+    const cancelledPayment = await reserve('advance', 'payhere', cancelledBooking, cancelledRefund, String(nextPayHerePaymentId++));
+    await selectPayHerePayment(cancelledPayment.id);
+    const cancelledPath = base + 'admin/refund-requests/' + cancelledRefund.id + '/items/' + cancelledPayment.id + '/payhere-execution';
+    const lostCancellation = await (await fetch(cancelledPath, { method: 'POST', headers: otherRecoveryAdmin.headers, body: '{}' })).json();
+    assert.equal(lostCancellation.state, 'uncertain');
+    payHereStatus = 'REFUNDED';
+    assert.equal((await recoverPayHere(lostCancellation.id, {
+      ...recoveryCommand, requestKey: randomUUID(), expectedUpdatedAt: lostCancellation.updatedAt,
+    }, otherRecoveryAdmin)).status, 200);
+    assert.equal(await postedBalance(deps.db, cancelledPayment.accountId), 0n);
+
+    // A delayed submission response must preserve a recovery that settled while it was in flight.
+    const racingAward = await arbitration(150001, 'payhere');
+    const racingOrder = racingAward.orders.find(order => order.purpose === 'advance')!;
+    await selectPayHerePayment(racingOrder.id);
+    losePayHereResponse = false;
+    let racingSubmitted!: () => void;
+    let releaseRacing!: () => void;
+    const racingReceived = new Promise<void>(resolve => { racingSubmitted = resolve; });
+    payHereResponseGate = new Promise<void>(resolve => { releaseRacing = resolve; });
+    payHereSubmitted = racingSubmitted;
+    const racingSubmission = executePayHereArbitration(racingAward.decision.id, racingOrder.id, otherRecoveryAdmin);
+    await Promise.race([racingReceived, racingSubmission.then(async response => assert.fail(await response.clone().text()))]);
+    try {
+      const racingExecution = (await (await fetch(payHereArbitrationPath(racingAward.decision.id, racingOrder.id), otherRecoveryAdmin)).json()).execution;
+      assert.equal(racingExecution.state, 'uncertain');
+      payHereStatus = 'REFUNDED';
+      assert.equal((await recoverPayHere(racingExecution.id, {
+        ...recoveryCommand, requestKey: randomUUID(), expectedUpdatedAt: racingExecution.updatedAt,
+      }, otherRecoveryAdmin)).status, 200);
+      assert.equal(await reserveBalance(racingAward.decision.id, 'customer'), 0n);
+    } finally { releaseRacing(); }
+    assert.equal((await (await racingSubmission).json()).state, 'succeeded');
+    const racingRow = await deps.db.payHereRefundExecution.findUniqueOrThrow({ where: { arbitrationId_orderId: { arbitrationId: racingAward.decision.id, orderId: racingOrder.id } } });
+    assert.equal(racingRow.status, 'succeeded');
+    assert.equal(racingRow.providerRefundId, null);
+    assert.ok(racingRow.settlementId);
   } finally {
     release();
     try {
+      await deps.db.payHereRefundRecovery.deleteMany({ where: { actorId: { in: users } } });
       if (refundId) {
         await deps.db.payHereRefundExecution.deleteMany({ where: { requestId: refundId } });
         await deps.db.stripeRefundExecution.deleteMany({ where: { requestId: refundId } });
@@ -661,6 +788,10 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
         await deps.db.refundRequest.delete({ where: { id: refundId } });
       }
       for (const bookingId of bookingIds) {
+        await deps.db.payHereRefundExecution.deleteMany({ where: { item: { request: { bookingId } } } });
+        await deps.db.stripeRefundExecution.deleteMany({ where: { item: { request: { bookingId } } } });
+        await deps.db.refundItem.deleteMany({ where: { request: { bookingId } } });
+        await deps.db.refundRequest.deleteMany({ where: { bookingId } });
         const arbitration = { decision: { dispute: { bookingId } } };
         await deps.db.stripeArbitrationFeeSettlement.deleteMany({ where: { arbitration: { dispute: { bookingId } } } });
         await deps.db.payHereRefundExecution.deleteMany({ where: { arbitrationSource: arbitration } });

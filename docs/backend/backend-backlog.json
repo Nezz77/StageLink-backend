@@ -1664,7 +1664,7 @@
         "src/components/RefundReview.tsx",
         "src/components/BookingWorkspace.tsx"
       ],
-      "proposed_contract": "POST /bookings/:id/cancellations; POST /bookings/:id/refund-requests; POST /admin/refund-requests/:id/decisions",
+      "proposed_contract": "POST /bookings/:id/cancellations; POST /bookings/:id/refund-requests; POST /admin/refund-requests/:id/decisions; POST /admin/payhere-refund-executions/:id/recover; GET /admin/payhere-refund-executions/:id/recovery",
       "entities": [
         "refunds",
         "booking_events",
@@ -1681,7 +1681,7 @@
       "ui_coverage_ids": [
         "UI-037"
       ],
-      "remaining": "Stripe test and PayHere sandbox execution post confirmed full refunds from approved reservations. Verify both hosted providers, add repair of blocked reservations, and connect the existing frontend and Figma flows."
+      "remaining": "Stripe test and PayHere sandbox execution post confirmed full refunds from approved reservations. Uncertain full PayHere card refunds have audited recovery from fresh retrieval evidence without resubmission. Verify both hosted providers, add repair of other blocked reservations, and connect the existing frontend and Figma flows."
     },
     {
       "id": "BE-048",

@@ -3189,6 +3189,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/payhere-refund-executions/{id}/recovery": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["PayHereRefundExecutionController_recoveryStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payhere-refund-executions/{id}/recover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["PayHereRefundExecutionController_recover"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/refund-requests/{id}/items/{orderId}/payhere-execution": {
         parameters: {
             query?: never;
@@ -19420,6 +19452,92 @@ export interface operations {
                     "application/json": {
                         /** @enum {boolean} */
                         received: true;
+                    };
+                };
+            };
+        };
+    };
+    PayHereRefundExecutionController_recoveryStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        recovery: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            executionId: string;
+                            /** Format: uuid */
+                            actorId: string;
+                            reason: string;
+                            paymentId: string;
+                            amountMinor: number;
+                            /** Format: uuid */
+                            journalId: string;
+                            /** Format: date-time */
+                            observedAt: string;
+                            /** Format: date-time */
+                            createdAt: string;
+                        } | null;
+                    };
+                };
+            };
+        };
+    };
+    PayHereRefundExecutionController_recover: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    requestKey: string;
+                    /** Format: date-time */
+                    expectedUpdatedAt: string;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uuid */
+                        executionId: string;
+                        /** Format: uuid */
+                        actorId: string;
+                        reason: string;
+                        paymentId: string;
+                        amountMinor: number;
+                        /** Format: uuid */
+                        journalId: string;
+                        /** Format: date-time */
+                        observedAt: string;
+                        /** Format: date-time */
+                        createdAt: string;
                     };
                 };
             };

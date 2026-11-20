@@ -2,7 +2,7 @@ import { Body, Controller, Get, HttpCode, Param, Post, Req } from '@nestjs/commo
 import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiParam, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { z } from 'zod';
-import type { PayHereRefundExecution } from '../../../generated/prisma/client.js';
+import type { PayHereRefundExecution, PayHereRefundRecovery } from '../../../generated/prisma/client.js';
 import { makePayHereSandboxClient } from '../../../shared/payments/reconciliation.js';
 import { PublicError } from '../auth/errors.js';
 import type { AuthService } from '../auth/service.js';
@@ -21,6 +21,37 @@ const execution = z.object({
 const view = execution.extend({ requestId: uuid });
 const depositView = execution.extend({ claimId: uuid });
 const arbitrationView = execution.extend({ arbitrationId: uuid });
+const recoveryCommand = z.object({ requestKey: uuid, expectedUpdatedAt: z.iso.datetime(), reason: z.string().trim().min(10).max(500) }).strict();
+const recoveryView = z.object({
+  id: uuid, executionId: uuid, actorId: uuid, reason: z.string(), paymentId: z.string(), amountMinor: z.number().int().positive(),
+  journalId: uuid, observedAt: z.iso.datetime(), createdAt: z.iso.datetime(),
+});
+
+function presentRecovery(row: PayHereRefundRecovery) {
+  const { id, executionId, actorId, reason, paymentId, amountMinor, journalId, observedAt, createdAt } = row;
+  return { id, executionId, actorId, reason, paymentId, amountMinor, journalId,
+    observedAt: observedAt.toISOString(), createdAt: createdAt.toISOString() };
+}
+
+function replayRecovery(row: PayHereRefundRecovery, actorId: string, command: z.infer<typeof recoveryCommand>) {
+  if (row.requestKey !== command.requestKey || row.actorId !== actorId || row.reason !== command.reason ||
+    row.previousUpdatedAt.toISOString() !== command.expectedUpdatedAt) {
+    throw new PublicError(409, 'REQUEST_KEY_REUSED', 'This refund recovery has already been recorded with a different command.');
+  }
+  return presentRecovery(row);
+}
+
+function recoveryKey(row: PayHereRefundExecution): RefundKey {
+  if (row.arbitrationId) return { arbitrationId: row.arbitrationId, orderId: row.orderId };
+  if (row.damageClaimId) return { claimId: row.damageClaimId };
+  return { requestId: row.requestId!, orderId: row.orderId };
+}
+
+function requireUncertain(row: PayHereRefundExecution, expectedUpdatedAt: string) {
+  if (row.status !== 'uncertain' || row.providerRefundId || row.settlementId || row.updatedAt.toISOString() !== expectedUpdatedAt) {
+    throw new PublicError(409, 'PAYHERE_RECOVERY_NOT_ELIGIBLE', 'Reload this refund execution before reviewing its uncertain outcome.');
+  }
+}
 
 function present(row: PayHereRefundExecution) {
   const { id, orderId, requestId, damageClaimId, arbitrationId, status, amountMinor, createdAt, updatedAt } = row;
@@ -128,15 +159,98 @@ export function makePayHereRefundExecutionController(auth: AuthService) {
 
     // Only the administrator request that creates the execution can submit it to PayHere.
     const submission = await payHere.refund(paymentId, decision.row.id);
-    return present(await db.payHereRefundExecution.update({
-      where: { id: decision.row.id }, data: { ...submission, updatedAt: new Date() },
-    }));
+    await db.payHereRefundExecution.updateMany({
+      where: { id: decision.row.id, status: 'uncertain', settlementId: null }, data: { ...submission, updatedAt: new Date() },
+    });
+    return present(await db.payHereRefundExecution.findUniqueOrThrow({ where: { id: decision.row.id } }));
+  }
+
+  async function executionById(id: string) {
+    const row = await db.payHereRefundExecution.findUnique({ where: { id } });
+    if (!row) throw new PublicError(404, 'PAYHERE_REFUND_NOT_FOUND', 'This PayHere refund execution is unavailable.');
+    return row;
   }
 
   @ApiTags('PayHere sandbox refund execution')
   @ApiBearerAuth()
   @Controller()
   class PayHereRefundExecutionController {
+    @Get('admin/payhere-refund-executions/:id/recovery')
+    @ApiParam({ name: 'id', format: 'uuid' })
+    @ApiOkResponse({ schema: schema(z.object({ recovery: recoveryView.nullable() })) })
+    async recoveryStatus(@Req() req: Request, @Param('id') rawId: string) {
+      await admin(req);
+      const executionId = parse(uuid, rawId);
+      await executionById(executionId);
+      const row = await db.payHereRefundRecovery.findUnique({ where: { executionId } });
+      return { recovery: row ? presentRecovery(row) : null };
+    }
+
+    @Post('admin/payhere-refund-executions/:id/recover')
+    @HttpCode(200)
+    @ApiParam({ name: 'id', format: 'uuid' })
+    @ApiBody({ schema: schema(recoveryCommand) })
+    @ApiOkResponse({ schema: schema(recoveryView) })
+    async recover(@Req() req: Request, @Param('id') rawId: string, @Body() raw: unknown) {
+      if (req.get('Origin') !== config.WEB_ORIGIN || req.get('Sec-Fetch-Site') === 'cross-site' || !req.is('application/json')) {
+        throw new PublicError(403, 'ORIGIN_REJECTED', 'Open StageLink in its own browser tab and try again.');
+      }
+      const actor = await admin(req);
+      profiles.checkCsrf(actor, req.get('X-CSRF-Token'));
+      const executionId = parse(uuid, rawId);
+      const command = parse(recoveryCommand, raw);
+      if (config.PAYHERE_SANDBOX_REFUND_EXECUTION !== 'true') {
+        throw new PublicError(503, 'PAYHERE_REFUNDS_DISABLED', 'PayHere sandbox refund execution is unavailable.');
+      }
+      const row = await executionById(executionId);
+      const key = recoveryKey(row);
+      const source = await refundTarget(db, key);
+      requireRecentIndependentAdmin(actor, source.booking);
+      const previous = await db.payHereRefundRecovery.findUnique({ where: { executionId } });
+      if (previous) return replayRecovery(previous, actor.user.id, command);
+      requireUncertain(row, command.expectedUpdatedAt);
+      const { order, attemptId, paymentId } = capture(source);
+      if (source.payHereExecution?.id !== row.id || row.paymentId !== paymentId || row.amountMinor !== source.amountMinor) throw notEligible();
+
+      await auth.limits.check('reconciliation-admin', actor.user.id, 10, 60);
+      await auth.limits.check('reconciliation-gateway', 'payhere', 4, 10);
+      const observation = await payHere.observe({ id: attemptId, amountMinor: order.amountMinor });
+      const observedAt = new Date();
+      if (observation.status !== 'refunded' || observation.paymentReference !== paymentId || !observation.payHereCardPayment) {
+        throw new PublicError(409, 'PAYHERE_REFUND_NOT_CONFIRMED', 'PayHere must confirm this full card payment as refunded before recovery.');
+      }
+
+      return db.$transaction(async tx => {
+        const currentAdmin = await profiles.actor(tx, actor, undefined, true);
+        profiles.verified(currentAdmin);
+        await lockBooking(tx, source.booking.id);
+        await lockPaymentOrder(tx, order.id);
+        const target = await refundTarget(tx, key);
+        requireRecentIndependentAdmin(currentAdmin, target.booking);
+        const recorded = await tx.payHereRefundRecovery.findUnique({ where: { executionId } });
+        if (recorded) return replayRecovery(recorded, currentAdmin.user.id, command);
+        const current = target.payHereExecution;
+        const refreshed = capture(target);
+        if (!current || current.id !== row.id || !target.reservationId || target.reservationId !== source.reservationId ||
+          target.amountMinor !== row.amountMinor || target.reserveAmountMinor !== source.reserveAmountMinor ||
+          current.amountMinor !== target.amountMinor || current.paymentId !== paymentId ||
+          refreshed.order.id !== order.id || refreshed.attemptId !== attemptId || refreshed.paymentId !== paymentId) throw notEligible();
+        requireUncertain(current, command.expectedUpdatedAt);
+        const reserved = await findReservedFunds(tx, target.reservationId, target.reserve, target.amountMinor, target.reserveAmountMinor);
+        if (!reserved) throw notEligible();
+        const journalId = await settleRefund(tx, target.booking, reserved, 'payhere', 'recovery:' + current.id, current.id, current.amountMinor);
+        const updated = await tx.payHereRefundExecution.updateMany({
+          where: { id: current.id, status: 'uncertain', updatedAt: current.updatedAt, providerRefundId: null, settlementId: null },
+          data: { status: 'succeeded', settlementId: journalId, updatedAt: new Date() },
+        });
+        if (updated.count !== 1) throw notEligible();
+        return presentRecovery(await tx.payHereRefundRecovery.create({ data: {
+          executionId, requestKey: command.requestKey, actorId: currentAdmin.user.id, reason: command.reason,
+          attemptId, paymentId, amountMinor: current.amountMinor, previousUpdatedAt: current.updatedAt, observedAt, journalId,
+        } }));
+      });
+    }
+
     @Get('admin/refund-requests/:id/items/:orderId/payhere-execution')
     @ApiParam({ name: 'id', format: 'uuid' })
     @ApiParam({ name: 'orderId', format: 'uuid' })

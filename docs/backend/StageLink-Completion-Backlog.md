@@ -1,6 +1,6 @@
 # StageLink completion backlog
 
-Updated 16 November 2026. Scope comes from the final proposal, sections 4, 5 and 7, and the [interim report](https://chatgpt.com/library?file_id=libfile_52b19e94cb7c8191abf03766b2de8ca8&account_id=personal), sections 5.11, 6.4–6.8 and 7.6.
+Updated 20 November 2026. Scope comes from the final proposal, sections 4, 5 and 7, and the [interim report](https://chatgpt.com/library?file_id=libfile_52b19e94cb7c8191abf03766b2de8ca8&account_id=personal), sections 5.11, 6.4–6.8 and 7.6.
 
 ## Completed backend work
 
@@ -53,6 +53,7 @@ A checked box marks implemented backend code. PostgreSQL integration, client wir
 - [x] P12 provider earnings and admin payment views, audited payout holds, and atomic payout reservations against reviewed destinations.
 - [x] P12 Execution, reconciliation and journal settlement for approved Stripe test refund items. Failed or uncertain executions retain the reservation for review.
 - [x] P12 Full PayHere sandbox refunds for approved cancellation items, with provider confirmation before journal settlement.
+- [x] P12–P16 Audited recovery of uncertain full PayHere sandbox card refunds from fresh retrieval evidence, covering cancellation items, rental deposits and arbitration allocations without resubmission.
 - [x] P12 Audited Stripe test account links tied to reviewed payout destination revisions.
 - [x] P12 Stripe test transfers and reconciliation for eligible payout reservations, with journal posting after provider confirmation.
 - [ ] P12 Hosted Stripe and PayHere refund verification and Stripe test transfer verification with a supported LKR route.
@@ -133,6 +134,7 @@ A checked box marks implemented backend code. PostgreSQL integration, client wir
 - [x] GitHub CI passed for Stripe test customer arbitration refunds through `5db6176`. See [run 44573229698](https://github.com/Nezz77/StageLink-backend/actions/runs/44573229698).
 - [x] GitHub CI passed for Stripe test provider arbitration payouts and fees at `84b8c40`. See [run 44576771413](https://github.com/Nezz77/StageLink-backend/actions/runs/44576771413).
 - [x] GitHub CI passed for Stripe test fee settlement without a provider payment through `6085ea4`. See [run 44683400682](https://github.com/Nezz77/StageLink-backend/actions/runs/44683400682).
+- [x] GitHub CI passed for full PayHere sandbox customer arbitration refunds at `f8114f6`. See [run 44685259243](https://github.com/Nezz77/StageLink-backend/actions/runs/44685259243).
 - [ ] Reconcile the [team frontend](https://github.com/Nezz77/StageLink) with the current backend contracts. Update the corresponding StageLink Figma screens and flows during each UI task.
 - [ ] Verify hosted model calls, signed sandbox payment callbacks, gateway reconciliation and two-account booking flows in staging.
 

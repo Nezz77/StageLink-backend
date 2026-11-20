@@ -109,6 +109,7 @@ model AuthUser {
   stripeArbitrationFeeReviews StripeArbitrationFeeSettlement[] @relation("StripeArbitrationFeeReviewer")
   payoutDestinationRepairs PayoutDestinationRepair[]
   payHereRefundExecutions PayHereRefundExecution[]
+  payHereRefundRecoveries PayHereRefundRecovery[]
   openedDisputes BookingDispute[] @relation("DisputeOpener")
   dismissedDisputes BookingDispute[] @relation("DisputeDismisser")
   arbitrationDecisions ArbitrationDecision[] @relation("ArbitrationReviewer")
@@ -831,6 +832,7 @@ model JournalTransaction {
   stripeArbitrationFee StripeArbitrationFeeSettlement? @relation("StripeArbitrationFeeJournal")
   stripeArbitrationFeeReversal StripeArbitrationFeeSettlement? @relation("StripeArbitrationFeeReversal")
   payHereRefundSettlement PayHereRefundExecution?
+  payHereRefundRecovery PayHereRefundRecovery?
   refundReservation RefundItem?
   payoutReservation PayoutOrder?
   depositReservation DamageClaim?
@@ -1101,9 +1103,29 @@ model PayHereRefundExecution {
   arbitrationSource ArbitrationSource? @relation(fields: [arbitrationId, orderId], references: [decisionId, orderId], onDelete: Restrict, map: "payhere_refund_executions_arbitration_source_fkey")
   actor AuthUser @relation(fields: [actorId], references: [id], onDelete: Restrict)
   settlement JournalTransaction? @relation(fields: [settlementId], references: [id], onDelete: Restrict)
+  recovery PayHereRefundRecovery?
   @@unique([requestId, orderId])
   @@unique([arbitrationId, orderId])
   @@map("payhere_refund_executions")
+}
+
+model PayHereRefundRecovery {
+  id String @id @default(uuid()) @db.Uuid
+  executionId String @unique @map("execution_id") @db.Uuid
+  requestKey String @map("request_key") @db.Uuid
+  actorId String @map("actor_id") @db.Uuid
+  reason String @db.VarChar(500)
+  attemptId String @map("attempt_id") @db.Uuid
+  paymentId String @map("payment_id") @db.VarChar(120)
+  amountMinor Int @map("amount_minor")
+  previousUpdatedAt DateTime @map("previous_updated_at") @db.Timestamptz(3)
+  observedAt DateTime @map("observed_at") @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  journalId String @unique @map("journal_id") @db.Uuid
+  execution PayHereRefundExecution @relation(fields: [executionId], references: [id], onDelete: Restrict)
+  actor AuthUser @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  journal JournalTransaction @relation(fields: [journalId], references: [id], onDelete: Restrict)
+  @@map("payhere_refund_recoveries")
 }
 
 model BookingPayoutHold {
