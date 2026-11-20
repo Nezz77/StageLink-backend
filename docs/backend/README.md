@@ -113,6 +113,18 @@ Stripe uses the existing test key to retrieve the stored Checkout Session. PayHe
 
 For a confirmed missing capture, a verified administrator submits `{requestKey, expectedOutcome: "captured", reason}` to `POST /api/v1/admin/payment-orders/:id/reconciliation/recover` with the standard origin and CSRF headers. StageLink retrieves fresh gateway evidence, checks the amount, currency and attempt reference, then records the capture in the sandbox review balance. The action records the administrator, evidence time, reason, and journal transaction. Verified Stripe expiration also supports `expectedOutcome: "expired"` for a pending order. Repeat the original request key to retrieve the saved action. Review recorded actions using `GET /api/v1/admin/payment-orders/:id/reconciliation/recoveries`. Inconclusive, duplicate, mismatched and reversed evidence requires manual review.
 
+Run `npm run build` from `backend/`, then run `npm run --silent payments:smoke` with a verified staging administrator's access token piped through stdin. Supply these environment variables before running the command.
+
+| Setting | Value |
+| --- | --- |
+| `STAGELINK_SMOKE_ORIGIN` | HTTPS origin of the staging API, such as `https://staging-api.example.com` |
+| `STAGELINK_SMOKE_STRIPE_ORDER_ID` | ID of a paid Stripe test order with a recorded capture |
+| `STAGELINK_SMOKE_PAYHERE_ORDER_ID` | ID of a paid PayHere sandbox order with a recorded capture |
+| `STAGELINK_SMOKE_STRIPE_ACCOUNT_ID` | Candidate Stripe test connected account ID |
+| `STAGELINK_SMOKE_RECOVERY_ORDER_ID` | Optional ID of a separate sandbox order with an audited capture recovery |
+
+The command reads API readiness, checks both payment orders against fresh provider evidence, and reports the Stripe platform and connected account capabilities relevant to LKR. Available LKR balance is reported as a boolean and is separate from the capability result. Missing or unsupported capability evidence needs review. When a recovery fixture is supplied, the command checks for a recorded capture recovery with a journal. It emits a JSON report without credentials, payment IDs, balance amounts or response bodies and returns a nonzero exit status if any requested check fails or needs review. Callback provenance and actual refunds, transfers and bank payouts require their own hosted evidence.
+
 
 ## Booking completion
 
