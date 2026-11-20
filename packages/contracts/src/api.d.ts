@@ -981,6 +981,102 @@ export interface paths {
         patch: operations["NotificationsController_update"];
         trace?: never;
     };
+    "/api/v1/me/sms-contact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["SmsContactsController_read"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/sms-verifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["SmsContactsController_history"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/sms-contact/verification": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["SmsContactsController_request"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/sms-contact/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["SmsContactsController_confirm"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/sms-contact/consent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["SmsContactsController_consent"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/sms-contact/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["SmsContactsController_revoke"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/public-status": {
         parameters: {
             query?: never;
@@ -7424,6 +7520,246 @@ export interface operations {
                     "application/json": {
                         revision: number;
                         bookingReminderEmail: boolean;
+                    };
+                };
+            };
+        };
+    };
+    SmsContactsController_read: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        revision: number;
+                        enabled: boolean;
+                        verified: boolean;
+                        last4: string | null;
+                        /** Format: date-time */
+                        verifiedAt: string | null;
+                        bookingConsent: boolean;
+                        marketingConsent: boolean;
+                        pending: {
+                            /** Format: uuid */
+                            id: string;
+                            last4: string;
+                            /** Format: date-time */
+                            expiresAt: string;
+                            status: string;
+                        } | null;
+                    };
+                };
+            };
+        };
+    };
+    SmsContactsController_history: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** Format: uuid */
+                            id: string;
+                            status: string;
+                            last4: string;
+                            /** Format: date-time */
+                            createdAt: string;
+                            /** Format: date-time */
+                            confirmedAt: string | null;
+                            lastCode: string | null;
+                        }[];
+                    };
+                };
+            };
+        };
+    };
+    SmsContactsController_request: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    revision: number;
+                    number: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        revision: number;
+                        enabled: boolean;
+                        verified: boolean;
+                        last4: string | null;
+                        /** Format: date-time */
+                        verifiedAt: string | null;
+                        bookingConsent: boolean;
+                        marketingConsent: boolean;
+                        pending: {
+                            /** Format: uuid */
+                            id: string;
+                            last4: string;
+                            /** Format: date-time */
+                            expiresAt: string;
+                            status: string;
+                        } | null;
+                    };
+                };
+            };
+        };
+    };
+    SmsContactsController_confirm: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    challengeId: string;
+                    code: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        revision: number;
+                        enabled: boolean;
+                        verified: boolean;
+                        last4: string | null;
+                        /** Format: date-time */
+                        verifiedAt: string | null;
+                        bookingConsent: boolean;
+                        marketingConsent: boolean;
+                        pending: {
+                            /** Format: uuid */
+                            id: string;
+                            last4: string;
+                            /** Format: date-time */
+                            expiresAt: string;
+                            status: string;
+                        } | null;
+                    };
+                };
+            };
+        };
+    };
+    SmsContactsController_consent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    revision: number;
+                    bookingConsent: boolean;
+                    marketingConsent: boolean;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        revision: number;
+                        enabled: boolean;
+                        verified: boolean;
+                        last4: string | null;
+                        /** Format: date-time */
+                        verifiedAt: string | null;
+                        bookingConsent: boolean;
+                        marketingConsent: boolean;
+                        pending: {
+                            /** Format: uuid */
+                            id: string;
+                            last4: string;
+                            /** Format: date-time */
+                            expiresAt: string;
+                            status: string;
+                        } | null;
+                    };
+                };
+            };
+        };
+    };
+    SmsContactsController_revoke: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    revision: number;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        revision: number;
+                        enabled: boolean;
+                        verified: boolean;
+                        last4: string | null;
+                        /** Format: date-time */
+                        verifiedAt: string | null;
+                        bookingConsent: boolean;
+                        marketingConsent: boolean;
+                        pending: {
+                            /** Format: uuid */
+                            id: string;
+                            last4: string;
+                            /** Format: date-time */
+                            expiresAt: string;
+                            status: string;
+                        } | null;
                     };
                 };
             };

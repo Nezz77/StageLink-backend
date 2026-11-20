@@ -108,7 +108,8 @@ A checked box marks implemented backend code. Client wiring and hosted checks ha
 - [x] P16 Stripe test fee settlement for awards with no provider payment, with provider evidence checks, reversal accounting, participant status and analytics.
 - [x] P16 PayHere sandbox customer arbitration refunds for full captured card-payment allocations, with reconciliation, shared reserve settlement and participant status.
 - [ ] P16 Hosted verification PDF access, hosted arbitration execution verification, partial PayHere refund reconciliation, and PayHere provider payout and fee execution.
-- [ ] P17 Live SMTP reminder and campaign verification, SMS reminders and promotional SMS.
+- [x] P17 SMS contact foundation: encrypted phone verification, explicit revisioned booking/marketing SMS consent, delivery status/reconciliation and masked history. Provider delivery defaults off.
+- [ ] P17 Live SMTP reminder/campaign verification, hosted SMS verification, booking SMS scheduling, promotional SMS and frontend/Figma controls.
 - [x] P18 Administrator and provider analytics from booking records and posted sandbox journals.
 - [x] P18 Stripe test and PayHere sandbox refund settlements in administrator and provider analytics, with daily totals.
 - [x] P18 Net Stripe test bank payout and platform fee analytics by UTC day and period, scoped by role and inclusive of posted reversals.

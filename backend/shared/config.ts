@@ -15,6 +15,10 @@ const schema = z.object({
     try { return new URL(value).origin === value; } catch { return false; }
   }, 'Must be an HTTPS origin without a trailing slash or path')),
   BOOKING_EMAIL_REMINDERS: z.enum(['true','false']).default('false'),
+  SMS_VERIFICATION_ENABLED: z.enum(['true','false']).default('false'),
+  SMS_HOURLY_LIMIT: z.coerce.number().int().min(1).max(1000).default(20),
+  TEXTLK_TOKEN: optionalSetting(z.string().min(10).max(500).regex(/^[A-Za-z0-9._|-]+$/)),
+  TEXTLK_SENDER: optionalSetting(z.string().regex(/^[A-Za-z][A-Za-z0-9 ]{0,10}$/)),
   SMTP_HOST: z.string().min(1).max(253).default('127.0.0.1'),
   SMTP_PORT: z.coerce.number().int().min(1).max(65535).default(1025),
   SMTP_SECURE: z.enum(['true','false']).default('false'),
@@ -64,6 +68,7 @@ const schema = z.object({
     } catch { return false; }
   }, 'Must be an HTTP origin without a trailing slash or path'),
 }).superRefine((config, ctx) => {
+  if(config.SMS_VERIFICATION_ENABLED==='true'&&(!config.TEXTLK_TOKEN||!config.TEXTLK_SENDER))ctx.addIssue({code:'custom',path:['SMS_VERIFICATION_ENABLED'],message:'Configure text.lk credentials and approved sender.'});
   if (Boolean(config.STRIPE_TEST_SECRET_KEY) !== Boolean(config.STRIPE_TEST_WEBHOOK_SECRET)) {
     ctx.addIssue({ code: 'custom', path: ['STRIPE_TEST_SECRET_KEY'], message: 'Configure both Stripe test settings together.' });
   }
