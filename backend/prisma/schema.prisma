@@ -1086,6 +1086,7 @@ model PayHereRefundExecution {
   id String @id @default(uuid()) @db.Uuid
   requestId String? @map("request_id") @db.Uuid
   damageClaimId String? @unique @map("damage_claim_id") @db.Uuid
+  arbitrationId String? @map("arbitration_id") @db.Uuid
   orderId String @map("order_id") @db.Uuid
   actorId String @map("actor_id") @db.Uuid
   paymentId String @unique @map("payment_id") @db.VarChar(120)
@@ -1097,9 +1098,11 @@ model PayHereRefundExecution {
   settlementId String? @unique @map("settlement_id") @db.Uuid
   item RefundItem? @relation(fields: [requestId, orderId], references: [requestId, orderId], onDelete: Restrict)
   damageClaim DamageClaim? @relation(fields: [damageClaimId], references: [id], onDelete: Restrict)
+  arbitrationSource ArbitrationSource? @relation(fields: [arbitrationId, orderId], references: [decisionId, orderId], onDelete: Restrict, map: "payhere_refund_executions_arbitration_source_fkey")
   actor AuthUser @relation(fields: [actorId], references: [id], onDelete: Restrict)
   settlement JournalTransaction? @relation(fields: [settlementId], references: [id], onDelete: Restrict)
   @@unique([requestId, orderId])
+  @@unique([arbitrationId, orderId])
   @@map("payhere_refund_executions")
 }
 
@@ -1768,6 +1771,7 @@ model ArbitrationSource {
   decision ArbitrationDecision @relation(fields: [decisionId], references: [id], onDelete: Restrict)
   order PaymentOrder @relation(fields: [orderId], references: [id], onDelete: Restrict)
   stripeExecution StripeRefundExecution?
+  payHereExecution PayHereRefundExecution?
   @@id([decisionId, orderId])
   @@map("arbitration_sources")
 }

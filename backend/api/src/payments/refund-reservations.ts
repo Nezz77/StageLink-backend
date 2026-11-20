@@ -38,7 +38,7 @@ export async function refundTarget(tx: Prisma.TransactionClient, key: RefundKey)
       where: { decisionId_orderId: { decisionId: key.arbitrationId, orderId: key.orderId } },
       include: {
         decision: { include: { dispute: { include: { booking: { select: { id: true, customerId: true, providerId: true } } } } } },
-        order: { include: refundOrderInclude }, stripeExecution: true,
+        order: { include: refundOrderInclude }, stripeExecution: true, payHereExecution: true,
       },
     });
     if (!source) throw new PublicError(404, 'ARBITRATION_SOURCE_NOT_FOUND', 'This arbitration payment allocation is unavailable.');
@@ -46,7 +46,7 @@ export async function refundTarget(tx: Prisma.TransactionClient, key: RefundKey)
     const { dispute } = decision;
     return {
       booking: dispute.booking, order, reservationId: decision.reservationId, amountMinor: source.refundMinor,
-      reserveAmountMinor: decision.refundMinor, stripeExecution: source.stripeExecution, payHereExecution: null,
+      reserveAmountMinor: decision.refundMinor, stripeExecution: source.stripeExecution, payHereExecution: source.payHereExecution,
       requestId: null, damageClaimId: null, arbitrationId: decision.id,
       approved: !dispute.dismissedAt && decision.providerId === dispute.booking.providerId &&
         order.bookingId === dispute.bookingId && order.purpose !== 'deposit' && order.currency === 'LKR' &&

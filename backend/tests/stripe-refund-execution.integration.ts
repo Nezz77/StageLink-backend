@@ -37,6 +37,10 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
   const paymentId = '320025071278';
   let activePayHerePaymentId = paymentId;
   let providerRefundId = 560034010257;
+  let nextPayHerePaymentId = 320025071281;
+  let payHereResponseGate: Promise<void> | undefined;
+  let payHereSubmitted: (() => void) | undefined;
+  let losePayHereResponse = false;
   let release!: () => void;
   let sent!: () => void;
   const awaitResponse = new Promise<void>(resolve => { release = resolve; });
@@ -63,6 +67,9 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
       assert.deepEqual(Object.keys(request).sort(), ['description', 'payment_id']);
       assert.equal(request.payment_id, activePayHerePaymentId);
       payHereSubmissions++;
+      payHereSubmitted?.();
+      if (payHereResponseGate) await payHereResponseGate;
+      if (losePayHereResponse) return new Response(null, { status: 500 });
       return Response.json({ status: 1, data: providerRefundId });
     }
     if (url.hostname !== 'api.stripe.com') return localFetch(input, init);
@@ -409,7 +416,7 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
       status: 'approved', createdAt: reviewedAt, decidedBy: arbitrationAdmin.id, decidedAt: reviewedAt, reason: 'Independent fixture identity review.',
     } });
 
-    async function arbitration(refundMinor: number) {
+    async function arbitration(refundMinor: number, gateway: 'stripe' | 'payhere' = 'stripe') {
       const booking = await deps.db.booking.create({ data: {
         customerId: customer.id, providerId: arbitrationProvider.id, requestKey: randomUUID(), requestDigest: '0'.repeat(64),
         targetKind: 'gig', targetId: randomUUID(), targetVersion: 1, startsAt, holdExpiresAt: startsAt,
@@ -429,8 +436,11 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
         const order = await deps.db.$transaction(async tx => {
           const order = await tx.paymentOrder.create({ data: { bookingId: booking.id, purpose, amountMinor: 150001, status: 'paid' } });
           const intent = 'pi_arbitration_' + order.id.replaceAll('-', '');
-          await stripeCapture(tx, order, intent);
-          refundAmounts.set(intent, Math.min(remaining, order.amountMinor));
+          if (gateway === 'payhere') await payHereCapture(tx, order, String(nextPayHerePaymentId++));
+          else {
+            await stripeCapture(tx, order, intent);
+            refundAmounts.set(intent, Math.min(remaining, order.amountMinor));
+          }
           remaining -= Math.min(remaining, order.amountMinor);
           return order;
         });
@@ -555,6 +565,92 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
     assert.equal((await feeView()).execution, 'review_required');
     assert.equal((await dashboard(arbitrationProvider)).settled.feeRevenueMinor, '0');
     assert.equal(await deps.db.payoutOrder.count({ where: { arbitrationId: feeAward.decision.id } }), 0);
+
+    const payHereAdmin = await fixture('admin');
+    const payHereArbitrationPath = (id: string, orderId: string) => arbitrationPath(id, orderId).replace(/stripe-refund$/, 'payhere-refund');
+    const executePayHereArbitration = (id: string, orderId: string, actor = payHereAdmin) => fetch(payHereArbitrationPath(id, orderId), {
+      method: 'POST', headers: actor.headers, body: '{}',
+    });
+    async function selectPayHerePayment(orderId: string) {
+      const attempt = await deps.db.payHereAttempt.findUniqueOrThrow({
+        where: { orderId }, include: { events: { where: { statusCode: '2' } } },
+      });
+      payHereAttemptId = attempt.id;
+      activePayHerePaymentId = attempt.events[0]!.reportedPaymentId;
+      payHereStatus = 'RECEIVED';
+      payHereMethod = 'VISA';
+      providerRefundId++;
+      await deps.redis.del(`${config.AUTH_RATE_PREFIX}:reconciliation-gateway:${gatewayKey}`);
+    }
+    const payHereFull = await arbitration(300002, 'payhere');
+    const firstPayHereOrder = payHereFull.orders[0]!;
+    const beforePayHereArbitration = await dashboard(arbitrationProvider);
+    const initialPayHereSubmissions = payHereSubmissions;
+    assert.equal((await executePayHereArbitration(payHereFull.decision.id, firstPayHereOrder.id, customer)).status, 403);
+    assert.equal((await (await executePayHereArbitration(payHereFull.decision.id, firstPayHereOrder.id, old)).json()).code, 'RECENT_LOGIN_REQUIRED');
+    assert.equal((await executePayHereArbitration(payHereFull.decision.id, advance.id)).status, 404);
+    assert.equal((await (await executeArbitration(payHereFull.decision.id, firstPayHereOrder.id)).json()).code, 'STRIPE_REFUND_NOT_ELIGIBLE');
+    await selectPayHerePayment(firstPayHereOrder.id);
+    payHereMethod = 'FRIMI';
+    assert.equal((await (await executePayHereArbitration(payHereFull.decision.id, firstPayHereOrder.id)).json()).code, 'PAYHERE_CARD_PAYMENT_REQUIRED');
+    assert.equal(payHereSubmissions, initialPayHereSubmissions);
+    assert.equal((await (await fetch(payHereArbitrationPath(payHereFull.decision.id, firstPayHereOrder.id), payHereAdmin)).json()).execution, null);
+    const payHerePartial = await arbitration(200001, 'payhere');
+    const partialSource = payHerePartial.orders.find(order => order.purpose === 'balance')!;
+    const readsBeforePartial = payHereReads;
+    assert.equal((await (await executePayHereArbitration(payHerePartial.decision.id, partialSource.id)).json()).code, 'PAYHERE_PARTIAL_REFUND_UNAVAILABLE');
+    assert.equal(payHereReads, readsBeforePartial);
+    assert.equal(await reserveBalance(payHerePartial.decision.id, 'customer'), 200001n);
+
+    for (const order of payHereFull.orders) {
+      await selectPayHerePayment(order.id);
+      if (order.id === firstPayHereOrder.id) {
+        let refundReceived!: () => void;
+        let releaseRefund!: () => void;
+        const received = new Promise<void>(resolve => { refundReceived = resolve; });
+        payHereResponseGate = new Promise<void>(resolve => { releaseRefund = resolve; });
+        payHereSubmitted = refundReceived;
+        const sending = executePayHereArbitration(payHereFull.decision.id, order.id);
+        await Promise.race([received, sending.then(async response => assert.fail(await response.clone().text()))]);
+        try {
+          assert.equal((await (await executePayHereArbitration(payHereFull.decision.id, order.id)).json()).state, 'uncertain');
+        } finally { releaseRefund(); }
+        assert.equal((await (await sending).json()).state, 'pending');
+        payHereResponseGate = undefined;
+        payHereSubmitted = undefined;
+      } else {
+        assert.equal((await (await executePayHereArbitration(payHereFull.decision.id, order.id)).json()).state, 'pending');
+      }
+      payHereStatus = 'REFUND PROCESSING';
+      assert.equal((await (await executePayHereArbitration(payHereFull.decision.id, order.id)).json()).state, 'pending');
+      payHereStatus = 'REFUNDED';
+      const settled = await (await executePayHereArbitration(payHereFull.decision.id, order.id)).json();
+      assert.equal(settled.state, 'succeeded');
+      assert.equal(settled.arbitrationId, payHereFull.decision.id);
+      assert.deepEqual(await (await executePayHereArbitration(payHereFull.decision.id, order.id)).json(), settled);
+    }
+    assert.equal(payHereSubmissions - initialPayHereSubmissions, 2);
+    assert.equal(await reserveBalance(payHereFull.decision.id, 'customer'), 0n);
+    const payHereView = await (await fetch(base + 'arbitrations/' + payHereFull.decision.id, customer)).json();
+    assert.equal(payHereView.execution, 'settled');
+    assert.ok(payHereView.refundItems.every((item: { payHereRefundState: string }) => item.payHereRefundState === 'succeeded'));
+    const payHereRows = await deps.db.payHereRefundExecution.findMany({ where: { arbitrationId: payHereFull.decision.id }, include: { settlement: true } });
+    assert.equal(payHereRows.length, 2);
+    assert.ok(payHereRows.every(row => row.settlement?.source === 'payhere.sandbox.refund.settle'));
+    assert.equal(BigInt((await dashboard(arbitrationProvider)).settled.refundedMinor) - BigInt(beforePayHereArbitration.settled.refundedMinor), 300002n);
+
+    const uncertainPayHere = await arbitration(150001, 'payhere');
+    const uncertainSource = uncertainPayHere.orders.find(order => order.purpose === 'advance')!;
+    const zeroSource = uncertainPayHere.orders.find(order => order.purpose === 'balance')!;
+    assert.equal((await (await executePayHereArbitration(uncertainPayHere.decision.id, zeroSource.id)).json()).code, 'PAYHERE_REFUND_NOT_ELIGIBLE');
+    await selectPayHerePayment(uncertainSource.id);
+    losePayHereResponse = true;
+    const uncertain = await (await executePayHereArbitration(uncertainPayHere.decision.id, uncertainSource.id)).json();
+    assert.equal(uncertain.state, 'uncertain');
+    const afterUncertainSubmission = payHereSubmissions;
+    assert.deepEqual(await (await executePayHereArbitration(uncertainPayHere.decision.id, uncertainSource.id)).json(), uncertain);
+    assert.equal(payHereSubmissions, afterUncertainSubmission);
+    assert.equal(await reserveBalance(uncertainPayHere.decision.id, 'customer'), 150001n);
   } finally {
     release();
     try {
@@ -567,6 +663,7 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
       for (const bookingId of bookingIds) {
         const arbitration = { decision: { dispute: { bookingId } } };
         await deps.db.stripeArbitrationFeeSettlement.deleteMany({ where: { arbitration: { dispute: { bookingId } } } });
+        await deps.db.payHereRefundExecution.deleteMany({ where: { arbitrationSource: arbitration } });
         await deps.db.stripeRefundExecution.deleteMany({ where: { arbitrationSource: arbitration } });
         await deps.db.arbitrationSource.deleteMany({ where: arbitration });
         await deps.db.arbitrationDecision.deleteMany({ where: { dispute: { bookingId } } });

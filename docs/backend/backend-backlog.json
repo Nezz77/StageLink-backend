@@ -1912,7 +1912,7 @@
         "src/components/DisputeArbitration.tsx",
         "src/lib/arbitration.ts"
       ],
-      "proposed_contract": "POST /bookings/:id/disputes; POST /admin/disputes/:id/decisions; GET /arbitrations/:id; GET and POST /admin/arbitrations/:id/items/:orderId/stripe-refund; POST /admin/arbitrations/:id/payout; POST /admin/arbitrations/:id/payout-destination-repairs; GET and POST /admin/arbitrations/:id/stripe-fee",
+      "proposed_contract": "POST /bookings/:id/disputes; POST /admin/disputes/:id/decisions; GET /arbitrations/:id; GET and POST /admin/arbitrations/:id/items/:orderId/stripe-refund; GET and POST /admin/arbitrations/:id/items/:orderId/payhere-refund; POST /admin/arbitrations/:id/payout; POST /admin/arbitrations/:id/payout-destination-repairs; GET and POST /admin/arbitrations/:id/stripe-fee",
       "entities": [
         "arbitration_decisions",
         "execution",
@@ -1929,7 +1929,7 @@
       "ui_coverage_ids": [
         "UI-044"
       ],
-      "remaining": "Verify hosted Stripe test arbitration refunds, payouts and fee settlement, implement PayHere execution, and connect frontend and Figma flows."
+      "remaining": "Verify hosted Stripe test and PayHere sandbox arbitration refunds, payouts and fee settlement. Add partial PayHere refund reconciliation and PayHere provider payout and fee execution. Connect frontend and Figma flows."
     },
     {
       "id": "BE-055",

@@ -34,6 +34,7 @@ const allocation = z.object({
 const sourceView = z.object({
   orderId: uuid, capturedMinor: minor, refundMinor: minor,
   stripeRefundState: z.enum(['uncertain', 'pending', 'failed', 'succeeded']).nullable(),
+  payHereRefundState: z.enum(['uncertain', 'pending', 'failed', 'succeeded']).nullable(),
 });
 const allocationDetails = allocation.extend({
   refundItems: z.array(sourceView), payoutId: uuid.nullable(), execution: z.enum(['awaiting_gateway', 'settled', 'review_required']),
@@ -337,7 +338,9 @@ export function makeArbitrationController(auth: AuthService) {
         where: { id: parse(uuid, id), ...(staff ? {} : { dispute: { booking: { OR: [{ customerId: userId }, { providerId: userId }] } } }) },
         include: {
           feeSettlement: { select: { reversalJournalId: true } },
-          sources: { orderBy: { orderId: 'asc' }, include: { stripeExecution: { select: { status: true } } } },
+          sources: { orderBy: { orderId: 'asc' }, include: {
+            stripeExecution: { select: { status: true } }, payHereExecution: { select: { status: true } },
+          } },
           payout: { select: { id: true, stripeTransfers: {
             orderBy: { attempt: 'desc' }, take: 1, select: {
               status: true, reversedMinor: true, bankSettlements: { select: { journalId: true, reviewReason: true } },
@@ -348,17 +351,19 @@ export function makeArbitrationController(auth: AuthService) {
       if (!row) throw new PublicError(404, 'ARBITRATION_NOT_FOUND', 'This arbitration decision is unavailable.');
       const transfer = row.payout?.stripeTransfers[0];
       const bankSettled = transfer?.bankSettlements.some(settlement => settlement.journalId && !settlement.reviewReason);
-      const refundsSettled = row.sources.every(source => source.refundMinor === 0 || source.stripeExecution?.status === 'succeeded');
+      const refundsSettled = row.sources.every(source => source.refundMinor === 0 ||
+        source.stripeExecution?.status === 'succeeded' || source.payHereExecution?.status === 'succeeded');
       const stripeFeeState = row.feeSettlement ? row.feeSettlement.reversalJournalId ? 'review_required' : 'settled' : null;
       const providerSettled = row.payoutMinor === 0 && (row.feeMinor === 0 || stripeFeeState === 'settled') ||
         transfer?.status === 'transferred' && transfer.reversedMinor === 0 && bankSettled;
-      const needsReview = row.sources.some(source => source.stripeExecution?.status === 'failed') ||
+      const needsReview = row.sources.some(source => source.stripeExecution?.status === 'failed' || source.payHereExecution?.status === 'failed') ||
         transfer?.status === 'rejected' || transfer?.status === 'review_required' ||
         Boolean(transfer?.bankSettlements.length && !bankSettled) || stripeFeeState === 'review_required';
       const execution = needsReview ? 'review_required' : refundsSettled && providerSettled ? 'settled' : 'awaiting_gateway';
       return { ...presentDecision(row), execution, stripeFeeState, payoutId: row.payout?.id ?? null, refundItems: row.sources.map(source => ({
         orderId: source.orderId, capturedMinor: source.capturedMinor, refundMinor: source.refundMinor,
         stripeRefundState: source.stripeExecution?.status ?? null,
+        payHereRefundState: source.payHereExecution?.status ?? null,
       })) };
     }
   }

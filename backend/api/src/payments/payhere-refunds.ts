@@ -20,10 +20,12 @@ const execution = z.object({
 });
 const view = execution.extend({ requestId: uuid });
 const depositView = execution.extend({ claimId: uuid });
+const arbitrationView = execution.extend({ arbitrationId: uuid });
 
 function present(row: PayHereRefundExecution) {
-  const { id, orderId, requestId, damageClaimId, status, amountMinor, createdAt, updatedAt } = row;
-  return { id, orderId, ...(damageClaimId ? { claimId: damageClaimId } : { requestId }), amountMinor,
+  const { id, orderId, requestId, damageClaimId, arbitrationId, status, amountMinor, createdAt, updatedAt } = row;
+  const target = arbitrationId ? { arbitrationId } : damageClaimId ? { claimId: damageClaimId } : { requestId };
+  return { id, orderId, ...target, amountMinor,
     state: status, createdAt: createdAt.toISOString(), updatedAt: updatedAt.toISOString() };
 }
 
@@ -38,7 +40,7 @@ function capture(target: RefundTarget) {
   if (!target.approved || !order || order.stripeAttempt || !attempt || !event?.journal?.postedAt ||
     event.journal.source !== 'payhere.sandbox.capture' || event.journal.reference !== attempt.id) throw notEligible();
   if (target.amountMinor !== order.amountMinor) {
-    throw new PublicError(409, 'PAYHERE_PARTIAL_REFUND_UNAVAILABLE', 'This PayHere deposit refund needs a separate review because the approved amount is partial.');
+    throw new PublicError(409, 'PAYHERE_PARTIAL_REFUND_UNAVAILABLE', 'This approved PayHere refund is partial and needs separate review.');
   }
   return { order, attemptId: attempt.id, paymentId: event.reportedPaymentId };
 }
@@ -80,8 +82,8 @@ export function makePayHereRefundExecutionController(auth: AuthService) {
     if (prior && (observation.status !== 'refunded' || observation.paymentReference !== paymentId)) return present(prior);
     if (!prior) {
       if (observation.status !== 'captured' || observation.paymentReference !== paymentId) throw notEligible();
-      if (source.damageClaimId && !observation.payHereCardPayment) {
-        throw new PublicError(409, 'PAYHERE_CARD_PAYMENT_REQUIRED', 'PayHere must confirm a card payment for this deposit refund.');
+      if ((source.damageClaimId || source.arbitrationId) && !observation.payHereCardPayment) {
+        throw new PublicError(409, 'PAYHERE_CARD_PAYMENT_REQUIRED', 'PayHere must confirm a card payment for this refund.');
       }
       await auth.limits.check('reconciliation-gateway', 'payhere', 4, 10);
     }
@@ -95,11 +97,12 @@ export function makePayHereRefundExecutionController(auth: AuthService) {
       requireRecentIndependentAdmin(currentAdmin, target.booking);
       const refreshed = capture(target);
       if (!target.reservationId || target.reservationId !== source.reservationId || target.amountMinor !== source.amountMinor ||
+        target.reserveAmountMinor !== source.reserveAmountMinor ||
         refreshed.order.id !== order.id || refreshed.attemptId !== attemptId || refreshed.paymentId !== paymentId) throw notEligible();
 
       const current = target.payHereExecution;
       if (current && (current.id !== prior?.id || current.status !== 'pending')) return { response: present(current) };
-      const reserved = await findReservedFunds(tx, target.reservationId, target.reserve, target.amountMinor);
+      const reserved = await findReservedFunds(tx, target.reservationId, target.reserve, target.amountMinor, target.reserveAmountMinor);
       if (!reserved) throw notEligible();
       if (current) {
         if (current.paymentId !== paymentId || !current.providerRefundId || current.amountMinor !== target.amountMinor) throw notEligible();
@@ -110,10 +113,10 @@ export function makePayHereRefundExecutionController(auth: AuthService) {
       }
 
       if (prior || refreshed.order.status !== 'paid' ||
-        (target.damageClaimId && await paymentBlocked(tx, target.booking.id, false))) throw notEligible();
+        (target.requestId === null && await paymentBlocked(tx, target.booking.id, false))) throw notEligible();
       const claim = await tx.payHereRefundExecution.createMany({
         data: {
-          requestId: target.requestId, damageClaimId: target.damageClaimId, orderId: order.id,
+          requestId: target.requestId, damageClaimId: target.damageClaimId, arbitrationId: target.arbitrationId, orderId: order.id,
           actorId: currentAdmin.user.id, paymentId, amountMinor: target.amountMinor,
         },
         skipDuplicates: true,
@@ -170,6 +173,26 @@ export function makePayHereRefundExecutionController(auth: AuthService) {
     @ApiOkResponse({ schema: schema(depositView) })
     executeDeposit(@Req() req: Request, @Param('id') id: string, @Body() body: unknown) {
       return runRefund(req, body, () => ({ claimId: parse(uuid, id) }));
+    }
+
+    @Get('admin/arbitrations/:id/items/:orderId/payhere-refund')
+    @ApiParam({ name: 'id', format: 'uuid' })
+    @ApiParam({ name: 'orderId', format: 'uuid' })
+    @ApiOkResponse({ schema: schema(z.object({ execution: arbitrationView.nullable() })) })
+    async arbitrationStatus(@Req() req: Request, @Param('id') id: string, @Param('orderId') orderId: string) {
+      await admin(req);
+      const target = await refundTarget(db, { arbitrationId: parse(uuid, id), orderId: parse(uuid, orderId) });
+      return { execution: target.payHereExecution ? present(target.payHereExecution) : null };
+    }
+
+    @Post('admin/arbitrations/:id/items/:orderId/payhere-refund')
+    @HttpCode(200)
+    @ApiParam({ name: 'id', format: 'uuid' })
+    @ApiParam({ name: 'orderId', format: 'uuid' })
+    @ApiBody({ schema: schema(empty) })
+    @ApiOkResponse({ schema: schema(arbitrationView) })
+    executeArbitration(@Req() req: Request, @Param('id') id: string, @Param('orderId') orderId: string, @Body() body: unknown) {
+      return runRefund(req, body, () => ({ arbitrationId: parse(uuid, id), orderId: parse(uuid, orderId) }));
     }
   }
   return PayHereRefundExecutionController;
