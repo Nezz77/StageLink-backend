@@ -98,6 +98,9 @@ model AuthUser {
   bookingReminders BookingReminder[]
   notifications Notification[]
   notificationPreferences NotificationPreference?
+  smsContact SmsContact?
+  smsVerifications SmsVerification[]
+  smsConsentEvents SmsConsentEvent[]
   reminderActions ReminderAdminAction[]
   paymentRecoveries PaymentRecoveryAction[]
   stripeRefundExecutions StripeRefundExecution[]
@@ -1870,6 +1873,56 @@ model NotificationPreference {
   revision Int @default(1)
   user AuthUser @relation(fields: [userId], references: [id], onDelete: Cascade)
   @@map("notification_preferences")
+}
+
+model SmsContact {
+  userId String @id @map("user_id") @db.Uuid
+  revision Int @default(1)
+  sealedNumber String? @map("sealed_number")
+  last4 String? @db.Char(4)
+  verifiedAt DateTime? @map("verified_at") @db.Timestamptz(3)
+  pendingId String? @map("pending_id") @db.Uuid
+  bookingConsent Boolean @default(false) @map("booking_consent")
+  marketingConsent Boolean @default(false) @map("marketing_consent")
+  consentAt DateTime? @map("consent_at") @db.Timestamptz(3)
+  user AuthUser @relation(fields:[userId],references:[id],onDelete:Cascade)
+  @@map("sms_contacts")
+}
+
+model SmsVerification {
+  id String @id @default(uuid()) @db.Uuid
+  userId String @map("user_id") @db.Uuid
+  targetDigest String @map("target_digest") @db.Char(64)
+  last4 String @db.Char(4)
+  codeDigest String? @map("code_digest") @db.Char(64)
+  sealedPayload String? @map("sealed_payload")
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(3)
+  attempts Int @default(0)
+  status String @default("queued")
+  providerId String? @unique @map("provider_id") @db.VarChar(120)
+  lastCode String? @map("last_code") @db.VarChar(80)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  sendingAt DateTime? @map("sending_at") @db.Timestamptz(3)
+  checkedAt DateTime? @map("checked_at") @db.Timestamptz(3)
+  confirmedAt DateTime? @map("confirmed_at") @db.Timestamptz(3)
+  user AuthUser @relation(fields:[userId],references:[id],onDelete:Cascade)
+  @@index([status,createdAt])
+  @@map("sms_verifications")
+}
+
+model SmsConsentEvent {
+  id String @id @default(uuid()) @db.Uuid
+  userId String @map("user_id") @db.Uuid
+  revision Int
+  action String @db.VarChar(20)
+  last4 String? @db.Char(4)
+  targetDigest String? @map("target_digest") @db.Char(64)
+  bookingConsent Boolean @map("booking_consent")
+  marketingConsent Boolean @map("marketing_consent")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  user AuthUser @relation(fields:[userId],references:[id],onDelete:Cascade)
+  @@unique([userId,revision])
+  @@map("sms_consent_events")
 }
 
 model SystemSetting {
