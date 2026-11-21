@@ -21,7 +21,7 @@ Setup creates ignored configuration files with separate random signing, mail-enc
 
 Host ports bind loopback: API 4000, PostgreSQL 55432, Redis 56379, Mailpit 8025/1025, and S3Mock 59090. AI has no public port. Migrations must succeed before API/worker start. No accounts or business records are seeded automatically.
 
-When connecting a separately running web client, set `WEB_ORIGIN` to its exact origin. Browser mutations enforce this origin. Verification and recovery messages are available in Mailpit.
+When connecting a separately running web client, set `WEB_ORIGIN` to its exact origin. Browser mutations enforce this origin. Credentialed responses expose only `Content-Disposition` and `X-Request-ID` in addition to the browser default headers, so the allowed client can read private download filenames and display server error references. This does not make download URLs public or permit other web origins. Verification and recovery messages are available in Mailpit.
 
 Stop while retaining database/Redis volumes:
 

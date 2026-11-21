@@ -88,10 +88,14 @@ test('persistent private uploads, real derivatives, publication, capabilities, r
   assert.equal(ownerPdf.status, 200);
   assert.equal((await call(`assets/${pdfId}/access`, { variant: 'display' }, b)).status, 404);
   assert.equal((await call(`assets/${pdfId}/access`, { variant: 'display' }, admin)).status, 404);
-  const downloaded = await fetch(base + ownerPdf.data.url);
+  const downloaded = await fetch(base + ownerPdf.data.url, { headers: { Origin: config.WEB_ORIGIN } });
   assert.equal(downloaded.status, 200);
   assert.equal(downloaded.headers.get('Content-Type'), 'application/pdf');
   assert.equal(downloaded.headers.get('Content-Disposition'), 'attachment; filename="verification-evidence.pdf"');
+  const exposed = downloaded.headers.get('Access-Control-Expose-Headers')!.toLowerCase().split(',').map(value => value.trim());
+  assert.ok(exposed.includes('content-disposition'));
+  assert.ok(exposed.includes('x-request-id'));
+  assert.equal(downloaded.headers.get('Access-Control-Allow-Origin'), config.WEB_ORIGIN);
   const derivative = Buffer.from(await downloaded.arrayBuffer());
   assert.ok(derivative.subarray(0, 5).equals(Buffer.from('%PDF-')));
   assert.ok(!derivative.equals(original));
