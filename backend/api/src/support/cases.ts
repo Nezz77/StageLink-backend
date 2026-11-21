@@ -135,6 +135,15 @@ export function makeSupportController(auth: AuthService, notify?: (change: Suppo
     }, { isolationLevel: 'RepeatableRead' });
   }
 
+  async function notifyAssignee(tx: Prisma.TransactionClient, row: SupportCase, actorId: string, eventKey: string) {
+    if (!row.assigneeId || row.assigneeId === actorId) return;
+    const assignee = await tx.authUser.findFirst({
+      where: { id: row.assigneeId, roles: { has: 'admin' }, disabledAt: null, emailVerifiedAt: { not: null } },
+      select: { id: true },
+    });
+    if (assignee) await notifyUsers(tx, [assignee.id], 'support', row.id, eventKey);
+  }
+
   async function addMessage(req: Request, id: string, input: z.infer<typeof reply>, staff: boolean, kind: 'reply' | 'note') {
     const caseId = parse(uuid, id);
     return write(req, staff, async (tx, actorId) => {
@@ -150,6 +159,7 @@ export function makeSupportController(auth: AuthService, notify?: (change: Suppo
       if (kind === 'reply' && row.status === 'resolved') throw new PublicError(409, 'SUPPORT_CASE_RESOLVED', 'Reopen this case before replying.');
       const entry = await tx.supportEntry.create({ data: { ...key, kind, staff, body: input.body } });
       if (staff && kind === 'reply') await notifyUsers(tx, [row.ownerId], 'support', row.id, String(entry.id));
+      if (!staff && kind === 'reply') await notifyAssignee(tx, row, actorId, 'member-reply:' + entry.id);
       return entry;
     }, { caseId, staffOnly: kind === 'note' });
   }
@@ -309,12 +319,14 @@ export function makeSupportController(auth: AuthService, notify?: (change: Suppo
         if (assigneeId && !await tx.authUser.findFirst({
           where: { id: assigneeId, roles: { has: 'admin' }, disabledAt: null, emailVerifiedAt: { not: null } },
         })) throw new PublicError(409, 'SUPPORT_ASSIGNEE_UNAVAILABLE', 'Choose an active administrator.');
-        return presentStaffCase(await tx.supportCase.update({
+        const assigned = await tx.supportCase.update({
           where: { id }, data: {
             assigneeId, revision: { increment: 1 },
             entries: { create: { kind: 'assignment', staff: true, assigneeId, revision: row.revision + 1, actorId, body: input.reason } },
           }, include: { attachments },
-        }));
+        }, { caseId: id, staffOnly: true });
+        await notifyAssignee(tx, assigned, actorId, 'assignment:' + assigned.revision);
+        return presentStaffCase(assigned);
       }, { caseId: id, staffOnly: true });
     }
   }
