@@ -366,7 +366,7 @@ For live inbox updates, send `notifications:subscribe` with `{}` on the authenti
 
 ## Administrator system controls
 
-Read maintenance state at `GET /api/v1/system/public-status`. Administrators use `PUT /api/v1/admin/system/maintenance` with the current revision, an enabled flag and a reason. While enabled, new business writes receive `503 MAINTENANCE_MODE`. Reads, sign-in, account recovery, payment callbacks, and these recovery controls remain available. Background workers continue running.
+Read maintenance state at `GET /api/v1/system/public-status`. Administrators use `PUT /api/v1/admin/system/maintenance` with the current revision, an enabled flag and a reason. While enabled, new business writes receive `503 MAINTENANCE_MODE`. Reads, sign-in, account recovery, payment callbacks, and these recovery controls remain available. Background workers continue running. Verified administrators can still cancel queued email/SMS reminders and email/SMS campaigns using their existing cancellation endpoints; creating, scheduling and retrying communication remain blocked. Origin, CSRF, authorization and audit checks still apply.
 
 Administrators list and schedule announcements under `/api/v1/admin/announcements`. Publishing or unpublishing refreshes the public announcement cache. `POST /api/v1/admin/cache/invalidate` accepts the `public_announcements` scope. `POST /api/v1/admin/sessions/revoke` accepts one user ID and an optional session ID. `GET /api/v1/admin/audit` lists recorded control changes.
 
