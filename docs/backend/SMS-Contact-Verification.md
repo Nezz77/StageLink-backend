@@ -1,6 +1,6 @@
 # SMS contact verification and consent
 
-P17 backend foundation on `backend/sms-contact-verification`. The report specifies text.lk. This change implements verified contact registration and explicit SMS consent, not booking SMS scheduling or promotional SMS campaigns. Existing email reminders and campaigns retain their own controls. No UI/Figma files change here; client controls and their design handoff remain follow-up work.
+StageLink uses text.lk for verified SMS contacts and booking reminders. Booking and marketing consent are separate choices. Client controls and their Figma handoff remain open.
 
 ## Member flow
 
@@ -17,7 +17,7 @@ Verification is proof of number possession for notification contact only. It doe
 
 ## Provider and worker
 
-Set `SMS_VERIFICATION_ENABLED=true`, `TEXTLK_TOKEN` and the approved `TEXTLK_SENDER` (alphanumeric, at most 11 characters) only when the deployment is ready. `SMS_HOURLY_LIMIT` defaults to 20 submissions across workers sharing the database. Compose forwards these settings; examples leave delivery off. No credentials are seeded or enabled by setup. Production credentials and actual sender/provider behavior still need hosted verification.
+Set `SMS_VERIFICATION_ENABLED=true`, `TEXTLK_TOKEN` and the approved `TEXTLK_SENDER` to enable verification messages. `SMS_HOURLY_LIMIT` defaults to 20 total submissions per hour across verification and booking reminders on all workers sharing the database. Compose forwards these settings and both send flags default to `false`. Hosted delivery still needs a configured sender and provider verification.
 
 The adapter uses the fixed HTTPS text.lk v3 send endpoint, JSON and an Authorization bearer header. It does not place credentials/OTP in query strings or follow redirects. Send timeout, interrupted worker and ambiguous responses are `unknown` and are never automatically resubmitted. Explicit provider rejection is `failed`. A valid provider identifier and matching recipient/sender are required to record accepted/delivered status. A successful HTTP response by itself is not evidence of delivery.
 
@@ -27,8 +27,16 @@ Phone numbers and OTP message payloads are AES-GCM encrypted under the existing 
 
 Provider references: [text.lk send API](https://text.lk/docs/send-sms/) and [message retrieval](https://text.lk/docs/view-sms/). Retrieval documentation does not supply a complete success schema/status vocabulary; the adapter conservatively requires the matching message fields documented by Send SMS. Hosted contract verification remains open.
 
+## Booking reminders
+
+Set `BOOKING_SMS_REMINDERS=true` with the same text.lk credentials to enable booking SMS. The worker schedules 24-hour and 2-hour reminders for the customer and provider on agreed bookings with a paid advance. Each recipient needs a verified SMS contact and booking consent. There is one reminder per recipient, booking start and reminder window.
+
+Before claiming a send, the worker checks the current contact, consent, booking time and payment state. An opt-out, cancellation or reschedule cancels stale queued reminders. A message already submitted to the provider cannot be recalled. Delivery uses the shared hourly cap and the same evidence checks as contact verification. Unknown submissions remain in history and are not automatically resent.
+
+Members can read their latest 20 reminder records at `GET /api/v1/me/booking-sms-reminders`. Each item shows the booking, schedule, delivery status and last check time. SMS and email delivery have separate settings. Hosted SMS verification and promotional SMS remain open.
+
 ## Validation boundaries
 
-Tests use disposable `.test` accounts, synthetic phone numbers and intercepted text.lk requests. They cover strict phone/configuration parsing, role/ownership/Origin/CSRF rules, encrypted payloads, five-attempt limits, expiry and reuse, explicit revisioned consent and revocation, sender/recipient evidence checks, concurrent worker deduplication, an hourly submission cap, interrupted/uncertain send behavior, provider rejection, reconciliation and disabled accounts/provider delivery. No real SMS is sent. Booking reminders and marketing workers must consume only a current verified contact and the appropriate consent when those channels are added.
+Tests use disposable `.test` accounts, synthetic phone numbers and intercepted text.lk requests. Verification tests cover access, encryption, code attempts and expiry, consent and provider outcomes. Booking reminder tests cover shared submission limits, concurrent claims, paid bookings, separate booking consent, opt-out, uncertain sends, reconciliation and account-scoped history.
 
 Local validation on 20 November 2026: all 56 unit tests and 28 integration scenarios passed, with migrations applied and repeated safely. API contract generation, TypeScript checks and changed-file formatting passed. Hosted text.lk delivery and client/Figma integration are not verified by these tests.

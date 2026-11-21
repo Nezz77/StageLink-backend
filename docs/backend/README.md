@@ -354,4 +354,4 @@ Sandbox `settled.paidOutMinor` and `settled.feeRevenueMinor` report net bank pay
 
 ## SMS contact verification
 
-The backend contact/consent and text.lk verification worker are documented in [SMS-Contact-Verification.md](SMS-Contact-Verification.md). `SMS_VERIFICATION_ENABLED` defaults to false. Enabling requires an approved `TEXTLK_SENDER`, `TEXTLK_TOKEN` and a configured hourly submission cap. Existing profile phone text is unverified and is never auto-enrolled. This does not enable booking SMS reminders or promotional SMS campaigns.
+`SMS_VERIFICATION_ENABLED` enables contact verification and `BOOKING_SMS_REMINDERS` enables 24-hour and 2-hour reminders for opted-in verified contacts. Both settings default to false and share `SMS_HOURLY_LIMIT`. Members read delivery status at `GET /api/v1/me/booking-sms-reminders`. [SMS verification and booking reminders](SMS-Contact-Verification.md).

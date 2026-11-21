@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { PrismaClient } from '../generated/prisma/client.js';
 import { seal, unseal } from '../api/src/auth/security.js';
 import type { Config } from './config.js';
-import { TextLk, smsPayload, type SmsResult } from './sms.js';
+import { TextLk, reserveSmsSubmission, smsPayload, type SmsResult } from './sms.js';
 export const payloadContext = (id: string) => 'stagelink-sms-payload-v1:' + id;
 export const contactContext = (userId: string) => 'stagelink-sms-contact-v1:' + userId;
 export async function processSmsVerifications(db: PrismaClient, config: Config, transport: Pick<TextLk, 'send' | 'read'> = new TextLk(config)) {
@@ -14,7 +14,6 @@ export async function processSmsVerifications(db: PrismaClient, config: Config, 
     if (candidate) {
         const claimed = await db.$transaction(async (tx) => {
             await tx.$queryRaw `SELECT id FROM auth_users WHERE id=${candidate.userId}::uuid FOR UPDATE`;
-            await tx.$executeRaw `SELECT pg_advisory_xact_lock(176012,17)`;
             const row = await tx.smsVerification.findUniqueOrThrow({ where: { id: candidate.id } }), contact = await tx.smsContact.findUnique({ where: { userId: row.userId } }), user = await tx.authUser.findUniqueOrThrow({ where: { id: row.userId } });
             if (row.status !== 'queued')
                 return null;
@@ -22,15 +21,10 @@ export async function processSmsVerifications(db: PrismaClient, config: Config, 
                 await tx.smsVerification.update({ where: { id: row.id }, data: { status: 'cancelled', codeDigest: null, sealedPayload: null } });
                 return null;
             }
-            const count = await tx.$queryRaw<Array<{
-                count: bigint;
-            }>> `SELECT count(*) FROM sms_verifications WHERE sending_at>now()-interval '1 hour'`;
-            if (count[0]!.count >= BigInt(config.SMS_HOURLY_LIMIT))
+            const sendingAt = await reserveSmsSubmission(tx, config);
+            if (!sendingAt)
                 return null;
-            const clock = await tx.$queryRaw<Array<{
-                now: Date;
-            }>> `SELECT clock_timestamp() AS now`;
-            return tx.smsVerification.update({ where: { id: row.id }, data: { status: 'sending', sendingAt: clock[0]!.now } });
+            return tx.smsVerification.update({ where: { id: row.id }, data: { status: 'sending', sendingAt } });
         });
         if (claimed) {
             let result: SmsResult;

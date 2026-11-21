@@ -1,9 +1,24 @@
 import { createHmac } from 'node:crypto';
 import { z } from 'zod';
+import type { Prisma } from '../generated/prisma/client.js';
 import type { Config } from './config.js';
 export const sriLankaMobile = z.string().trim().transform(value => value.replace(/[ -]/g, '').replace(/^\+/, '').replace(/^0/, '94')).pipe(z.string().regex(/^947\d{8}$/));
 export const smsDigest = (config: Config, value: string) => createHmac('sha256', Buffer.from(config.AUTH_JWT_SECRET, 'hex')).update('stagelink-sms-v1:' + value).digest('hex');
 export const smsPayload = z.object({ number: z.string().regex(/^947\d{8}$/), message: z.string().min(1).max(160) }).strict();
+export const smsDeliveryStatus = z.enum(['queued', 'sending', 'accepted', 'delivered', 'failed', 'unknown', 'cancelled']);
+
+export async function reserveSmsSubmission(tx: Prisma.TransactionClient, config: Config) {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(176012, 17)`;
+    const [budget] = await tx.$queryRaw<Array<{ count: bigint; now: Date }>>`
+      WITH submission_clock AS (SELECT clock_timestamp() AS checked_at)
+      SELECT checked_at AS now,
+        (SELECT count(*) FROM sms_verifications WHERE sending_at > submission_clock.checked_at - interval '1 hour') +
+        (SELECT count(*) FROM booking_sms_reminders WHERE sending_at > submission_clock.checked_at - interval '1 hour') AS count
+      FROM submission_clock`;
+    return budget && budget.count < BigInt(config.SMS_HOURLY_LIMIT) ? budget.now : null;
+}
+
+const smsEnabled = (config: Config) => config.SMS_VERIFICATION_ENABLED === 'true' || config.BOOKING_SMS_REMINDERS === 'true';
 const receipt = z.object({ status: z.literal('success'), data: z.object({ uid: z.string().regex(/^[A-Za-z0-9_-]{1,120}$/), to: z.string(), from: z.string(), status: z.string() }) });
 export type SmsResult = {
     status: 'accepted' | 'delivered' | 'failed' | 'unknown';
@@ -23,7 +38,7 @@ export function checkedSmsReceipt(raw: unknown, config: Config, targetDigest: st
 export class TextLk {
     constructor(readonly config: Config) { }
     async send(payload: z.infer<typeof smsPayload>, targetDigest: string): Promise<SmsResult> {
-        if (this.config.SMS_VERIFICATION_ENABLED !== 'true' || !this.config.TEXTLK_TOKEN || !this.config.TEXTLK_SENDER)
+        if (!smsEnabled(this.config) || !this.config.TEXTLK_TOKEN || !this.config.TEXTLK_SENDER)
             return { status: 'failed', providerId: null, code: 'SMS_DISABLED' };
         try {
             const response = await fetch('https://app.text.lk/api/v3/sms/send', { method: 'POST', redirect: 'error', signal: AbortSignal.timeout(8000), headers: { Authorization: 'Bearer ' + this.config.TEXTLK_TOKEN, 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify({ recipient: payload.number, sender_id: this.config.TEXTLK_SENDER, type: 'plain', message: payload.message }) });
@@ -42,7 +57,7 @@ export class TextLk {
         }
     }
     async read(providerId: string, targetDigest: string): Promise<SmsResult> {
-        if (this.config.SMS_VERIFICATION_ENABLED !== 'true' || !this.config.TEXTLK_TOKEN)
+        if (!smsEnabled(this.config) || !this.config.TEXTLK_TOKEN)
             return { status: 'unknown', providerId, code: 'SMS_DISABLED' };
         try {
             if (!/^[A-Za-z0-9_-]{1,120}$/.test(providerId))
