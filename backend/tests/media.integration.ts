@@ -14,6 +14,7 @@ import {createApp} from '../api/src/app.js';
 import {readConfig} from '../shared/config.js';
 import {resources} from '../shared/resources.js';
 import {hashPassword} from '../api/src/auth/security.js';
+import {runVerificationPdfSmoke,verificationPdfSmokeConfig} from '../scripts/verification-pdf-smoke.js';
 import {MediaStore,originalKey,derivativeKey} from '../shared/media-store.js';
 import {processMediaBatch,cleanupMediaBatch,holdAsset} from '../shared/media-processing.js';
 const exec=promisify(execFile),config=readConfig({...process.env,AUTH_RATE_PREFIX:'media-test-'+randomUUID()});
@@ -31,7 +32,7 @@ test('persistent private uploads, real derivatives, publication, capabilities, r
  async function send(id:string,bytes:Buffer,a:Login,headers:Record<string,string>={}){return fetch(base+`/api/v1/assets/${id}/content`,{method:'PUT',headers:{Origin:config.WEB_ORIGIN,'Content-Type':'application/octet-stream',Authorization:'Bearer '+a.accessToken,'X-CSRF-Token':a.csrfToken,...headers},body:new Uint8Array(bytes)});}
  async function upload(bytes:Buffer,a:Login,mime='image/png',purpose='portfolio'){const id=await intent(bytes,mime,purpose,a);assert.equal((await send(id,bytes,a)).status,200);assert.equal((await call(`assets/${id}/finalize`,{},a)).status,200);return id;}
  try{
-  await store.ready();const a=await fixture('artist',['customer','artist']),b=await fixture('other',['customer','artist']),admin=await fixture('admin',['admin']),renter=await fixture('renter',['customer','renter']);
+  await store.ready();const a=await fixture('artist',['customer','artist','renter']),b=await fixture('other',['customer','artist']),admin=await fixture('admin',['admin']),renter=await fixture('renter',['customer','renter']);
   assert.equal((await call('me/assets',undefined,a)).data.assets.length,0);assert.equal((await call('me/portfolio',undefined,a)).data.items.length,0);
   assert.equal((await call('assets/uploads',{filename:'evil.svg',bytes:2,mime:'image/svg+xml',purpose:'avatar',sha256:'0'.repeat(64)},a)).status,400);
   assert.equal((await call('assets/uploads',{filename:'../bad.png',bytes:1,mime:'image/png',purpose:'avatar',sha256:'0'.repeat(64)},a)).status,400);
@@ -114,6 +115,27 @@ test('persistent private uploads, real derivatives, publication, capabilities, r
   }, admin);
   assert.equal(reviewed.status, 200, JSON.stringify(reviewed.data));
   assert.equal((await fetch(base + reviewCap.data.url)).status, 401);
+
+  const pendingPdfId = await upload(original, a, 'application/pdf', 'verification');
+  await processMediaBatch(deps, store);
+  const pendingCase = await call('verification-cases', {
+    kind: 'renter', subject: 'Pending synthetic evidence', body: 'A second role keeps one verification case pending for the smoke check.',
+    requestKey: randomUUID(), assetIds: [pendingPdfId, imageId],
+  }, a);
+  assert.equal(pendingCase.status, 200, JSON.stringify(pendingCase.data));
+  const tokens = ({accessToken,csrfToken}: Login) => ({accessToken,csrfToken});
+  const smoke = verificationPdfSmokeConfig({
+    STAGELINK_SMOKE_ORIGIN: 'https://fixture-api.example.test', STAGELINK_SMOKE_WEB_ORIGIN: 'https://fixture.example.test',
+    STAGELINK_SMOKE_PENDING_PDF_ASSET_ID: pendingPdfId, STAGELINK_SMOKE_CLOSED_PDF_ASSET_ID: pdfId,
+  }, { owner: tokens(a), admin: tokens(admin), outsider: tokens(b) });
+  const report = await runVerificationPdfSmoke(smoke, async (input, init) => {
+    const url = new URL(String(input));
+    assert.equal(url.origin, smoke.origin);
+    const headers = new Headers(init?.headers);
+    if (headers.has('Origin')) headers.set('Origin', config.WEB_ORIGIN);
+    return fetch(base + url.pathname + url.search, { ...init, headers });
+  });
+  assert.equal(report.passed, true, JSON.stringify(report));
 
   const fakePdf = await upload(Buffer.from('%PDF-1.7\nInvalid fixture'), a, 'application/pdf', 'verification');
   await processMediaBatch(deps, store);
