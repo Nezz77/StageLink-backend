@@ -9,6 +9,7 @@ import { resources } from '../shared/resources.js';
 import { processPromotionalSms } from '../shared/promotional-sms.js';
 import { sealSmsNumber } from '../shared/sms-verification.js';
 import { smsDigest, type SmsResult, type TextLk } from '../shared/sms.js';
+import { runSmsDeliverySmoke } from '../scripts/sms-delivery-smoke.js';
 const config = readConfig({ ...process.env, AUTH_RATE_PREFIX: 'promo-sms-' + randomUUID(), PROMOTIONAL_SMS_DELIVERY: 'true', SMS_VERIFICATION_ENABLED: 'false', BOOKING_SMS_REMINDERS: 'false', TEXTLK_TOKEN: 'fixture-token', TEXTLK_SENDER: 'StageLink', SMS_HOURLY_LIMIT: '100' });
 if (config.NODE_ENV !== 'test' || !new URL(config.DATABASE_URL).pathname.endsWith('_test'))
     throw Error('Promotional SMS requires the isolated test database');
@@ -113,6 +114,36 @@ test('promotional SMS freezes a reviewed audience and honors consent, cancellati
         const detail = await call(admin, first.path);
         assert.equal(detail.data.deliveryCounts.delivered, 1);
         assert.ok(!JSON.stringify(detail.data).includes(number));
+
+        const now = new Date();
+        const startsAt = new Date(now.getTime() + 7200000);
+        const smokeBooking = await deps.db.booking.create({ data: {
+            customerId: member.id, providerId: bookingOnly.id, requestKey: randomUUID(), requestDigest: '0'.repeat(64),
+            targetKind: 'gig', targetId: randomUUID(), targetVersion: 1, startsAt, endsAt: new Date(startsAt.getTime() + 3600000),
+            holdExpiresAt: startsAt, snapshot: {},
+        } });
+        try {
+            const verified = await deps.db.smsVerification.create({ data: {
+                userId: member.id, targetDigest: digest, last4: '4567', expiresAt: new Date(now.getTime() + 60000),
+                status: 'delivered', confirmedAt: now, providerId: 'fixture-verify-' + randomUUID(),
+            } });
+            const reminder = await deps.db.bookingSmsReminder.create({ data: {
+                bookingId: smokeBooking.id, recipientId: member.id, startsAt, dueAt: now, offsetHours: 2,
+                status: 'delivered', targetDigest: digest, providerId: 'fixture-reminder-' + randomUUID(), sendingAt: now, checkedAt: now,
+            } });
+            const smoke = await runSmsDeliverySmoke({
+                origin: await app.getUrl(), verificationId: verified.id, reminderId: reminder.id, campaignId: first.id, expectedRecipients: 1,
+                sessions: { member: member.headers.Authorization.slice(7), admin: admin.headers.Authorization.slice(7) },
+            });
+            assert.equal(smoke.passed, true, JSON.stringify(smoke));
+            assert.equal(smoke.checks.length, 3);
+            await deps.db.smsVerification.delete({ where: { id: verified.id } });
+        }
+        finally {
+            await deps.db.bookingSmsReminder.deleteMany({ where: { bookingId: smokeBooking.id } });
+            await deps.db.booking.delete({ where: { id: smokeBooking.id } });
+        }
+
         const changed = await schedule(admin);
         const optedOut = await call(member, 'me/sms-contact/consent', { revision: 2, bookingConsent: true, marketingConsent: false }, 'PUT');
         assert.equal(optedOut.status, 200);
