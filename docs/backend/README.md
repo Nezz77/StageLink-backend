@@ -238,7 +238,7 @@ Use the returned payout ID with the existing administrator Stripe transfer and b
 
 ## AI operations
 
-Administrators can read `GET /api/v1/admin/ai/status`, `GET /api/v1/admin/ai/config` and `GET /api/v1/admin/ai/metrics`. Use `PUT /api/v1/admin/ai/config` with `{expectedRevision, weights}` to save weights that total 100. The status endpoint checks the configured internal FastAPI origin. Metrics report stored observations. Model generation and usage recording are pending.
+Administrators can read `GET /api/v1/admin/ai/status`, `GET /api/v1/admin/ai/config` and `GET /api/v1/admin/ai/metrics`. Use `PUT /api/v1/admin/ai/config` with `{expectedRevision, weights}` to save weights that total 100. The status endpoint checks the configured internal FastAPI origin. Metrics report recorded requests, outcomes, latency, token usage and model counts.
 
 Administrators manage the biography and equipment prompts under `/api/v1/admin/ai/prompts`. Draft saves, publish and rollback use `expectedRevision`. Rollback creates a new published version from the selected prior version. Preview resolves the template and reports model output as unavailable until a provider is connected.
 
@@ -253,6 +253,10 @@ Enable model previews by configuring the API and its private FastAPI service wit
 Set `AI_PREVIEW_FALLBACK=true` and configure both providers to permit a second attempt after an explicit HTTP 429. The same template and fields may then be sent to both providers. Both attempts share an eight-second deadline. Refusals, timeouts, incomplete results and other provider errors end the preview. The API uses a shared 24-hour Redis counter (`AI_PREVIEW_DAILY_LIMIT`, default 20 submitted previews). Each attempt requests a maximum of 450 output tokens and supplies no tools.
 
 Provider-reported usage and template source are recorded in PostgreSQL per attempt. Draft, inline and published templates are traced separately. Preview output requires review before copying into a listing. Equipment prompts direct the model to omit unverified technical claims.
+
+To check the hosted model, set `STAGELINK_SMOKE_ORIGIN` and `STAGELINK_SMOKE_WEB_ORIGIN` to the staging API and configured web HTTPS origins. From `backend/`, run `npm run build` and then `npm run --silent ai:smoke`, piping a JSON object with `accessToken` and `csrfToken` from a verified administrator session through protected stdin.
+
+Run during a quiet staging window so other biography previews do not affect the usage comparison. The command checks the service's preview capability, takes a usage baseline, and sends one synthetic biography preview with an inline prompt. It consumes one preview quota entry and may use the configured provider fallback. It checks that the rolling 24-hour `preview-bio` request and success counters increase. The report contains check outcomes and HTTP/model status codes. No prompt, generated text, or session data appears in the report. A failed check exits with a nonzero status.
 
 ## Artist writing suggestions
 
