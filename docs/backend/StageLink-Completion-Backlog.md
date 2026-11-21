@@ -47,6 +47,7 @@ A checked box marks implemented backend code. Client wiring and hosted checks ha
 - [ ] P10 Verify the WebSocket upgrade and reconnect paths on the hosted proxy.
 - [x] P11 financial journal foundation. Balanced immutable postings, duplicate command protection, and atomic available-to-reserved fund transfers.
 - [x] P11 server-priced advance and deposit orders with participant-only status reads.
+- [x] P11 Account-scoped payment configuration capabilities, explicit sandbox and unsupported-route flags, and sanitized administrator execution settings. [Contract guide](Payment-Capabilities.md).
 - [x] P11 PayHere sandbox hosted checkout and signed notification intake for advances and deposits.
 - [x] P11 Stripe test-mode hosted Checkout and signed notification intake for advances and deposits.
 - [x] P11 Administrator read-only checkout reconciliation using Stripe test Checkout retrieval and PayHere sandbox Merchant API evidence.
