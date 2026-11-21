@@ -1125,6 +1125,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/sms-contact/opt-out": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["SmsContactsController_optOut"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/sms-contact/revoke": {
         parameters: {
             query?: never;
@@ -8039,6 +8055,49 @@ export interface operations {
                     revision: number;
                     bookingConsent: boolean;
                     marketingConsent: boolean;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        revision: number;
+                        enabled: boolean;
+                        verified: boolean;
+                        last4: string | null;
+                        /** Format: date-time */
+                        verifiedAt: string | null;
+                        bookingConsent: boolean;
+                        marketingConsent: boolean;
+                        pending: {
+                            /** Format: uuid */
+                            id: string;
+                            last4: string;
+                            /** Format: date-time */
+                            expiresAt: string;
+                            status: string;
+                        } | null;
+                    };
+                };
+            };
+        };
+    };
+    SmsContactsController_optOut: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    channel: "booking" | "marketing" | "all";
                 };
             };
         };

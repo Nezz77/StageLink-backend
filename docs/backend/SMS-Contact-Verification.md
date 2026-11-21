@@ -10,8 +10,18 @@ All routes require the current authenticated account. Mutations require the conf
 2. `POST /api/v1/me/sms-contact/verification` with `{revision, number}` queues one verification message. A verified account email and enabled provider configuration are required. Only one Sri Lankan mobile is accepted, normalized from `07…`, `+947…` or `947…` to `947…`. Lists, foreign numbers and landlines are rejected. Requests have per-account and per-number hourly limits plus an account cooldown.
 3. The worker claims the message in PostgreSQL, rechecks the account and current challenge, and submits once to text.lk. The code expires in ten minutes. `POST /api/v1/me/sms-contact/confirm` takes `{challengeId, code}`. Five valid-format wrong attempts invalidate that challenge; rate limits also bound confirmation requests. Queued, expired, superseded, used and other-account challenges cannot verify. Possession of a correct delivered code can verify a message with an uncertain send outcome.
 4. `PUT /api/v1/me/sms-contact/consent` takes `{revision, bookingConsent, marketingConsent}`. Both SMS consents default off, require a verified contact to enable and remain distinct from email preferences. Confirmation of a replacement number resets both. Existing contact consent stays bound to the old verified number while a replacement is pending.
-5. `POST /api/v1/me/sms-contact/revoke` takes `{revision}`. It clears the stored contact and both consents, invalidates outstanding codes and cancels queued verification messages. An already submitted message cannot be recalled. Its recorded delivery status is preserved.
+5. `POST /api/v1/me/sms-contact/revoke` takes `{revision}`. It clears the stored contact and both consents, invalidates outstanding codes, cancels queued verification/booking messages and skips queued campaigns. New revocations append consent evidence in the same transaction; earlier missing revocation records are not reconstructed. An already submitted message cannot be recalled. Its recorded delivery status is preserved.
 6. `GET /api/v1/me/sms-verifications` returns the account's latest twenty masked verification/delivery records. Consent events append the contact revision, target digest, last four digits, choices and action in the same transaction. No application route updates that history.
+
+## Stop SMS during maintenance
+
+`POST /api/v1/me/sms-contact/opt-out` accepts `{channel: "booking"}`, `{channel: "marketing"}` or `{channel: "all"}`. It can only turn consent off, preserves the verified contact and pending number verification, and requires the current signed-in account, Origin, JSON and CSRF token. It needs no contact revision or verified email and makes no provider request. Repeated identical opt-outs return the same contact revision without duplicate consent events. An account without an SMS contact remains unchanged.
+
+Opt-out and number revocation remain available during read-only maintenance. The ordinary consent update, verification request and confirmation routes remain blocked by maintenance; the off-only endpoint cannot enable either channel or change another account. Email preferences are independent.
+
+Changed choices, consent evidence and queued-message invalidation commit together under the account lock used by send claims. Marketing opt-out preserves booking SMS consent and eligible booking reminders. Booking opt-out preserves the marketing consent flag, but any contact revision change conservatively invalidates a previously reviewed campaign audience, as before. The existing `PUT /me/sms-contact/consent` now invalidates ineligible queued sends immediately too. Late scheduler inserts still undergo current-consent checks before a send can be claimed.
+
+Already claimed, accepted, delivered, failed or uncertain delivery records are preserved. An in-flight message cannot be recalled. Removing the contact erases usable verification code/payload data while retaining submitted-message evidence. Damaged encrypted contact data does not prevent stopping SMS or removing the number; audit metadata retains the recorded last four digits and uses a null target digest if the number cannot be decrypted. Audit timestamps use database time.
 
 Verification is proof of number possession for notification contact only. It does not sign in, reset passwords or replace account security. Existing profile phone text does not automatically become a verified SMS contact.
 
@@ -39,7 +49,7 @@ Members can read their latest 20 reminder records at `GET /api/v1/me/booking-sms
 
 Tests use disposable `.test` accounts, synthetic phone numbers and intercepted text.lk requests. Verification tests cover access, encryption, code attempts and expiry, consent and provider outcomes. Booking reminder tests cover shared submission limits, concurrent claims, paid bookings, separate booking consent, opt-out, uncertain sends, reconciliation and account-scoped history.
 
-Local validation on 21 November 2026: all 61 unit tests and 30 integration scenarios passed, with migrations applied and repeated safely. API contract generation, TypeScript checks and changed-file formatting passed. Hosted text.lk delivery and client/Figma integration are not verified by these tests.
+Local validation on 21 November 2026: all 67 unit tests and 32 integration scenarios passed, with migrations applied and repeated safely. API contract generation, TypeScript checks and changed-file formatting passed. Hosted text.lk delivery and client/Figma integration are not verified by these tests.
 
 Promotional SMS campaigns now use the independent marketing consent through the [campaign workflow](Promotional-SMS.md). Delivery remains disabled by default.
 

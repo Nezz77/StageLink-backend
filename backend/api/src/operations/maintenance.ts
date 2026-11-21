@@ -21,6 +21,8 @@ const availableActions = new Set([
   'POST /api/v1/admin/cache/invalidate',
   'POST /api/v1/admin/sessions/revoke',
   'POST /api/v1/admin/sms-reminders/:id/cancel',
+  'POST /api/v1/me/sms-contact/opt-out',
+  'POST /api/v1/me/sms-contact/revoke',
   'PUT /api/v1/me/marketing-preferences',
   'POST ' + promotionalUnsubscribePath,
 ]);

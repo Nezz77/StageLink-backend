@@ -372,6 +372,10 @@ Sandbox `settled.paidOutMinor` and `settled.feeRevenueMinor` report net bank pay
 
 `SMS_VERIFICATION_ENABLED` enables contact verification and `BOOKING_SMS_REMINDERS` enables 24-hour and 2-hour reminders for opted-in verified contacts. Both settings default to false and share `SMS_HOURLY_LIMIT`. Members read delivery status at `GET /api/v1/me/booking-sms-reminders`. [SMS verification and booking reminders](SMS-Contact-Verification.md).
 
+## Stop SMS notifications
+
+Members can stop booking SMS, promotional SMS or both through the authenticated off-only action, including during maintenance. Contact revocation now records consent evidence and invalidates queued messages without erasing submitted delivery history. See [SMS contact and opt-out flow](SMS-Contact-Verification.md). Frontend/Figma controls and hosted delivery remain pending.
+
 ## Promotional SMS
 
 Verified administrators can draft, preview, schedule, cancel and monitor consent-based SMS campaigns. Delivery defaults off, shares the SMS submission budget, and rechecks saved contact consent before submission. See [promotional SMS workflow](Promotional-SMS.md). Hosted delivery and frontend/Figma controls remain pending.
