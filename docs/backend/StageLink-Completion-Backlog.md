@@ -105,6 +105,7 @@ A checked box marks implemented backend code. Client wiring and hosted checks ha
 - [x] P17 Opt-in promotional email worker, rolling hourly cap, and administrator delivery counts.
 - [x] P17 One-click promotional email opt-out from supported mail clients.
 - [x] P16 Private verification PDF upload, rendered derivatives, and owner and pending-case administrator access.
+- [x] P16 Staging smoke command for private PDF downloads, case-bound administrator access, outsider denial and private response headers.
 - [x] P16 Stripe test execution and reconciliation of customer arbitration refunds from saved payment allocations, with participant-visible status.
 - [x] P16 Stripe test provider arbitration payouts and associated fees, including destination repair, bank settlement and reversal accounting.
 - [x] P16 Stripe test fee settlement for awards with no provider payment, with provider evidence checks, reversal accounting, participant status and analytics.
