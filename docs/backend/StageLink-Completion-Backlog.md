@@ -115,6 +115,7 @@ A checked box marks implemented backend code. Client wiring and hosted checks ha
 - [x] P16 PayHere sandbox customer arbitration refunds for full captured card-payment allocations, with reconciliation, shared reserve settlement and participant status.
 - [ ] P16 Hosted verification PDF access, hosted arbitration execution verification, partial PayHere refund reconciliation, and PayHere provider payout and fee execution.
 - [x] P17 Maintenance-safe member SMS opt-out, transactional queue invalidation and consent audit records for number revocation.
+- [x] P17 Database-clock reminder claims, recovery and SMS expiry/receipt timing, with forward/backward clock and lock-wait regressions.
 - [x] P17 SMS contact foundation: encrypted phone verification, explicit revisioned booking/marketing SMS consent, delivery status/reconciliation and masked history. Provider delivery defaults off.
 - [x] P17 Booking SMS reminder scheduling at 24 and 2 hours with current consent checks, a shared hourly send limit, delivery reconciliation and member history.
 - [x] P17 Administrator SMS reminder monitoring, real delivery counts and audited cancellation before submission. [Operations guide](SMS-Reminder-Operations.md).

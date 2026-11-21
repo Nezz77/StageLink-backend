@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { PrismaClient } from '../generated/prisma/client.js';
 import { unseal } from '../api/src/auth/security.js';
+import { databaseNow } from './database-clock.js';
 import type { Config } from './config.js';
 import { contactContext, verifiedNumber } from './sms-verification.js';
 import { TextLk, reserveSmsSubmission, smsDigest, type SmsResult } from './sms.js';
@@ -8,11 +9,6 @@ import { TextLk, reserveSmsSubmission, smsDigest, type SmsResult } from './sms.j
 export const promotionalSmsBody = z.string().trim().min(1).max(100).regex(/^[A-Za-z0-9 .,!?"'():;@#$%&*+=_\/-]+$/);
 export const promotionalSmsMessage = (body: string) => 'StageLink: ' + promotionalSmsBody.parse(body) + ' Stop SMS: StageLink > Account > SMS preferences.';
 type Transport = Pick<TextLk, 'send' | 'read'>;
-async function databaseNow(db: PrismaClient) {
-    const [clock] = await db.$queryRaw<{ now: Date }[]>`SELECT clock_timestamp() AS now`;
-    return clock!.now;
-}
-
 export async function processPromotionalSms(db: PrismaClient, config: Config, transport: Transport = new TextLk(config)) {
     await db.$executeRaw `
     UPDATE sms_campaign_recipients SET status='unknown', last_code='SEND_INTERRUPTED'

@@ -10,6 +10,7 @@ import { ProfileService } from '../profiles/service.js';
 import { parse, schema, uuid } from '../payments/orders.js';
 import { smsDeliveryStatus, smsDigest, smsPayload, sriLankaMobile } from '../../../shared/sms.js';
 import { auditSmsConsent, invalidateQueuedSms } from '../../../shared/sms-consent.js';
+import { databaseNow } from '../../../shared/database-clock.js';
 import { payloadContext, sealSmsNumber } from '../../../shared/sms-verification.js';
 const revision = z.number().int().min(0).max(2147483646);
 const requestBody = z.object({ revision, number: sriLankaMobile }).strict();
@@ -28,7 +29,7 @@ export function makeSmsContactsController(auth: AuthService) {
     const db = auth.deps.db, profiles = new ProfileService(auth);
     async function mutation(req: Request) { if (req.get('Origin') !== auth.config.WEB_ORIGIN || req.get('Sec-Fetch-Site') === 'cross-site' || !req.is('application/json'))
         throw new PublicError(403, 'ORIGIN_REJECTED', 'Open StageLink in its own browser tab and try again.'); const actor = await auth.authenticate(req.get('Authorization')); profiles.checkCsrf(actor, req.get('X-CSRF-Token')); return actor; }
-    async function present(userId: string) { const contact = await db.smsContact.findUnique({ where: { userId } }), pending = contact?.pendingId ? await db.smsVerification.findFirst({ where: { id: contact.pendingId, userId, expiresAt: { gt: new Date() }, codeDigest: { not: null } } }) : null; return view.parse({ revision: contact?.revision ?? 0, enabled: auth.config.SMS_VERIFICATION_ENABLED === 'true', verified: !!contact?.verifiedAt, last4: contact?.last4 ?? null, verifiedAt: contact?.verifiedAt?.toISOString() ?? null, bookingConsent: contact?.bookingConsent ?? false, marketingConsent: contact?.marketingConsent ?? false, pending: pending ? { id: pending.id, last4: pending.last4, expiresAt: pending.expiresAt.toISOString(), status: pending.status } : null }); }
+    async function present(userId: string) { const contact = await db.smsContact.findUnique({ where: { userId } }), pending = contact?.pendingId ? await db.smsVerification.findFirst({ where: { id: contact.pendingId, userId, expiresAt: { gt: await databaseNow(db) }, codeDigest: { not: null } } }) : null; return view.parse({ revision: contact?.revision ?? 0, enabled: auth.config.SMS_VERIFICATION_ENABLED === 'true', verified: !!contact?.verifiedAt, last4: contact?.last4 ?? null, verifiedAt: contact?.verifiedAt?.toISOString() ?? null, bookingConsent: contact?.bookingConsent ?? false, marketingConsent: contact?.marketingConsent ?? false, pending: pending ? { id: pending.id, last4: pending.last4, expiresAt: pending.expiresAt.toISOString(), status: pending.status } : null }); }
     @ApiTags('SMS contact and consent')
     @ApiBearerAuth()
     @Controller('me')
@@ -81,7 +82,8 @@ export function makeSmsContactsController(auth: AuthService) {
                     await tx.smsVerification.updateMany({ where: { id: prior.pendingId, userId: actor.user.id, status: 'queued' }, data: { status: 'cancelled' } });
                     await tx.smsVerification.updateMany({ where: { id: prior.pendingId, userId: actor.user.id }, data: { codeDigest: null, sealedPayload: null } });
                 }
-                await tx.smsVerification.create({ data: { id, userId: actor.user.id, targetDigest: smsDigest(auth.config, input.number), last4: input.number.slice(-4), codeDigest: smsDigest(auth.config, id + ':' + code), sealedPayload: seal(auth.config.AUTH_MAIL_KEY, { number: input.number, message: `Your StageLink contact verification code is ${code}. It expires in 10 minutes. Do not share it.` }, payloadContext(id)), expiresAt: new Date(Date.now() + 600000) } });
+                const now = await databaseNow(tx);
+                await tx.smsVerification.create({ data: { id, userId: actor.user.id, targetDigest: smsDigest(auth.config, input.number), last4: input.number.slice(-4), codeDigest: smsDigest(auth.config, id + ':' + code), sealedPayload: seal(auth.config.AUTH_MAIL_KEY, { number: input.number, message: `Your StageLink contact verification code is ${code}. It expires in 10 minutes. Do not share it.` }, payloadContext(id)), createdAt: now, expiresAt: new Date(now.getTime() + 600000) } });
                 await tx.smsContact.upsert({ where: { userId: actor.user.id }, create: { userId: actor.user.id, pendingId: id }, update: { pendingId: id, revision: { increment: 1 } } });
             });
             return present(actor.user.id);
@@ -101,16 +103,17 @@ export function makeSmsContactsController(auth: AuthService) {
                 const current = await profiles.actor(tx, actor);
                 profiles.verified(current);
                 const contact = await tx.smsContact.findUnique({ where: { userId: actor.user.id } }), row = await tx.smsVerification.findFirst({ where: { id: input.challengeId, userId: actor.user.id } });
-                if (!row || contact?.pendingId !== row.id || !row.codeDigest || !row.sealedPayload || row.expiresAt <= new Date() || row.attempts >= 5 || !['sending', 'accepted', 'delivered', 'unknown'].includes(row.status))
+                const now = await databaseNow(tx);
+                if (!row || contact?.pendingId !== row.id || !row.codeDigest || !row.sealedPayload || row.expiresAt <= now || row.attempts >= 5 || !['sending', 'accepted', 'delivered', 'unknown'].includes(row.status))
                     return false;
                 if (!equal(row.codeDigest, smsDigest(auth.config, row.id + ':' + input.code))) {
                     await tx.smsVerification.update({ where: { id: row.id }, data: { attempts: { increment: 1 }, ...(row.attempts === 4 ? { codeDigest: null, sealedPayload: null } : {}) } });
                     return false;
                 }
                 const payload = smsPayload.parse(unseal(auth.config.AUTH_MAIL_KEY, row.sealedPayload, payloadContext(row.id)));
-                await tx.smsContact.update({ where: { userId: actor.user.id }, data: { sealedNumber: sealSmsNumber(auth.config, actor.user.id, payload.number), last4: row.last4, verifiedAt: new Date(), pendingId: null, bookingConsent: false, marketingConsent: false, consentAt: null, revision: { increment: 1 } } });
-                await tx.smsConsentEvent.create({ data: { userId: actor.user.id, revision: contact.revision + 1, action: 'verified', last4: row.last4, targetDigest: row.targetDigest, bookingConsent: false, marketingConsent: false } });
-                await tx.smsVerification.update({ where: { id: row.id }, data: { confirmedAt: new Date(), codeDigest: null, sealedPayload: null } });
+                await tx.smsContact.update({ where: { userId: actor.user.id }, data: { sealedNumber: sealSmsNumber(auth.config, actor.user.id, payload.number), last4: row.last4, verifiedAt: now, pendingId: null, bookingConsent: false, marketingConsent: false, consentAt: null, revision: { increment: 1 } } });
+                await tx.smsConsentEvent.create({ data: { userId: actor.user.id, revision: contact.revision + 1, action: 'verified', createdAt: now, last4: row.last4, targetDigest: row.targetDigest, bookingConsent: false, marketingConsent: false } });
+                await tx.smsVerification.update({ where: { id: row.id }, data: { confirmedAt: now, codeDigest: null, sealedPayload: null } });
                 return true;
             });
             if (!ok)
