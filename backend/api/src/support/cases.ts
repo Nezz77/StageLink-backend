@@ -324,7 +324,7 @@ export function makeSupportController(auth: AuthService, notify?: (change: Suppo
             assigneeId, revision: { increment: 1 },
             entries: { create: { kind: 'assignment', staff: true, assigneeId, revision: row.revision + 1, actorId, body: input.reason } },
           }, include: { attachments },
-        }, { caseId: id, staffOnly: true });
+        });
         await notifyAssignee(tx, assigned, actorId, 'assignment:' + assigned.revision);
         return presentStaffCase(assigned);
       }, { caseId: id, staffOnly: true });
