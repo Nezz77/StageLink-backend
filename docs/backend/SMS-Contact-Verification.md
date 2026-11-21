@@ -45,11 +45,17 @@ Before claiming a send, the worker checks the current contact, consent, booking 
 
 Members can read their latest 20 reminder records at `GET /api/v1/me/booking-sms-reminders`. Each item shows the booking, schedule, delivery status and last check time. SMS and email delivery have separate settings. Hosted SMS delivery and frontend/Figma controls remain open.
 
+## Notification time across replicas
+
+Booking SMS and email due checks, claim timestamps, interrupted-send recovery, SMS receipt polling and SMS verification expiry use PostgreSQL time. Claims sample the database clock after account/booking locks; a verification code that expires while waiting for the shared SMS submission budget is cancelled before a provider request. API pending-code visibility, code creation and confirmation use the same time source.
+
+The regression shifts both the Node clock and Date constructor ten hours forward/backward while keeping database time unchanged. It checks due/future reminders, real claim and receipt timestamps, recent/interrupted sends, code issuance/confirmation/expiry, and a code expiring under the submission lock. JWTs are issued using the simulated API clock to isolate notification timing. Authentication and TLS still require synchronized hosts. All email and SMS transports in this regression are mocked.
+
 ## Validation boundaries
 
 Tests use disposable `.test` accounts, synthetic phone numbers and intercepted text.lk requests. Verification tests cover access, encryption, code attempts and expiry, consent and provider outcomes. Booking reminder tests cover shared submission limits, concurrent claims, paid bookings, separate booking consent, opt-out, uncertain sends, reconciliation and account-scoped history.
 
-Local validation on 21 November 2026: all 67 unit tests and 32 integration scenarios passed, with migrations applied and repeated safely. API contract generation, TypeScript checks and changed-file formatting passed. Hosted text.lk delivery and client/Figma integration are not verified by these tests.
+Local validation on 21 November 2026: all 70 unit tests and 33 integration scenarios passed, with migrations applied and repeated safely. API contract generation, TypeScript checks and changed-file formatting passed. Hosted text.lk delivery and client/Figma integration are not verified by these tests.
 
 Promotional SMS campaigns now use the independent marketing consent through the [campaign workflow](Promotional-SMS.md). Delivery remains disabled by default.
 

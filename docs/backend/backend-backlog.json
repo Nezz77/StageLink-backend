@@ -2067,7 +2067,7 @@
       "ui_coverage_ids": [
         "UI-048"
       ],
-      "remaining": "SMS contact verification, durable booking reminder delivery/reconciliation and administrator SMS queue monitoring with audited unsent cancellation are implemented. Verify hosted SMTP/text.lk behavior, wire member/admin frontend and Figma controls, and verify hosted reminder invalidation and delivery history."
+      "remaining": "SMS contact verification, durable booking reminder delivery/reconciliation and administrator SMS queue monitoring with audited unsent cancellation are implemented. Reminder claims, recovery and SMS expiry/receipt checks use database time, including expiry after waiting for the submission budget. Verify hosted SMTP/text.lk behavior, wire member/admin frontend and Figma controls, and verify hosted reminder invalidation and delivery history."
     },
     {
       "id": "BE-059",

@@ -1,6 +1,7 @@
 import type { BookingReminder, PrismaClient } from '../generated/prisma/client.js';
 import { lockBooking, paidAdvance, paymentBlocked } from '../api/src/bookings/lifecycle.js';
 import type { createMailer } from './auth-mail.js';
+import { databaseNow } from './database-clock.js';
 import type { Config } from './config.js';
 
 type Mailer = Pick<ReturnType<typeof createMailer>, 'sendMail'>;
@@ -35,10 +36,7 @@ export function smtpFailureState(error: unknown): 'failed' | 'unknown' {
 }
 
 export async function processBookingReminders(db: PrismaClient, config: Config, mailer: Mailer) {
-  await db.bookingReminder.updateMany({
-    where: { status: 'sending', sendingAt: { lt: new Date(Date.now() - 60_000) } },
-    data: { status: 'unknown', sendingAt: null, lastCode: 'SEND_INTERRUPTED' },
-  });
+  await db.$executeRaw`UPDATE booking_reminders SET status='unknown', sending_at=NULL, last_code='SEND_INTERRUPTED' WHERE status='sending' AND sending_at<clock_timestamp()-interval '60 seconds'`;
   // Invalidate old schedule rows even when delivery has been disabled.
   await db.$executeRaw`
     UPDATE booking_reminders r SET status='cancelled', last_code='SCHEDULE_NO_LONGER_ELIGIBLE'
@@ -49,7 +47,7 @@ export async function processBookingReminders(db: PrismaClient, config: Config, 
   await scheduleBookingReminders(db);
   const candidate = await db.bookingReminder.findFirst({
     where: {
-      status: 'queued', dueAt: { lte: new Date() }, attempts: { lt: 3 },
+      status: 'queued', dueAt: { lte: await databaseNow(db) }, attempts: { lt: 3 },
       recipient: {
         disabledAt: null, emailVerifiedAt: { not: null },
         OR: [{ notificationPreferences: null }, { notificationPreferences: { bookingReminderEmail: true } }],
@@ -63,7 +61,6 @@ export async function processBookingReminders(db: PrismaClient, config: Config, 
     orderBy: [{ dueAt: 'asc' }, { id: 'asc' }],
   });
   if (!candidate) return;
-  const started = new Date();
   const claimed = await db.$transaction(async tx => {
     // Use the same lock order as booking changes: users, booking, reminder.
     await tx.$queryRaw`SELECT id FROM auth_users WHERE id=${candidate.recipientId}::uuid FOR UPDATE`;
@@ -79,22 +76,23 @@ export async function processBookingReminders(db: PrismaClient, config: Config, 
       },
     });
     if (!current || current.status !== 'queued' || current.attempts >= 3) return null;
+    const started = await databaseNow(tx);
     const booking = current.booking;
     if (!booking.agreedAt || booking.cancelledAt || booking.startsAt.getTime() !== current.startsAt.getTime() ||
-      windowEnd(current) <= new Date()) {
+      windowEnd(current) <= started) {
       await tx.bookingReminder.update({ where: { id: current.id }, data: { status: 'cancelled', lastCode: 'RECIPIENT_OR_BOOKING_INELIGIBLE' } });
       return null;
     }
-    if (await paymentBlocked(tx, current.bookingId) || !await paidAdvance(tx, current.bookingId) ||
+    if (current.dueAt > started || await paymentBlocked(tx, current.bookingId) || !await paidAdvance(tx, current.bookingId) ||
       current.recipient.disabledAt || !current.recipient.emailVerifiedAt ||
       current.recipient.notificationPreferences?.bookingReminderEmail === false) return null;
     await tx.bookingReminder.update({
       where: { id: current.id }, data: { status: 'sending', sendingAt: started, attempts: { increment: 1 }, lastCode: null },
     });
-    return current;
+    return { ...current, sendingAt: started };
   });
   if (!claimed) return;
-  const where = { id: claimed.id, status: 'sending' as const, sendingAt: started };
+  const where = { id: claimed.id, status: 'sending' as const, sendingAt: claimed.sendingAt };
   const start = new Intl.DateTimeFormat('en-LK', {
     dateStyle: 'full', timeStyle: 'short', timeZone: 'Asia/Colombo',
   }).format(claimed.startsAt);
@@ -115,6 +113,6 @@ export async function processBookingReminders(db: PrismaClient, config: Config, 
     lastCode = status === 'failed' ? 'SMTP_REJECTED' : 'SMTP_OUTCOME_UNKNOWN';
   }
   await db.bookingReminder.updateMany({
-    where, data: { status, lastCode, sendingAt: null, acceptedAt: status === 'accepted' ? new Date() : null },
+    where, data: { status, lastCode, sendingAt: null, acceptedAt: status === 'accepted' ? await databaseNow(db) : null },
   });
 }

@@ -1,6 +1,7 @@
 import type { BookingSmsReminder, PrismaClient } from '../generated/prisma/client.js';
 import { lockBooking, paidAdvance, paymentBlocked } from '../api/src/bookings/lifecycle.js';
 import { unseal } from '../api/src/auth/security.js';
+import { databaseNow } from './database-clock.js';
 import type { Config } from './config.js';
 import { TextLk, reserveSmsSubmission, smsDigest, type SmsResult } from './sms.js';
 import { contactContext, verifiedNumber } from './sms-verification.js';
@@ -37,7 +38,7 @@ export function scheduleBookingSmsReminders(db: PrismaClient) {
 async function submitDue(db: PrismaClient, config: Config, transport: Transport) {
   const candidate = await db.bookingSmsReminder.findFirst({
     where: {
-      status: 'queued', dueAt: { lte: new Date() },
+      status: 'queued', dueAt: { lte: await databaseNow(db) },
       booking: { AND: [
         { OR: [{ dispute: null }, { dispute: { dismissedAt: { not: null } } }] },
         { OR: [{ refundRequest: null }, { refundRequest: { status: 'declined' } }] },
@@ -62,7 +63,7 @@ async function submitDue(db: PrismaClient, config: Config, transport: Transport)
     if (!row || row.status !== 'queued') return null;
     const { booking, recipient } = row;
     const contact = recipient.smsContact;
-    const now = Date.now();
+    const now = (await databaseNow(tx)).getTime();
     if (!booking.agreedAt || booking.cancelledAt || booking.startsAt.getTime() !== row.startsAt.getTime() ||
       ![booking.customerId, booking.providerId].includes(row.recipientId) || windowEnd(row) <= now ||
       recipient.disabledAt || !recipient.emailVerifiedAt || !contact?.verifiedAt || !contact.bookingConsent || !contact.sealedNumber) {
@@ -93,16 +94,17 @@ async function submitDue(db: PrismaClient, config: Config, transport: Transport)
   }));
   await db.bookingSmsReminder.updateMany({
     where: { id: claim.id, status: { in: ['sending', 'unknown'] }, sendingAt: claim.sendingAt },
-    data: { status: result.status, providerId: result.providerId, lastCode: result.code, checkedAt: new Date() },
+    data: { status: result.status, providerId: result.providerId, lastCode: result.code, checkedAt: await databaseNow(db) },
   });
 }
 
 async function reconcileDelivery(db: PrismaClient, transport: Transport) {
+  const now = await databaseNow(db);
   const pending = await db.bookingSmsReminder.findFirst({
     where: {
-      sendingAt: { gt: new Date(Date.now() - 24 * hour) }, status: { in: ['accepted', 'unknown'] },
+      sendingAt: { gt: new Date(now.getTime() - 24 * hour) }, status: { in: ['accepted', 'unknown'] },
       providerId: { not: null }, targetDigest: { not: null },
-      OR: [{ checkedAt: null }, { checkedAt: { lt: new Date(Date.now() - 30_000) } }],
+      OR: [{ checkedAt: null }, { checkedAt: { lt: new Date(now.getTime() - 30_000) } }],
     },
     orderBy: { checkedAt: { sort: 'asc', nulls: 'first' } },
   });
@@ -110,15 +112,12 @@ async function reconcileDelivery(db: PrismaClient, transport: Transport) {
   const result = await transport.read(pending.providerId, pending.targetDigest);
   await db.bookingSmsReminder.updateMany({
     where: { id: pending.id, providerId: pending.providerId, status: pending.status, checkedAt: pending.checkedAt },
-    data: { status: result.status === 'unknown' ? pending.status : result.status, lastCode: result.code, checkedAt: new Date() },
+    data: { status: result.status === 'unknown' ? pending.status : result.status, lastCode: result.code, checkedAt: await databaseNow(db) },
   });
 }
 
 export async function processBookingSmsReminders(db: PrismaClient, config: Config, transport: Transport = new TextLk(config)) {
-  await db.bookingSmsReminder.updateMany({
-    where: { status: 'sending', sendingAt: { lt: new Date(Date.now() - 30_000) } },
-    data: { status: 'unknown', lastCode: 'SEND_INTERRUPTED' },
-  });
+  await db.$executeRaw`UPDATE booking_sms_reminders SET status='unknown', last_code='SEND_INTERRUPTED' WHERE status='sending' AND sending_at<clock_timestamp()-interval '30 seconds'`;
   await db.$executeRaw`
     UPDATE booking_sms_reminders r SET status = 'cancelled', last_code = 'REMINDER_NO_LONGER_ELIGIBLE'
     FROM bookings b WHERE r.booking_id = b.id AND r.status = 'queued'
