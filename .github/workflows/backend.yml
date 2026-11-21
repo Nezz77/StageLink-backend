@@ -69,6 +69,10 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run test:integration
+      - name: Verify PostgreSQL backup and restore
+        env:
+          STAGELINK_POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+        run: docker exec -i "$STAGELINK_POSTGRES_CONTAINER" bash -s < scripts/check-postgres-restore.sh
       - run: npm run contracts
       - run: git diff --exit-code -- ../contracts/openapi.json ../packages/contracts/src/api.d.ts
       - run: node backend/scripts/setup-env.mjs && docker compose --env-file infra/.env -f infra/compose.backend.yml config --quiet

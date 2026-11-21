@@ -17,4 +17,5 @@ npm --prefix backend run db:generate
 npm --prefix backend run db:migrate
 npm --prefix backend run db:migrate
 npm --prefix backend run test:integration
+docker compose -f infra/compose.test.yml exec -T postgres bash -s < backend/scripts/check-postgres-restore.sh
 # Leave services available for inspection. Stop them with compose down when done.

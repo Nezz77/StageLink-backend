@@ -67,6 +67,14 @@ Integration uses a separate Compose project, `stagelink_test`, PostgreSQL 55433,
 
 The HTTP tests listen on a temporary loopback port.
 
+The integration script and CI run a PostgreSQL backup and restore drill after the suites finish. The drill archives the migrated test database, restores it in one transaction into a fresh database, and compares table row counts and checksums, sequence state, constraints and indexes. It removes the temporary database and archive on exit. To repeat it with the test stack idle, run from the repository root:
+
+```sh
+docker compose -f infra/compose.test.yml exec -T postgres bash -s < backend/scripts/check-postgres-restore.sh
+```
+
+The drill covers PostgreSQL data and schema in the test environment. Hosted backup verification also needs an isolated restore of the hosted database, private media objects and access to the matching encryption keys. [PostgreSQL backup documentation](https://www.postgresql.org/docs/17/backup-dump.html)
+
 Generated contracts are `contracts/openapi.json` → `packages/contracts/src/api.d.ts`. Regenerate and commit both after endpoint changes; CI rejects drift. Never edit an applied migration. Update the expected migration constant when adding one.
 
 AI remains health-only. Under `backend/ai`, use Python 3.12 / uv 0.11.29, `uv sync --frozen`, then `uv run --frozen pytest -q`. No model/provider is configured.
