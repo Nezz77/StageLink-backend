@@ -314,6 +314,8 @@ Run `npm run build` from `backend/` and then `npm run --silent verification:smok
 
 ## Support cases
 
+See [live support refresh](Support-Realtime.md) for case subscriptions, member/staff visibility and reconnect recovery.
+
 Members create and read their own cases through `POST /api/v1/cases` and `GET /api/v1/me/cases`. Use the case replies endpoint for the shared conversation. Administrators use `/api/v1/admin/cases` for the queue, replies, private notes, assignment and status changes. Validated private images use upload purpose `support`.
 
 ## Realtime booking chat
