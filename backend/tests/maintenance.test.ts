@@ -29,8 +29,13 @@ test('maintenance preserves payments, recovery and SMS cancellation while blocki
   assert.equal(await check('PUT', '/api/v1/admin/system/maintenance'), true);
   assert.equal(await check('POST', '/api/v1/discovery/intent'), true);
   assert.equal(await check('POST', '/api/v1/admin/sms-reminders/:id/cancel'), true);
+  assert.equal(await check('POST', '/api/v1/me/sms-contact/opt-out'), true);
+  assert.equal(await check('POST', '/api/v1/me/sms-contact/revoke'), true);
   assert.equal(reads, 0);
   await assert.rejects(check('POST', '/api/v1/admin/sms-reminders/:id/retry'), { code: 'MAINTENANCE_MODE' });
+  for (const [method, path] of [['PUT', '/api/v1/me/sms-contact/consent'], ['POST', '/api/v1/me/sms-contact/verification'], ['POST', '/api/v1/me/sms-contact/confirm']]) {
+    await assert.rejects(check(method!, path!), { code: 'MAINTENANCE_MODE' });
+  }
   await assert.rejects(check('POST', '/api/v1/payment-orders/:id/sessions/stripe'), { code: 'MAINTENANCE_MODE' });
   assert.equal(headers.get('Retry-After'), '60');
   maintenance = false;

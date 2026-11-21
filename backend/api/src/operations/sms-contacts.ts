@@ -9,12 +9,14 @@ import { PublicError } from '../auth/errors.js';
 import { ProfileService } from '../profiles/service.js';
 import { parse, schema, uuid } from '../payments/orders.js';
 import { smsDeliveryStatus, smsDigest, smsPayload, sriLankaMobile } from '../../../shared/sms.js';
-import { payloadContext, sealSmsNumber, contactContext, verifiedNumber } from '../../../shared/sms-verification.js';
+import { auditSmsConsent, invalidateQueuedSms } from '../../../shared/sms-consent.js';
+import { payloadContext, sealSmsNumber } from '../../../shared/sms-verification.js';
 const revision = z.number().int().min(0).max(2147483646);
 const requestBody = z.object({ revision, number: sriLankaMobile }).strict();
 const confirmBody = z.object({ challengeId: uuid, code: z.string().regex(/^\d{6}$/) }).strict();
 const consentBody = z.object({ revision, bookingConsent: z.boolean(), marketingConsent: z.boolean() }).strict();
 const revokeBody = z.object({ revision }).strict();
+const optOutBody = z.object({ channel: z.enum(['booking', 'marketing', 'all']) }).strict();
 const view = z.object({ revision, enabled: z.boolean(), verified: z.boolean(), last4: z.string().nullable(), verifiedAt: z.iso.datetime().nullable(), bookingConsent: z.boolean(), marketingConsent: z.boolean(), pending: z.object({ id: uuid, last4: z.string(), expiresAt: z.iso.datetime(), status: z.string() }).nullable() });
 const history = z.object({ items: z.array(z.object({ id: uuid, status: z.string(), last4: z.string(), createdAt: z.iso.datetime(), confirmedAt: z.iso.datetime().nullable(), lastCode: z.string().nullable() })) });
 const reminderHistory = z.object({ items: z.array(z.object({
@@ -58,7 +60,7 @@ export function makeSmsContactsController(auth: AuthService) {
         @ApiOkResponse({ schema: schema(view) })
         async request(
         @Req()
-        req: Request, 
+        req: Request,
         @Body()
         raw: unknown) {
             const actor = await mutation(req), input = parse(requestBody, raw);
@@ -90,7 +92,7 @@ export function makeSmsContactsController(auth: AuthService) {
         @ApiOkResponse({ schema: schema(view) })
         async confirm(
         @Req()
-        req: Request, 
+        req: Request,
         @Body()
         raw: unknown) {
             const actor = await mutation(req), input = parse(confirmBody, raw);
@@ -118,23 +120,64 @@ export function makeSmsContactsController(auth: AuthService) {
         @Put('sms-contact/consent')
         @ApiBody({ schema: schema(consentBody) })
         @ApiOkResponse({ schema: schema(view) })
-        async consent(
-        @Req()
-        req: Request, 
-        @Body()
-        raw: unknown) { const actor = await mutation(req), input = parse(consentBody, raw); await db.$transaction(async (tx) => { const current = await profiles.actor(tx, actor), contact = await tx.smsContact.findUnique({ where: { userId: actor.user.id } }); if (!contact || contact.revision !== input.revision)
-            throw conflict(); if ((input.bookingConsent || input.marketingConsent) && (!contact.verifiedAt || !current.user.emailVerifiedAt))
-            throw new PublicError(403, 'SMS_VERIFICATION_REQUIRED', 'Verify your email and SMS number before opting in.'); await tx.smsConsentEvent.create({ data: { userId: actor.user.id, revision: contact.revision + 1, action: 'consent', last4: contact.last4, targetDigest: contact.sealedNumber ? smsDigest(auth.config, verifiedNumber.parse(unseal(auth.config.AUTH_MAIL_KEY, contact.sealedNumber, contactContext(actor.user.id))).number) : null, bookingConsent: input.bookingConsent, marketingConsent: input.marketingConsent } }); await tx.smsContact.update({ where: { userId: actor.user.id }, data: { bookingConsent: input.bookingConsent, marketingConsent: input.marketingConsent, consentAt: new Date(), revision: { increment: 1 } } }); }); return present(actor.user.id); }
+        async consent(@Req() req: Request, @Body() raw: unknown) {
+            const actor = await mutation(req), input = parse(consentBody, raw);
+            await db.$transaction(async tx => {
+                const current = await profiles.actor(tx, actor);
+                const contact = await tx.smsContact.findUnique({ where: { userId: actor.user.id } });
+                if (!contact || contact.revision !== input.revision) throw conflict();
+                if ((input.bookingConsent || input.marketingConsent) && (!contact.verifiedAt || !current.user.emailVerifiedAt)) {
+                    throw new PublicError(403, 'SMS_VERIFICATION_REQUIRED', 'Verify your email and SMS number before opting in.');
+                }
+                const next = await auditSmsConsent(tx, auth.config, contact, input, 'consent');
+                await tx.smsContact.update({ where: { userId: actor.user.id }, data: { bookingConsent: input.bookingConsent, marketingConsent: input.marketingConsent, consentAt: next.now, revision: next.revision } });
+                await invalidateQueuedSms(tx, actor.user.id, input, next.revision);
+            });
+            return present(actor.user.id);
+        }
+        @Post('sms-contact/opt-out')
+        @HttpCode(200)
+        @ApiBody({ schema: schema(optOutBody) })
+        @ApiOkResponse({ schema: schema(view) })
+        async optOut(@Req() req: Request, @Body() raw: unknown) {
+            const actor = await mutation(req), input = parse(optOutBody, raw);
+            await db.$transaction(async tx => {
+                await profiles.actor(tx, actor);
+                const contact = await tx.smsContact.findUnique({ where: { userId: actor.user.id } });
+                if (!contact) return;
+                const choices = {
+                    bookingConsent: input.channel === 'marketing' ? contact.bookingConsent : false,
+                    marketingConsent: input.channel === 'booking' ? contact.marketingConsent : false,
+                };
+                let nextRevision = contact.revision;
+                if (choices.bookingConsent !== contact.bookingConsent || choices.marketingConsent !== contact.marketingConsent) {
+                    const next = await auditSmsConsent(tx, auth.config, contact, choices, 'consent');
+                    nextRevision = next.revision;
+                    await tx.smsContact.update({ where: { userId: actor.user.id }, data: { ...choices, consentAt: next.now, revision: next.revision } });
+                }
+                await invalidateQueuedSms(tx, actor.user.id, choices, nextRevision);
+            });
+            return present(actor.user.id);
+        }
         @Post('sms-contact/revoke')
         @HttpCode(200)
         @ApiBody({ schema: schema(revokeBody) })
         @ApiOkResponse({ schema: schema(view) })
-        async revoke(
-        @Req()
-        req: Request, 
-        @Body()
-        raw: unknown) { const actor = await mutation(req), input = parse(revokeBody, raw); await db.$transaction(async (tx) => { await profiles.actor(tx, actor); const contact = await tx.smsContact.findUnique({ where: { userId: actor.user.id } }); if (!contact || contact.revision !== input.revision)
-            throw conflict(); await tx.smsVerification.updateMany({ where: { userId: actor.user.id, status: 'queued' }, data: { status: 'cancelled' } }); await tx.smsVerification.updateMany({ where: { userId: actor.user.id, codeDigest: { not: null } }, data: { codeDigest: null, sealedPayload: null } }); await tx.smsContact.update({ where: { userId: actor.user.id }, data: { pendingId: null, sealedNumber: null, last4: null, verifiedAt: null, bookingConsent: false, marketingConsent: false, consentAt: null, revision: { increment: 1 } } }); }); return present(actor.user.id); }
+        async revoke(@Req() req: Request, @Body() raw: unknown) {
+            const actor = await mutation(req), input = parse(revokeBody, raw);
+            await db.$transaction(async tx => {
+                await profiles.actor(tx, actor);
+                const contact = await tx.smsContact.findUnique({ where: { userId: actor.user.id } });
+                if (!contact || contact.revision !== input.revision) throw conflict();
+                const choices = { bookingConsent: false, marketingConsent: false };
+                const next = await auditSmsConsent(tx, auth.config, contact, choices, 'revoked');
+                await tx.smsVerification.updateMany({ where: { userId: actor.user.id, status: 'queued' }, data: { status: 'cancelled' } });
+                await tx.smsVerification.updateMany({ where: { userId: actor.user.id, OR: [{ codeDigest: { not: null } }, { sealedPayload: { not: null } }] }, data: { codeDigest: null, sealedPayload: null } });
+                await tx.smsContact.update({ where: { userId: actor.user.id }, data: { pendingId: null, sealedNumber: null, last4: null, verifiedAt: null, ...choices, consentAt: null, revision: next.revision } });
+                await invalidateQueuedSms(tx, actor.user.id, choices, next.revision);
+            });
+            return present(actor.user.id);
+        }
     }
     return SmsContactsController;
 }

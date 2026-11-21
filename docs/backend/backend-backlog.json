@@ -2084,7 +2084,7 @@
       "source_files": [
         "src/components/NotificationCenter.tsx"
       ],
-      "proposed_contract": "GET /me/notifications; PUT /me/notifications/:id/read; GET /me/notification-preferences; PATCH /me/notification-preferences; Socket.IO notifications:subscribe and notifications:changed",
+      "proposed_contract": "GET /me/notifications; PUT /me/notifications/:id/read; GET /me/notification-preferences; PATCH /me/notification-preferences; POST /me/sms-contact/opt-out; POST /me/sms-contact/revoke; Socket.IO notifications:subscribe and notifications:changed",
       "entities": [
         "notifications",
         "notification_preferences",
@@ -2100,7 +2100,7 @@
       "ui_coverage_ids": [
         "UI-049"
       ],
-      "remaining": "Verify deployment WebSocket and Redis configuration, then connect the frontend and Figma notification flows."
+      "remaining": "Maintenance-safe SMS opt-out and revocation audit are implemented. Verify deployment WebSocket and Redis configuration, then connect the frontend and Figma notification and SMS preference flows."
     },
     {
       "id": "BE-060",
