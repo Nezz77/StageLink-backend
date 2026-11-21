@@ -124,6 +124,7 @@ A checked box marks implemented backend code. Client wiring and hosted checks ha
 - [x] P18 Administrator and provider analytics from booking records and posted sandbox journals.
 - [x] P18 Stripe test and PayHere sandbox refund settlements in administrator and provider analytics, with daily totals.
 - [x] P18 Net Stripe test bank payout and platform fee analytics by UTC day and period, scoped by role and inclusive of posted reversals.
+- [x] P18 PostgreSQL test backup and restore drill compares data, sequences, constraints and indexes in CI.
 - [ ] P18 Live financial totals for supported workflows and release verification for security, accessibility, backup and rollback.
 
 ## Verification and client integration
