@@ -371,3 +371,7 @@ Sandbox `settled.paidOutMinor` and `settled.feeRevenueMinor` report net bank pay
 ## Promotional SMS
 
 Verified administrators can draft, preview, schedule, cancel and monitor consent-based SMS campaigns. Delivery defaults off, shares the SMS submission budget, and rechecks saved contact consent before submission. See [promotional SMS workflow](Promotional-SMS.md). Hosted delivery and frontend/Figma controls remain pending.
+
+## Booking SMS operations
+
+Verified administrators can monitor real booking SMS queue counts, filter by booking/window/state and cancel an unsent reminder with recorded review evidence. See [SMS reminder operations](SMS-Reminder-Operations.md). Delivery defaults off; frontend/Figma controls and hosted delivery checks remain pending.

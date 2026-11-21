@@ -4,7 +4,7 @@ import type { ExecutionContext } from '@nestjs/common';
 import type { Resources } from '../shared/resources.js';
 import { makeMaintenanceGuard } from '../api/src/operations/maintenance.js';
 
-test('maintenance rejects business writes and preserves payments and recovery routes', async () => {
+test('maintenance preserves payments, recovery and SMS cancellation while blocking other writes', async () => {
   let maintenance = true;
   let reads = 0;
   const db = { systemSetting: { findUniqueOrThrow: async () => {
@@ -28,7 +28,9 @@ test('maintenance rejects business writes and preserves payments and recovery ro
   assert.equal(await check('POST', '/api/v1/assets/:id/access'), true);
   assert.equal(await check('PUT', '/api/v1/admin/system/maintenance'), true);
   assert.equal(await check('POST', '/api/v1/discovery/intent'), true);
+  assert.equal(await check('POST', '/api/v1/admin/sms-reminders/:id/cancel'), true);
   assert.equal(reads, 0);
+  await assert.rejects(check('POST', '/api/v1/admin/sms-reminders/:id/retry'), { code: 'MAINTENANCE_MODE' });
   await assert.rejects(check('POST', '/api/v1/payment-orders/:id/sessions/stripe'), { code: 'MAINTENANCE_MODE' });
   assert.equal(headers.get('Retry-After'), '60');
   maintenance = false;

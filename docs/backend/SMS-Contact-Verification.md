@@ -42,3 +42,5 @@ Tests use disposable `.test` accounts, synthetic phone numbers and intercepted t
 Local validation on 21 November 2026: all 61 unit tests and 30 integration scenarios passed, with migrations applied and repeated safely. API contract generation, TypeScript checks and changed-file formatting passed. Hosted text.lk delivery and client/Figma integration are not verified by these tests.
 
 Promotional SMS campaigns now use the independent marketing consent through the [campaign workflow](Promotional-SMS.md). Delivery remains disabled by default.
+
+Administrator queue monitoring and audited cancellation of queued booking SMS are available through [SMS reminder operations](SMS-Reminder-Operations.md). Submitted or uncertain messages cannot be recalled or resent through that API.
