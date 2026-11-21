@@ -19,6 +19,7 @@
     "contracts": "npm run build && node dist/scripts/openapi.js && openapi-typescript ../contracts/openapi.json -o ../packages/contracts/src/api.d.ts",
     "payments:smoke": "node dist/scripts/payment-smoke.js",
     "ai:smoke": "node dist/scripts/ai-model-smoke.js",
+    "smtp:smoke": "node dist/scripts/smtp-smoke.js",
     "equipment:coverage": "node dist/scripts/equipment-reference-coverage.js",
     "chat:smoke": "node dist/scripts/chat-websocket-smoke.js",
     "recommendations:evaluate": "node dist/scripts/evaluate-recommendations.js",

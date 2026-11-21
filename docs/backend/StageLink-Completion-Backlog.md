@@ -120,6 +120,7 @@ A checked box marks implemented backend code. Client wiring and hosted checks ha
 - [x] P17 Booking SMS reminder scheduling at 24 and 2 hours with current consent checks, a shared hourly send limit, delivery reconciliation and member history.
 - [x] P17 Administrator SMS reminder monitoring, real delivery counts and audited cancellation before submission. [Operations guide](SMS-Reminder-Operations.md).
 - [x] P17 Consent-based promotional SMS drafts, audience review, revision-bound scheduling, cancellation, shared send cap and delivery counts. [Workflow](Promotional-SMS.md).
+- [x] P17 SMTP transport smoke command with test inbox receipt verified against Mailpit.
 - [ ] P17 Live SMTP reminder/campaign verification, hosted SMS verification/reminder/campaign delivery and frontend/Figma controls.
 - [x] P18 Administrator and provider analytics from booking records and posted sandbox journals.
 - [x] P18 Stripe test and PayHere sandbox refund settlements in administrator and provider analytics, with daily totals.

@@ -350,6 +350,8 @@ Repeat the fee `POST` to reconcile. Temporary provider failures return `unavaila
 
 Set `BOOKING_EMAIL_REMINDERS=true` to have the worker queue and send email reminders for eligible bookings. Development Compose uses Mailpit. Administrators can inspect and manage rows at `/api/v1/admin/reminders`. SMTP acceptance means the receiving server accepted the message. An unknown send outcome requires reconciliation before any resend.
 
+To check the staging SMTP transport, load the staging worker environment, build from `backend/`, and pipe a single test inbox address you control into `npm run --silent smtp:smoke`. The command uses the worker's SMTP and TLS settings and sends one synthetic probe. It reports a probe ID and the SMTP outcome. Search the inbox for `StageLink SMTP smoke <probeId>` to verify receipt. Failed and unknown outcomes exit with a nonzero status.
+
 Members list notifications at `GET /api/v1/me/notifications` and mark a notification read with `PUT /api/v1/me/notifications/:id/read`. The worker materializes notifications from booking and support outbox events. `PATCH /api/v1/me/notification-preferences` updates the booking reminder email preference using the revision returned by the corresponding GET.
 
 For live inbox updates, send `notifications:subscribe` with `{}` on the authenticated Socket.IO connection, wait for the acknowledgment, then load the inbox over REST. On `notifications:changed`, a signal with payload `{}`, reload the list and unread count. Redis Pub/Sub fans out signals to API replicas after database commits. Reconnect, subscribe again and reload to recover missed changes. Keep the REST inbox available during broker outages and reload periodically while the inbox is open.
