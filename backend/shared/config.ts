@@ -16,6 +16,7 @@ const schema = z.object({
   }, 'Must be an HTTPS origin without a trailing slash or path')),
   BOOKING_EMAIL_REMINDERS: z.enum(['true','false']).default('false'),
   SMS_VERIFICATION_ENABLED: z.enum(['true','false']).default('false'),
+  PROMOTIONAL_SMS_DELIVERY: z.enum(['true','false']).default('false'),
   BOOKING_SMS_REMINDERS: z.enum(['true','false']).default('false'),
   SMS_HOURLY_LIMIT: z.coerce.number().int().min(1).max(1000).default(20),
   TEXTLK_TOKEN: optionalSetting(z.string().min(10).max(500).regex(/^[A-Za-z0-9._|-]+$/)),
@@ -72,6 +73,9 @@ const schema = z.object({
   if(config.SMS_VERIFICATION_ENABLED==='true'&&(!config.TEXTLK_TOKEN||!config.TEXTLK_SENDER))ctx.addIssue({code:'custom',path:['SMS_VERIFICATION_ENABLED'],message:'Configure text.lk credentials and approved sender.'});
   if (config.BOOKING_SMS_REMINDERS === 'true' && (!config.TEXTLK_TOKEN || !config.TEXTLK_SENDER)) {
     ctx.addIssue({ code: 'custom', path: ['BOOKING_SMS_REMINDERS'], message: 'Configure text.lk credentials and approved sender.' });
+  }
+  if (config.PROMOTIONAL_SMS_DELIVERY === 'true' && (!config.TEXTLK_TOKEN || !config.TEXTLK_SENDER)) {
+    ctx.addIssue({ code: 'custom', path: ['PROMOTIONAL_SMS_DELIVERY'], message: 'Configure text.lk credentials and approved sender.' });
   }
   if (Boolean(config.STRIPE_TEST_SECRET_KEY) !== Boolean(config.STRIPE_TEST_WEBHOOK_SECRET)) {
     ctx.addIssue({ code: 'custom', path: ['STRIPE_TEST_SECRET_KEY'], message: 'Configure both Stripe test settings together.' });

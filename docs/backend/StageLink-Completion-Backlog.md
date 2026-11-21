@@ -1,6 +1,6 @@
 # StageLink completion backlog
 
-Updated 20 November 2026. Scope comes from the final proposal, sections 4, 5 and 7, and the [interim report](https://chatgpt.com/library?file_id=libfile_52b19e94cb7c8191abf03766b2de8ca8&account_id=personal), sections 5.11, 6.4–6.8 and 7.6.
+Updated 21 November 2026. Scope comes from the final proposal, sections 4, 5 and 7, and the [interim report](https://chatgpt.com/library?file_id=libfile_52b19e94cb7c8191abf03766b2de8ca8&account_id=personal), sections 5.11, 6.4–6.8 and 7.6.
 
 ## Completed backend work
 
@@ -25,7 +25,7 @@ Full PayHere sandbox arbitration refunds and audited recovery are on `main`. Rec
 | 2 | Hosted payment verification, P11–P16 | Verify PayHere and Stripe test callbacks, retrieval and audited recovery with merchant accounts. Confirm Stripe LKR and Connect eligibility. Verify sandbox refunds, transfers, rental deductions and arbitration settlements with the supported routes. |
 | 3 | Remaining payment implementation, P12–P16 | Establish exact provider evidence for partial PayHere refunds, then implement supported reconciliation. Complete PayHere deduction, provider payout and fee settlement and manual bank payouts. Issue production documents and report live financial totals after confirming live settlements. |
 | 4 | AI and private evidence, P15–P16 | Smoke test hosted models, evaluate ranking against representative listings and event briefs, and verify private PDF access on staging storage. |
-| 5 | Hosted communication, P10 and P17 | Verify SMTP and SMS delivery, WebSocket upgrades and reconnect through the hosted proxy. Implement consent-based promotional SMS. |
+| 5 | Hosted communication, P10 and P17 | Verify SMTP and SMS delivery, WebSocket upgrades and reconnect through the hosted proxy. Wire and verify member opt-out controls for promotional SMS. |
 | 6 | Frontend and release, all phases | Connect supported workflows in the frontend and update their Figma flows. Run staging end-to-end, access control, accessibility, load, backup restore and rollback checks. |
 
 ## Backend build order
@@ -111,7 +111,8 @@ A checked box marks implemented backend code. Client wiring and hosted checks ha
 - [ ] P16 Hosted verification PDF access, hosted arbitration execution verification, partial PayHere refund reconciliation, and PayHere provider payout and fee execution.
 - [x] P17 SMS contact foundation: encrypted phone verification, explicit revisioned booking/marketing SMS consent, delivery status/reconciliation and masked history. Provider delivery defaults off.
 - [x] P17 Booking SMS reminder scheduling at 24 and 2 hours with current consent checks, a shared hourly send limit, delivery reconciliation and member history.
-- [ ] P17 Live SMTP reminder/campaign verification, hosted SMS verification and reminder delivery, promotional SMS and frontend/Figma controls.
+- [x] P17 Consent-based promotional SMS drafts, audience review, revision-bound scheduling, cancellation, shared send cap and delivery counts. [Workflow](Promotional-SMS.md).
+- [ ] P17 Live SMTP reminder/campaign verification, hosted SMS verification/reminder/campaign delivery and frontend/Figma controls.
 - [x] P18 Administrator and provider analytics from booking records and posted sandbox journals.
 - [x] P18 Stripe test and PayHere sandbox refund settlements in administrator and provider analytics, with daily totals.
 - [x] P18 Net Stripe test bank payout and platform fee analytics by UTC day and period, scoped by role and inclusive of posted reversals.

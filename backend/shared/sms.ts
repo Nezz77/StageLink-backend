@@ -13,12 +13,13 @@ export async function reserveSmsSubmission(tx: Prisma.TransactionClient, config:
       WITH submission_clock AS (SELECT clock_timestamp() AS checked_at)
       SELECT checked_at AS now,
         (SELECT count(*) FROM sms_verifications WHERE sending_at > submission_clock.checked_at - interval '1 hour') +
-        (SELECT count(*) FROM booking_sms_reminders WHERE sending_at > submission_clock.checked_at - interval '1 hour') AS count
+        (SELECT count(*) FROM booking_sms_reminders WHERE sending_at > submission_clock.checked_at - interval '1 hour') +
+        (SELECT count(*) FROM sms_campaign_recipients WHERE sending_at > submission_clock.checked_at - interval '1 hour') AS count
       FROM submission_clock`;
     return budget && budget.count < BigInt(config.SMS_HOURLY_LIMIT) ? budget.now : null;
 }
 
-const smsEnabled = (config: Config) => config.SMS_VERIFICATION_ENABLED === 'true' || config.BOOKING_SMS_REMINDERS === 'true';
+const smsEnabled = (config: Config) => config.SMS_VERIFICATION_ENABLED === 'true' || config.BOOKING_SMS_REMINDERS === 'true' || config.PROMOTIONAL_SMS_DELIVERY === 'true';
 const receipt = z.object({ status: z.literal('success'), data: z.object({ uid: z.string().regex(/^[A-Za-z0-9_-]{1,120}$/), to: z.string(), from: z.string(), status: z.string() }) });
 export type SmsResult = {
     status: 'accepted' | 'delivered' | 'failed' | 'unknown';

@@ -102,6 +102,10 @@ model AuthUser {
   smsContact SmsContact?
   smsVerifications SmsVerification[]
   smsConsentEvents SmsConsentEvent[]
+  createdSmsCampaigns SmsCampaign[] @relation("SmsCampaignCreator")
+  scheduledSmsCampaigns SmsCampaign[] @relation("SmsCampaignScheduler")
+  cancelledSmsCampaigns SmsCampaign[] @relation("SmsCampaignCanceller")
+  smsCampaignRecipients SmsCampaignRecipient[]
   reminderActions ReminderAdminAction[]
   paymentRecoveries PaymentRecoveryAction[]
   stripeRefundExecutions StripeRefundExecution[]
@@ -2047,4 +2051,51 @@ model PromotionalCampaignRecipient {
   @@index([deliveryStatus, campaignId], map: "campaign_recipient_delivery_idx")
   @@index([claimedAt], map: "campaign_recipient_claim_idx")
   @@map("promotional_campaign_recipients")
+}
+
+model SmsCampaign {
+  id String @id @db.Uuid
+  body String @db.VarChar(100)
+  recipientLimit Int @map("recipient_limit")
+  state PromotionalCampaignState @default(draft)
+  createdBy String @map("created_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  scheduledFor DateTime? @map("scheduled_for") @db.Timestamptz(3)
+  scheduledBy String? @map("scheduled_by") @db.Uuid
+  cancelledBy String? @map("cancelled_by") @db.Uuid
+  cancelledAt DateTime? @map("cancelled_at") @db.Timestamptz(3)
+  cancellationReason String? @map("cancellation_reason") @db.VarChar(500)
+  creator AuthUser @relation("SmsCampaignCreator", fields: [createdBy], references: [id], onDelete: Restrict)
+  scheduler AuthUser? @relation("SmsCampaignScheduler", fields: [scheduledBy], references: [id], onDelete: Restrict)
+  canceller AuthUser? @relation("SmsCampaignCanceller", fields: [cancelledBy], references: [id], onDelete: Restrict)
+  recipients SmsCampaignRecipient[]
+  @@map("sms_campaigns")
+}
+
+enum SmsCampaignDeliveryStatus {
+  queued
+  sending
+  accepted
+  delivered
+  failed
+  unknown
+  skipped
+}
+
+model SmsCampaignRecipient {
+  campaignId String @map("campaign_id") @db.Uuid
+  userId String @map("user_id") @db.Uuid
+  contactRevision Int @map("contact_revision")
+  status SmsCampaignDeliveryStatus @default(queued)
+  targetDigest String? @map("target_digest") @db.Char(64)
+  providerId String? @unique @map("provider_id") @db.VarChar(120)
+  sendingAt DateTime? @map("sending_at") @db.Timestamptz(3)
+  checkedAt DateTime? @map("checked_at") @db.Timestamptz(3)
+  lastCode String? @map("last_code") @db.VarChar(80)
+  campaign SmsCampaign @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  user AuthUser @relation(fields: [userId], references: [id], onDelete: Restrict)
+  @@id([campaignId, userId])
+  @@index([status, campaignId])
+  @@index([sendingAt])
+  @@map("sms_campaign_recipients")
 }

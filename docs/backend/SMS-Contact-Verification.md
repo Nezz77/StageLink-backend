@@ -1,6 +1,6 @@
 # SMS contact verification and consent
 
-StageLink uses text.lk for verified SMS contacts and booking reminders. Booking and marketing consent are separate choices. Client controls and their Figma handoff remain open.
+StageLink uses text.lk for verified SMS contacts, booking reminders and promotional campaigns. Booking and marketing consent are separate choices. Client controls and their Figma handoff remain open.
 
 ## Member flow
 
@@ -17,7 +17,7 @@ Verification is proof of number possession for notification contact only. It doe
 
 ## Provider and worker
 
-Set `SMS_VERIFICATION_ENABLED=true`, `TEXTLK_TOKEN` and the approved `TEXTLK_SENDER` to enable verification messages. `SMS_HOURLY_LIMIT` defaults to 20 total submissions per hour across verification and booking reminders on all workers sharing the database. Compose forwards these settings and both send flags default to `false`. Hosted delivery still needs a configured sender and provider verification.
+Set `SMS_VERIFICATION_ENABLED=true`, `TEXTLK_TOKEN` and the approved `TEXTLK_SENDER` to enable verification messages. `SMS_HOURLY_LIMIT` defaults to 20 total submissions per hour across verification, booking reminders and promotional campaigns on all workers sharing the database. Compose forwards these settings and all three send flags default to `false`. Hosted delivery still needs a configured sender and provider verification.
 
 The adapter uses the fixed HTTPS text.lk v3 send endpoint, JSON and an Authorization bearer header. It does not place credentials/OTP in query strings or follow redirects. Send timeout, interrupted worker and ambiguous responses are `unknown` and are never automatically resubmitted. Explicit provider rejection is `failed`. A valid provider identifier and matching recipient/sender are required to record accepted/delivered status. A successful HTTP response by itself is not evidence of delivery.
 
@@ -33,10 +33,12 @@ Set `BOOKING_SMS_REMINDERS=true` with the same text.lk credentials to enable boo
 
 Before claiming a send, the worker checks the current contact, consent, booking time and payment state. An opt-out, cancellation or reschedule cancels stale queued reminders. A message already submitted to the provider cannot be recalled. Delivery uses the shared hourly cap and the same evidence checks as contact verification. Unknown submissions remain in history and are not automatically resent.
 
-Members can read their latest 20 reminder records at `GET /api/v1/me/booking-sms-reminders`. Each item shows the booking, schedule, delivery status and last check time. SMS and email delivery have separate settings. Hosted SMS verification and promotional SMS remain open.
+Members can read their latest 20 reminder records at `GET /api/v1/me/booking-sms-reminders`. Each item shows the booking, schedule, delivery status and last check time. SMS and email delivery have separate settings. Hosted SMS delivery and frontend/Figma controls remain open.
 
 ## Validation boundaries
 
 Tests use disposable `.test` accounts, synthetic phone numbers and intercepted text.lk requests. Verification tests cover access, encryption, code attempts and expiry, consent and provider outcomes. Booking reminder tests cover shared submission limits, concurrent claims, paid bookings, separate booking consent, opt-out, uncertain sends, reconciliation and account-scoped history.
 
-Local validation on 20 November 2026: all 56 unit tests and 28 integration scenarios passed, with migrations applied and repeated safely. API contract generation, TypeScript checks and changed-file formatting passed. Hosted text.lk delivery and client/Figma integration are not verified by these tests.
+Local validation on 21 November 2026: all 61 unit tests and 30 integration scenarios passed, with migrations applied and repeated safely. API contract generation, TypeScript checks and changed-file formatting passed. Hosted text.lk delivery and client/Figma integration are not verified by these tests.
+
+Promotional SMS campaigns now use the independent marketing consent through the [campaign workflow](Promotional-SMS.md). Delivery remains disabled by default.

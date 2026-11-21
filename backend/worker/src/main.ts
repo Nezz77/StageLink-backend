@@ -12,6 +12,7 @@ import { processSmsVerifications } from '../../shared/sms-verification.js';
 import { processBookingSmsReminders } from '../../shared/booking-sms-reminders.js';
 import { processBookingReminders } from '../../shared/booking-reminders.js';
 import { processBookingDocuments } from '../../shared/booking-documents.js';
+import { processPromotionalSms } from '../../shared/promotional-sms.js';
 import { processPromotionalEmail } from '../../shared/campaign-delivery.js';
 import { log } from '../../shared/log.js';
 
@@ -66,7 +67,7 @@ async function main() {
   async function scanCampaigns() {
     if (stopping || campaignsRunning) return;
     campaignsRunning = true;
-    try { await processPromotionalEmail(deps.db, config, mailer); }
+    try { await processPromotionalEmail(deps.db, config, mailer); await processPromotionalSms(deps.db, config); }
     catch { log('campaign.scan_failed', { code: 'CAMPAIGN_PROCESSING_UNAVAILABLE' }); }
     finally { campaignsRunning = false; }
   }
