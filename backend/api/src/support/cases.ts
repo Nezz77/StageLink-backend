@@ -18,7 +18,7 @@ const subject = z.string().trim().min(3).max(140);
 const message = z.string().trim().min(1).max(2000);
 const create = z.object({
   requestKey: uuid, subject, body: message.min(20), bookingId: uuid.optional(),
-  assetIds: z.array(uuid).max(5).refine(ids => new Set(ids.map(id => id.toLowerCase())).size === ids.length).optional(),
+  assetIds: z.array(uuid).max(5).refine(ids => new Set(ids.map(id => id.toLowerCase())).size === ids.length).describe('Owned ready support images or sanitized PDFs, at most five attachments.').optional(),
 }).strict();
 const reply = z.object({ requestKey: uuid, body: message }).strict();
 const update = z.object({ expectedRevision: revision.max(2_147_483_646), reason: message.min(10) }).strict();
@@ -173,8 +173,9 @@ export function makeSupportController(auth: AuthService) {
         for (const assetId of [...assetIds].sort()) {
           await tx.$queryRaw`SELECT id FROM assets WHERE id=${assetId}::uuid FOR UPDATE`;
           const asset = await tx.asset.findFirst({ where: { id: assetId, ownerId, purpose: 'support', status: 'ready' }, select: { variants: true } });
-          if ((asset?.variants as { display?: { mime?: string } } | undefined)?.display?.mime !== 'image/webp') {
-            throw new PublicError(409, 'SUPPORT_ATTACHMENT_UNAVAILABLE', 'Choose validated private support images.');
+          const displayMime = (asset?.variants as { display?: { mime?: string } } | undefined)?.display?.mime;
+          if (!displayMime || !['image/webp', 'application/pdf'].includes(displayMime)) {
+            throw new PublicError(409, 'SUPPORT_ATTACHMENT_UNAVAILABLE', 'Choose validated private support images or PDFs.');
           }
         }
         return presentCase(await tx.supportCase.create({

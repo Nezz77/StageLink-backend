@@ -54,7 +54,7 @@ export function makeMediaControllers(auth:AuthService,store:MediaStore){
   @Get('public/media/:id/access') @ApiParam({name:'id',format:'uuid'}) @ApiQuery({name:'variant',enum:['display','preview','poster']}) @ApiResponse(response(S.accessRead))
   async publicAccess(@Req()r:Request,@Param('id')id:string,@Query('variant')variant:string){return service.publicCapability(parse(uuid,id),parse(S.variant,variant),r.ip??'unknown');}
   @Get('media/content/:id') @ApiParam({name:'id',format:'uuid'}) @ApiQuery({name:'token',type:'string'}) @ApiResponse({status:200,description:'Validated media bytes; no original quarantine object is exposed.'})
-  async content(@Req()r:Request,@Res()res:Response,@Param('id')id:string,@Query('token')token:string){const value=await service.content(parse(uuid,id),parse(z.string().max(2000),token),r.ip??'unknown');res.set({'Content-Type':value.mime,'Content-Length':value.bytes.length,'Content-Disposition':value.mime==='application/pdf'?'attachment; filename="verification-evidence.pdf"':'inline','Referrer-Policy':'no-referrer','Content-Security-Policy':"default-src 'none'; sandbox",'Accept-Ranges':'none'}).send(value.bytes);}
+  async content(@Req()r:Request,@Res()res:Response,@Param('id')id:string,@Query('token')token:string){const value=await service.content(parse(uuid,id),parse(z.string().max(2000),token),r.ip??'unknown');res.set({'Content-Type':value.mime,'Content-Length':value.bytes.length,'Content-Disposition':value.mime==='application/pdf'?`attachment; filename="${value.downloadFilename}"`:'inline','Referrer-Policy':'no-referrer','Content-Security-Policy':"default-src 'none'; sandbox",'Accept-Ranges':'none'}).send(value.bytes);}
  }
  return[MediaController,MediaContentController];
 }
