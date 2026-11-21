@@ -399,3 +399,9 @@ Verified administrators can draft, preview, schedule, cancel and monitor consent
 ## Booking SMS operations
 
 Verified administrators can monitor real booking SMS queue counts, filter by booking/window/state and cancel an unsent reminder with recorded review evidence. See [SMS reminder operations](SMS-Reminder-Operations.md). Delivery defaults off; frontend/Figma controls and hosted delivery checks remain pending.
+
+### Staging SMS delivery evidence
+
+Use a controlled, opted-in staging audience and record the IDs of a completed contact verification, a booking reminder, and a promotional campaign. Set `STAGELINK_SMOKE_ORIGIN` to the staging API HTTPS origin. Set `STAGELINK_SMOKE_SMS_VERIFICATION_ID`, `STAGELINK_SMOKE_SMS_REMINDER_ID`, and `STAGELINK_SMOKE_SMS_CAMPAIGN_ID` to those IDs, and set `STAGELINK_SMOKE_SMS_CAMPAIGN_RECIPIENTS` to the campaign's expected audience size.
+
+Build from `backend/` and run `npm run --silent sms:smoke`. Pipe a JSON object with `member` and `admin` access tokens through protected stdin. The member must own the verification and reminder records, which must be in that account's latest 20 history entries. The command reads recorded delivery evidence and requires a delivered and confirmed verification, a delivered booking reminder, and delivery to the whole expected campaign audience. It prints check outcomes and status codes. A failed check exits with a nonzero status.
