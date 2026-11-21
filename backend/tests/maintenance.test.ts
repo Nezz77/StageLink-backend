@@ -31,6 +31,7 @@ test('maintenance preserves payments, recovery and SMS cancellation while blocki
   assert.equal(await check('POST', '/api/v1/admin/sms-reminders/:id/cancel'), true);
   assert.equal(await check('POST', '/api/v1/me/sms-contact/opt-out'), true);
   assert.equal(await check('POST', '/api/v1/me/sms-contact/revoke'), true);
+  assert.equal(await check('POST', '/api/v1/admin/communications/smtp-check'), true);
   assert.equal(reads, 0);
   await assert.rejects(check('POST', '/api/v1/admin/sms-reminders/:id/retry'), { code: 'MAINTENANCE_MODE' });
   for (const [method, path] of [['PUT', '/api/v1/me/sms-contact/consent'], ['POST', '/api/v1/me/sms-contact/verification'], ['POST', '/api/v1/me/sms-contact/confirm']]) {
