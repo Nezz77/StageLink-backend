@@ -31,7 +31,7 @@ trap 'exit 143' TERM
 
 snapshot() {
   psql "${connection[@]}" --dbname="$1" -XAtq -v ON_ERROR_STOP=1 <<'SQL'
-BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;
+BEGIN ISOLATION LEVEL REPEATABLE READ;
 SET LOCAL TIME ZONE 'UTC';
 
 SELECT format(
@@ -50,7 +50,24 @@ SELECT 'constraint', tbl.relname, con.conname, con.convalidated, pg_get_constrai
 FROM pg_constraint AS con
 JOIN pg_class AS tbl ON tbl.oid = con.conrelid
 JOIN pg_namespace AS ns ON ns.oid = tbl.relnamespace
-WHERE ns.nspname = 'public' ORDER BY tbl.relname, con.conname;
+WHERE ns.nspname = 'public' AND con.contype <> 'c' ORDER BY tbl.relname, con.conname;
+
+-- Reparse CHECK expressions on empty temporary copies. Restore can change their
+-- printed casts or parentheses while preserving their behavior.
+WITH checks AS (
+  SELECT con.oid, con.conname, tbl.relname, 'restore_check_' || con.oid AS scratch
+  FROM pg_constraint AS con
+  JOIN pg_class AS tbl ON tbl.oid = con.conrelid
+  JOIN pg_namespace AS ns ON ns.oid = tbl.relnamespace
+  WHERE ns.nspname = 'public' AND con.contype = 'c'
+)
+SELECT format('CREATE TEMP TABLE %I (LIKE public.%I) ON COMMIT DROP', scratch, relname),
+       format('ALTER TABLE pg_temp.%I ADD CONSTRAINT %I %s', scratch, conname, pg_get_constraintdef(oid)),
+       format($query$SELECT 'constraint', %L, conname, convalidated, pg_get_constraintdef(oid)
+              FROM pg_constraint WHERE conrelid = %L::regclass AND conname = %L$query$,
+              relname, 'pg_temp.' || scratch, conname)
+FROM checks ORDER BY relname, conname
+\gexec
 
 SELECT 'index', tablename, indexname, indexdef
 FROM pg_indexes WHERE schemaname = 'public' ORDER BY tablename, indexname;
