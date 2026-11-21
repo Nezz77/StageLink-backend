@@ -43,6 +43,7 @@ A checked box marks implemented backend code. Client wiring and hosted checks ha
 - [x] P10 booking text persistence, retry deduplication, read receipts, and history catch-up.
 - [x] P10 private image attachments with validated derivatives, participant-only access, and retention while referenced.
 - [x] P10 Participant-scoped Socket.IO booking chat across API replicas, including typing signals, read receipts and socket session revocation.
+- [x] P10 Staging smoke command for WebSocket upgrade, reconnect, missed-message recovery and resumed delivery.
 - [ ] P10 Verify the WebSocket upgrade and reconnect paths on the hosted proxy.
 - [x] P11 financial journal foundation. Balanced immutable postings, duplicate command protection, and atomic available-to-reserved fund transfers.
 - [x] P11 server-priced advance and deposit orders with participant-only status reads.

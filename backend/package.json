@@ -18,6 +18,7 @@
     "db:migrate": "prisma migrate deploy --schema prisma/schema.prisma",
     "contracts": "npm run build && node dist/scripts/openapi.js && openapi-typescript ../contracts/openapi.json -o ../packages/contracts/src/api.d.ts",
     "payments:smoke": "node dist/scripts/payment-smoke.js",
+    "chat:smoke": "node dist/scripts/chat-websocket-smoke.js",
     "recommendations:evaluate": "node dist/scripts/evaluate-recommendations.js",
     "verification:smoke": "node dist/scripts/verification-pdf-smoke.js",
     "outbox:ping": "node dist/scripts/ping.js",
