@@ -31,6 +31,25 @@ Approval is atomic. A conflicting active reference or retired selected model ret
 
 After approval, the existing renter endpoint `POST /api/v1/ai/generations/equipment-specs` returns exact-model factual suggestions and their database citation. Unknown models remain empty; retired sources remain withdrawn on saved jobs. No external model call is needed and no arbitrary manufacturer URL is fetched by the server.
 
+## Review coverage against published rentals
+
+From `backend/`, build the tools with `npm run build`. Set `STAGELINK_SMOKE_ORIGIN` to the staging API HTTPS origin and run `npm run --silent equipment:coverage` with `{"accessToken":"..."}` from a verified administrator session piped through protected stdin. The report lists every published equipment listing with its ID, published version, title and category.
+
+Confirm the manufacturer and exact model against the rental inventory. Save the reviewed selections as a JSON array and pass the filename with `npm run --silent equipment:coverage -- reviewed-equipment.json`. Keep using protected stdin for the session.
+
+```json
+[
+  {
+    "id": "823c182c-554a-4ebd-80f5-ff3f34ad8884",
+    "version": 1,
+    "manufacturer": "Yamaha",
+    "model": "DBR12"
+  }
+]
+```
+
+The command matches reviewed identities using the same exact manufacturer and model normalization as equipment lookup. Listings with no confirmed identity need review. A different published version requires a fresh review. The report counts approved, retired and missing reference coverage and ranks uncovered models by the number of affected listings. The `inBundle` field indicates a reviewed model in the bundled reference set. The command uses read-only API requests and leaves approval to the administrator.
+
 ## Validation
 
 The integration scenario exercises administrator access, verification, Origin and CSRF checks, stale digests, invalid selections, atomic conflicts, retirement preservation and concurrent approval. It checks all 12 exact model lookups and confirms that the original DXR15 needs its own reference.

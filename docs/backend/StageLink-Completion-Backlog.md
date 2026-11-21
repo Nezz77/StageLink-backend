@@ -94,6 +94,7 @@ A checked box marks implemented backend code. Client wiring and hosted checks ha
 - [x] P15 Staging smoke command for hosted model readiness, a synthetic prompt preview and recorded usage.
 - [ ] P15 Live model smoke test and ranking evaluation against a representative catalog and event briefs.
 - [x] P15 Manufacturer reference bundle with 12 cited models, administrator preview, digest-based approval and safeguards for duplicate, conflicting and retired entries. [Bundle guide](Equipment-Reference-Bundle.md).
+- [x] P15 Read-only equipment reference coverage report for published rental listings and versioned manufacturer/model reviews.
 - [ ] P15 Approve the bundled references on staging and expand coverage against the rental catalog.
 - [x] P16 Private provider verification submissions, administrative review and resubmission history.
 - [x] P16 Role-specific provider identity approval for sandbox payout and arbitration reservations.

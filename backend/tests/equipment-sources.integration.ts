@@ -7,6 +7,7 @@ import { csrfFor } from '../api/src/auth/security.js';
 import { readConfig } from '../shared/config.js';
 import { resources } from '../shared/resources.js';
 import { equipmentReferenceBundle, equipmentReferenceBundleDigest } from '../shared/equipment-reference-bundle.js';
+import { runEquipmentReferenceCoverage } from '../scripts/equipment-reference-coverage.js';
 
 const baseConfig = readConfig();
 if (baseConfig.NODE_ENV !== 'test' || !new URL(baseConfig.DATABASE_URL).pathname.endsWith('_test')) {
@@ -19,6 +20,7 @@ test('equipment lookup retains approved sources, matches exact models and hides 
   const { app } = await createApp(config, deps);
   const users: string[] = [];
   const sourceIds: string[] = [];
+  let listingId: string | undefined;
   try {
     await app.listen(0, '127.0.0.1');
     const root = (await app.getUrl()) + '/api/v1/';
@@ -180,8 +182,38 @@ test('equipment lookup retains approved sources, matches exact models and hides 
     assert.equal(subset.data.items.length, 1);
     assert.equal(subset.data.unchanged, 1);
     assert.equal((await request(renter, search, { requestKey: randomUUID(), model: 'DXR15mkII' })).data.suggestion.match, 'unknown');
+
+    const ownerId = users[1]!;
+    const details = {
+      equipmentCategories: ['Sound'], rentalTerms: 'Synthetic rental terms for coverage.', deliveryOffered: false,
+      operatingHours: Array.from({ length: 7 }, (_, day) => ({ day, opens: '09:00', closes: '17:00' })),
+    };
+    const profile = { displayName: 'Fixture storefront', bio: 'Equipment coverage fixture profile.', city: 'Colombo', serviceRadiusKm: 20 };
+    await deps.db.providerProfile.create({ data: {
+      userId: ownerId, kind: 'renter', ...profile, ...details, approvedRevision: 1, reviewStatus: 'approved',
+      address: '', category: '', genres: [], experienceYears: 0, baseRateMinor: 0,
+      approvedSnapshot: { userId: ownerId, kind: 'renter', revision: 1, ...profile, details },
+    } });
+    const listing = await deps.db.rentalListing.create({ data: { ownerId, versions: { create: {
+      version: 1, title: 'Published equipment fixture', description: 'A synthetic published listing.', category: 'Sound',
+      dailyRateMinor: 5000, stockQuantity: 1,
+    } } } });
+    listingId = listing.id;
+    await deps.db.rentalListing.update({ where: { id: listing.id }, data: { publishedVersion: 1, status: 'published' } });
+    const report = await runEquipmentReferenceCoverage({
+      origin: await app.getUrl(), session: { accessToken: admin.Authorization.slice('Bearer '.length) },
+    }, [{ id: listing.id, version: 1, manufacturer: 'yamaha', model: 'dbr12' }]);
+    assert.deepEqual(report.listings.find(item => item.id === listing.id), {
+      id: listing.id, version: 1, title: 'Published equipment fixture', category: 'Sound',
+      status: 'covered', identity: { manufacturer: 'yamaha', model: 'dbr12' }, inBundle: true,
+    });
   } finally {
     try {
+      if (listingId) {
+        await deps.db.rentalListing.update({ where: { id: listingId }, data: { status: 'draft', publishedVersion: null } });
+        await deps.db.rentalListingVersion.deleteMany({ where: { listingId } });
+        await deps.db.rentalListing.delete({ where: { id: listingId } });
+      }
       await deps.db.aiGenerationJob.deleteMany({ where: { ownerId: { in: users } } });
       await deps.db.equipmentSpecSource.deleteMany({ where: { OR: [{ id: { in: sourceIds } }, { approvedBy: { in: users } }] } });
       await deps.db.authUser.deleteMany({ where: { id: { in: users } } });

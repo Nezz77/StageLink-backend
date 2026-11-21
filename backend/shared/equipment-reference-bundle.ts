@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto';
 
+export const equipmentKey = (value: string) => value.normalize('NFC').trim().replace(/\s+/gu, ' ').toLowerCase();
+
 // DXR mkII wattage is dynamic amplifier output. Continuous output is 700 W.
 const yamahaUrl = 'https://europe.yamaha.com/en/audio/portable-pa/products/speakers/dxr/specs.html';
 const dbrUrl = 'https://data.yamaha.com/files/download/other_assets/4/332514/VHN5580_DBR15_TS_En_B0_views.pdf';

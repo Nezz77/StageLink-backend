@@ -9,7 +9,8 @@ import type { AuthService } from '../auth/service.js';
 import { schema } from '../payments/orders.js';
 import { ProfileService } from '../profiles/service.js';
 import type { ProviderKind } from '../profiles/schemas.js';
-import { equipmentKey, equipmentLookup, equipmentSuggestion, sourcedEquipmentSuggestion } from './equipment-sources.js';
+import { equipmentKey } from '../../../shared/equipment-reference-bundle.js';
+import { equipmentLookup, equipmentSuggestion, sourcedEquipmentSuggestion } from './equipment-sources.js';
 import { gigDraft, previewText, requestModelPreview, saveModelAttempts } from './preview.js';
 import { resolvePrompt } from './prompts.js';
 
