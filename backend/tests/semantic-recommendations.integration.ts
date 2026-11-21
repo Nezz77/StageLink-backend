@@ -7,6 +7,7 @@ import { SignJWT } from 'jose';
 import { createApp } from '../api/src/app.js';
 import { csrfFor } from '../api/src/auth/security.js';
 import { listingEmbeddingInput } from '../api/src/ai/embedding-client.js';
+import { evaluateRecommendations } from '../scripts/evaluate-recommendations.js';
 import { readConfig } from '../shared/config.js';
 import { resources } from '../shared/resources.js';
 
@@ -155,6 +156,17 @@ test('semantic recommendations preserve eligibility, consent, provenance, and we
     assert.deepEqual(await request(owner, path, optedIn), hybrid);
     assert.deepEqual(await request(owner, 'recommendations/' + hybrid.data.id), hybrid);
     assert.equal((await request(other, 'recommendations/' + hybrid.data.id)).status, 404);
+
+    const stableBaseline = await request(owner, path, command());
+    assert.equal(stableBaseline.status, 200);
+    const report = evaluateRecommendations({ version: 1, expectedModel: model, cases: [{
+      key: 'catalog-fixture', weighted: stableBaseline.data, semantic: hybrid.data,
+      judgments: [
+        { gigId: relevant.id, relevance: 3 }, { gigId: stale.id, relevance: 1 }, { gigId: cheap.id, relevance: 0 },
+      ],
+    }] });
+    assert.equal(report.complete, true, JSON.stringify(report));
+    assert.equal(report.counts.improved, 1);
 
     const stored = await deps.db.recommendationRun.findUniqueOrThrow({ where: { id: hybrid.data.id } });
     const proof = stored.semanticProvenance as { candidates: { gigId: string; version: number; embeddingAttemptId: string | null }[] };

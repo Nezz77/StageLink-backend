@@ -282,6 +282,14 @@ The API applies the original budget, publication, provider approval and full-day
 
 Semantic calls are limited to five per customer per 24 hours and `AI_SEMANTIC_DAILY_LIMIT` across customers (default 20). The feature defaults to off. The deterministic `semantic-ranking.test.ts` evaluation compares reciprocal ranks on three labeled synthetic briefs. Representative catalog evaluation and a live model smoke test remain part of staging verification.
 
+### Paired ranking evaluation
+
+For each staging brief, capture one weighted run and one run with `useSemantic: true`. Use separate request keys and keep the brief revision, requested genres, published catalog and matching weights fixed. Save both responses from `GET /api/v1/recommendations/:id`. Label results before inspecting how the two rankers ordered them.
+
+Create a JSON manifest with `version: 1`, `expectedModel` set to the deployed embedding model, and a `cases` array. Each case has a short lowercase `key`, both full run responses under `weighted` and `semantic`, and `judgments` containing `{gigId, relevance}` records. Use grades 0 (irrelevant), 1 (partial fit), 2 (good fit), and 3 (strong fit). Judge every result returned by either run and include any other known relevant listings. Each case needs at least one positive judgment. Use case keys that contain no private details.
+
+From `backend/`, run `npm run build` and then `npm run --silent recommendations:evaluate -- <manifest.json>`. The evaluator reports reciprocal rank of the first relevant result, graded nDCG, and recall over judged relevant listings, all at rank three. Averages use the same comparable cases for both methods. It counts semantic fallbacks and excludes pairs with changed revisions, mismatched embedding provenance, stale listings or missing judgments. Incomplete data returns a nonzero status with the available results. A complete report can still show a quality regression. The command reads the file locally and emits no brief text, listing IDs, or request credentials.
+
 ## Provider verification
 
 Providers submit two to five validated private images or PDFs with `POST /api/v1/verification-cases`. Upload them with purpose `verification`, then pass their asset IDs in the case. Providers read their own history at `GET /api/v1/me/verification`. Administrators review pending cases at `GET /api/v1/admin/verification-cases` and record a reasoned decision at `POST /api/v1/admin/verification-cases/:id/decisions`. A rejected provider can submit a new version.
