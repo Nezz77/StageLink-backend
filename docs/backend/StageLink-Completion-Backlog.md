@@ -121,10 +121,13 @@ A checked box marks implemented backend code. Client wiring and hosted checks ha
 - [x] P17 Administrator SMS reminder monitoring, real delivery counts and audited cancellation before submission. [Operations guide](SMS-Reminder-Operations.md).
 - [x] P17 Consent-based promotional SMS drafts, audience review, revision-bound scheduling, cancellation, shared send cap and delivery counts. [Workflow](Promotional-SMS.md).
 - [x] P17 Administrator SMTP connection readiness and staging communication checks without sending messages.
+- [x] P17 SMTP transport smoke command with test inbox receipt verified against Mailpit.
+- [x] P17 Read-only staging SMS evidence checker for contact verification, booking reminders and promotional campaign delivery.
 - [ ] P17 Live SMTP reminder/campaign verification, hosted SMS verification/reminder/campaign delivery and frontend/Figma controls.
 - [x] P18 Administrator and provider analytics from booking records and posted sandbox journals.
 - [x] P18 Stripe test and PayHere sandbox refund settlements in administrator and provider analytics, with daily totals.
 - [x] P18 Net Stripe test bank payout and platform fee analytics by UTC day and period, scoped by role and inclusive of posted reversals.
+- [x] P18 PostgreSQL test backup and restore drill compares data, sequences, constraints and indexes in CI.
 - [ ] P18 Live financial totals for supported workflows and release verification for security, accessibility, backup and rollback.
 
 ## Verification and client integration

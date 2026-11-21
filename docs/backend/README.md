@@ -67,6 +67,14 @@ Integration uses a separate Compose project, `stagelink_test`, PostgreSQL 55433,
 
 The HTTP tests listen on a temporary loopback port.
 
+The integration script and CI run a PostgreSQL backup and restore drill after the suites finish. The drill archives the migrated test database, restores it in one transaction into a fresh database, and compares table row counts and checksums, sequence state, constraints and indexes. It removes the temporary database and archive on exit. To repeat it with the test stack idle, run from the repository root:
+
+```sh
+docker compose -f infra/compose.test.yml exec -T postgres bash -s < backend/scripts/check-postgres-restore.sh
+```
+
+The drill covers PostgreSQL data and schema in the test environment. Hosted backup verification also needs an isolated restore of the hosted database, private media objects and access to the matching encryption keys. [PostgreSQL backup documentation](https://www.postgresql.org/docs/17/backup-dump.html)
+
 Generated contracts are `contracts/openapi.json` → `packages/contracts/src/api.d.ts`. Regenerate and commit both after endpoint changes; CI rejects drift. Never edit an applied migration. Update the expected migration constant when adding one.
 
 AI remains health-only. Under `backend/ai`, use Python 3.12 / uv 0.11.29, `uv sync --frozen`, then `uv run --frozen pytest -q`. No model/provider is configured.
@@ -350,6 +358,8 @@ Repeat the fee `POST` to reconcile. Temporary provider failures return `unavaila
 
 Set `BOOKING_EMAIL_REMINDERS=true` to have the worker queue and send email reminders for eligible bookings. Development Compose uses Mailpit. Administrators can inspect and manage rows at `/api/v1/admin/reminders`. SMTP acceptance means the receiving server accepted the message. An unknown send outcome requires reconciliation before any resend.
 
+To check the staging SMTP transport, load the staging worker environment, build from `backend/`, and pipe a single test inbox address you control into `npm run --silent smtp:smoke`. The command uses the worker's SMTP and TLS settings and sends one synthetic probe. It reports a probe ID and the SMTP outcome. Search the inbox for `StageLink SMTP smoke <probeId>` to verify receipt. Failed and unknown outcomes exit with a nonzero status.
+
 Members list notifications at `GET /api/v1/me/notifications` and mark a notification read with `PUT /api/v1/me/notifications/:id/read`. The worker materializes notifications from booking and support outbox events. `PATCH /api/v1/me/notification-preferences` updates the booking reminder email preference using the revision returned by the corresponding GET.
 
 For live inbox updates, send `notifications:subscribe` with `{}` on the authenticated Socket.IO connection, wait for the acknowledgment, then load the inbox over REST. On `notifications:changed`, a signal with payload `{}`, reload the list and unread count. Redis Pub/Sub fans out signals to API replicas after database commits. Reconnect, subscribe again and reload to recover missed changes. Keep the REST inbox available during broker outages and reload periodically while the inbox is open.
@@ -399,3 +409,9 @@ Verified administrators can draft, preview, schedule, cancel and monitor consent
 ## Booking SMS operations
 
 Verified administrators can monitor real booking SMS queue counts, filter by booking/window/state and cancel an unsent reminder with recorded review evidence. See [SMS reminder operations](SMS-Reminder-Operations.md). Delivery defaults off; frontend/Figma controls and hosted delivery checks remain pending.
+
+### Staging SMS delivery evidence
+
+Use a controlled, opted-in staging audience and record the IDs of a completed contact verification, a booking reminder, and a promotional campaign. Set `STAGELINK_SMOKE_ORIGIN` to the staging API HTTPS origin. Set `STAGELINK_SMOKE_SMS_VERIFICATION_ID`, `STAGELINK_SMOKE_SMS_REMINDER_ID`, and `STAGELINK_SMOKE_SMS_CAMPAIGN_ID` to those IDs, and set `STAGELINK_SMOKE_SMS_CAMPAIGN_RECIPIENTS` to the campaign's expected audience size.
+
+Build from `backend/` and run `npm run --silent sms:smoke`. Pipe a JSON object with `member` and `admin` access tokens through protected stdin. The member must own the verification and reminder records, which must be in that account's latest 20 history entries. The command reads recorded delivery evidence and requires a delivered and confirmed verification, a delivered booking reminder, and delivery to the whole expected campaign audience. It prints check outcomes and status codes. A failed check exits with a nonzero status.

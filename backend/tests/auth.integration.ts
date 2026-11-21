@@ -41,23 +41,39 @@ test('two accounts, role guards, cookie rotation/replay, real SMTP recovery and 
     assert.ok(!('refreshToken' in result.data));
     return { ...result.data, cookie: cookie!.split(';')[0]! };
   }
-  async function emailToken(email: string, subject: string): Promise<string> {
+  async function emailMessage(email: string, subject: string, deliverPending = true): Promise<string> {
     const end = Date.now() + 15000;
     while (Date.now() < end) {
-      await deliverAuthMail(deps, config, transport);
+      if (deliverPending) await deliverAuthMail(deps, config, transport);
       const list = await fetch(mailBase + '/api/v1/messages').then(r => r.json()) as any;
       const message = list.messages?.find((item: any) => item.Subject === subject && item.To?.some((to: any) => to.Address === email));
       if (message) {
         const detail = await fetch(mailBase + '/api/v1/message/' + message.ID).then(r => r.json()) as any;
-        const token = /one-time code: ([A-Za-z0-9_-]{43})/.exec(detail.Text)?.[1];
-        assert.ok(token, 'SMTP message must contain its real one-time token');
-        return token;
+        assert.equal(typeof detail.Text, 'string');
+        return detail.Text;
       }
       await pause();
     }
     throw new Error('SMTP message did not reach the isolated mail catcher');
   }
+  async function emailToken(email: string, subject: string): Promise<string> {
+    const token = /one-time code: ([A-Za-z0-9_-]{43})/.exec(await emailMessage(email, subject))?.[1];
+    assert.ok(token, 'SMTP message must contain its real one-time token');
+    return token;
+  }
   try {
+    const probeRecipient = `smtp-probe-${suffix}@stagelink.test`;
+    const probe = spawnSync(process.execPath, ['dist/scripts/smtp-smoke.js'], {
+      input: probeRecipient, encoding: 'utf8', timeout: 15_000,
+    });
+    assert.equal(probe.status, 0, probe.stderr);
+    const report = JSON.parse(probe.stdout);
+    assert.equal(report.status, 'accepted');
+    assert.match(report.probeId, /^[0-9a-f-]{36}$/);
+    assert.ok(!probe.stdout.includes(probeRecipient));
+    assert.match(await emailMessage(probeRecipient, 'StageLink SMTP smoke ' + report.probeId, false),
+      /Synthetic StageLink SMTP delivery probe/);
+
     assert.equal((await call('me')).response.status, 401);
     assert.equal((await call('auth/register', { email: emailA, password, displayName: 'Customer A', role: 'admin' })).response.status, 400);
     assert.equal((await call('auth/register', { email: emailA, password, displayName: 'Customer A', role: 'customer' }, undefined, { origin: 'http://untrusted.example' })).response.status, 403);
