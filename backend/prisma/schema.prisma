@@ -102,6 +102,7 @@ model AuthUser {
   smsContact SmsContact?
   smsVerifications SmsVerification[]
   smsConsentEvents SmsConsentEvent[]
+  smsReminderCancellations SmsReminderCancellation[]
   createdSmsCampaigns SmsCampaign[] @relation("SmsCampaignCreator")
   scheduledSmsCampaigns SmsCampaign[] @relation("SmsCampaignScheduler")
   cancelledSmsCampaigns SmsCampaign[] @relation("SmsCampaignCanceller")
@@ -1879,6 +1880,7 @@ model BookingSmsReminder {
   @@index([status, dueAt])
   @@index([recipientId, dueAt])
   @@index([sendingAt])
+  cancellation SmsReminderCancellation?
   @@map("booking_sms_reminders")
 }
 
@@ -2098,4 +2100,15 @@ model SmsCampaignRecipient {
   @@index([status, campaignId])
   @@index([sendingAt])
   @@map("sms_campaign_recipients")
+}
+
+model SmsReminderCancellation {
+  reminderId String @id @map("reminder_id") @db.Uuid
+  actorId String @map("actor_id") @db.Uuid
+  reason String @db.VarChar(500)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  reminder BookingSmsReminder @relation(fields: [reminderId], references: [id], onDelete: Restrict)
+  actor AuthUser @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  @@index([actorId, createdAt])
+  @@map("sms_reminder_cancellations")
 }
