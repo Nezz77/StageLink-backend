@@ -129,7 +129,7 @@ export async function createApp(config: Config, dependencies: Resources = resour
   const app = await NestFactory.create(AppModule, { logger: false, rawBody: true });
   app.getHttpAdapter().getInstance().disable('x-powered-by');
   app.setGlobalPrefix('api/v1');
-  app.enableCors({ origin: config.WEB_ORIGIN, credentials: true });
+  app.enableCors({ origin: config.WEB_ORIGIN, credentials: true, exposedHeaders: ['Content-Disposition', 'X-Request-ID'] });
   app.use((req: Request, res: Response, next: NextFunction) => {
     // Server-owned ID; never echo arbitrary untrusted header data into logs.
     res.locals.requestId = randomUUID();
