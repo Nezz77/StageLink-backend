@@ -75,6 +75,11 @@ snapshot "$restore_db" > "$workdir/restore.snapshot"
 
 if ! cmp -s "$workdir/source.snapshot" "$workdir/restore.snapshot"; then
   printf '%s\n' 'The restored PostgreSQL data or schema checks differ from the source.' >&2
+  { diff -u "$workdir/source.snapshot" "$workdir/restore.snapshot" || true; } |
+    awk -F '|' '
+      /^[-+](table:|sequence:)/ { print substr($1, 2) }
+      /^[-+](constraint|index)\|/ { print substr($1, 2) ":" $2 "." $3 }
+    ' | sort -u >&2
   exit 1
 fi
 printf '%s\n' 'PostgreSQL restore matched table contents, sequences, constraints and indexes.'
