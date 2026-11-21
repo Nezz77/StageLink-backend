@@ -22,6 +22,7 @@ test('maintenance preserves payments, recovery and SMS cancellation while blocki
   const check = async (method: string, path: string) => guard.canActivate(context(method, path));
 
   assert.equal(await check('GET', '/api/v1/me'), true);
+  for (const path of ['/api/v1/admin/reminders/:id/cancel','/api/v1/admin/campaigns/:id/cancel','/api/v1/admin/sms-campaigns/:id/cancel']) assert.equal(await check('POST',path),true);
   assert.equal(await check('POST', '/api/v1/payments/webhooks/payhere'), true);
   assert.equal(await check('POST', '/api/v1/payments/webhooks/stripe'), true);
   assert.equal(await check('POST', '/api/v1/auth/login'), true);
@@ -37,6 +38,7 @@ test('maintenance preserves payments, recovery and SMS cancellation while blocki
   for (const [method, path] of [['PUT', '/api/v1/me/sms-contact/consent'], ['POST', '/api/v1/me/sms-contact/verification'], ['POST', '/api/v1/me/sms-contact/confirm']]) {
     await assert.rejects(check(method!, path!), { code: 'MAINTENANCE_MODE' });
   }
+  for (const path of ['/api/v1/admin/reminders/:id/retry','/api/v1/admin/campaigns/:id/schedule','/api/v1/admin/sms-campaigns/:id/schedule']) await assert.rejects(check('POST',path), { code: 'MAINTENANCE_MODE' });
   await assert.rejects(check('POST', '/api/v1/payment-orders/:id/sessions/stripe'), { code: 'MAINTENANCE_MODE' });
   assert.equal(headers.get('Retry-After'), '60');
   maintenance = false;
