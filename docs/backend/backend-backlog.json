@@ -2067,7 +2067,7 @@
       "ui_coverage_ids": [
         "UI-048"
       ],
-      "remaining": "Verify end-to-end SMTP delivery, add verified SMS recipients and provider integration, persist attempt history and reconcile ambiguous outcomes."
+      "remaining": "SMS contact verification and durable booking reminder delivery/reconciliation are implemented. Verify hosted SMTP/text.lk behavior, wire member/admin frontend and Figma controls, and verify hosted reminder invalidation and delivery history."
     },
     {
       "id": "BE-059",
@@ -2168,7 +2168,7 @@
       "ui_coverage_ids": [
         "UI-051"
       ],
-      "remaining": "Verify the opt-in email worker and DKIM-signed one-click unsubscribe against the configured SMTP relay. Add provider delivery reconciliation, any provider-specific spend controls, and SMS consent and delivery. Verify frontend and Figma integration."
+      "remaining": "Consent-based email and SMS campaign backend flows are implemented, including SMS audience approval, contact revision checks, shared submission limits and delivery reconciliation. Verify the configured SMTP relay, DKIM one-click email unsubscribe and hosted text.lk delivery, confirm provider-specific spend controls, and wire member SMS opt-out and frontend/Figma campaigns."
     },
     {
       "id": "BE-062",

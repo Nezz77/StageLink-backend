@@ -1093,6 +1093,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/sms-campaigns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["SmsCampaignController_list"];
+        put?: never;
+        post: operations["SmsCampaignController_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/sms-campaigns/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["SmsCampaignController_read"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/sms-campaigns/{id}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["SmsCampaignController_preview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/sms-campaigns/{id}/schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["SmsCampaignController_schedule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/sms-campaigns/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["SmsCampaignController_cancel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/public-status": {
         parameters: {
             query?: never;
@@ -7811,6 +7891,295 @@ export interface operations {
                             expiresAt: string;
                             status: string;
                         } | null;
+                    };
+                };
+            };
+        };
+    };
+    SmsCampaignController_list: {
+        parameters: {
+            query?: {
+                after?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** Format: uuid */
+                            id: string;
+                            body: string;
+                            recipientLimit: number;
+                            /** @enum {string} */
+                            state: "draft" | "scheduled" | "cancelled";
+                            message: string;
+                            /** Format: date-time */
+                            createdAt: string;
+                            /** Format: date-time */
+                            scheduledFor: string | null;
+                            /** Format: date-time */
+                            cancelledAt: string | null;
+                            cancellationReason: string | null;
+                            recipientCount: number;
+                            deliveryCounts: {
+                                queued: number;
+                                sending: number;
+                                accepted: number;
+                                delivered: number;
+                                failed: number;
+                                unknown: number;
+                                skipped: number;
+                            };
+                            enabled: boolean;
+                        }[];
+                        /** Format: uuid */
+                        nextCursor: string | null;
+                    };
+                };
+            };
+        };
+    };
+    SmsCampaignController_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    id: string;
+                    body: string;
+                    recipientLimit: number;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        body: string;
+                        recipientLimit: number;
+                        /** @enum {string} */
+                        state: "draft" | "scheduled" | "cancelled";
+                        message: string;
+                        /** Format: date-time */
+                        createdAt: string;
+                        /** Format: date-time */
+                        scheduledFor: string | null;
+                        /** Format: date-time */
+                        cancelledAt: string | null;
+                        cancellationReason: string | null;
+                        recipientCount: number;
+                        deliveryCounts: {
+                            queued: number;
+                            sending: number;
+                            accepted: number;
+                            delivered: number;
+                            failed: number;
+                            unknown: number;
+                            skipped: number;
+                        };
+                        enabled: boolean;
+                    };
+                };
+            };
+        };
+    };
+    SmsCampaignController_read: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        body: string;
+                        recipientLimit: number;
+                        /** @enum {string} */
+                        state: "draft" | "scheduled" | "cancelled";
+                        message: string;
+                        /** Format: date-time */
+                        createdAt: string;
+                        /** Format: date-time */
+                        scheduledFor: string | null;
+                        /** Format: date-time */
+                        cancelledAt: string | null;
+                        cancellationReason: string | null;
+                        recipientCount: number;
+                        deliveryCounts: {
+                            queued: number;
+                            sending: number;
+                            accepted: number;
+                            delivered: number;
+                            failed: number;
+                            unknown: number;
+                            skipped: number;
+                        };
+                        enabled: boolean;
+                    };
+                };
+            };
+        };
+    };
+    SmsCampaignController_preview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        recipientCount: number;
+                        recipientLimit: number;
+                        audienceFingerprint: string;
+                    };
+                };
+            };
+        };
+    };
+    SmsCampaignController_schedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: date-time */
+                    scheduledFor: string;
+                    audienceFingerprint: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        body: string;
+                        recipientLimit: number;
+                        /** @enum {string} */
+                        state: "draft" | "scheduled" | "cancelled";
+                        message: string;
+                        /** Format: date-time */
+                        createdAt: string;
+                        /** Format: date-time */
+                        scheduledFor: string | null;
+                        /** Format: date-time */
+                        cancelledAt: string | null;
+                        cancellationReason: string | null;
+                        recipientCount: number;
+                        deliveryCounts: {
+                            queued: number;
+                            sending: number;
+                            accepted: number;
+                            delivered: number;
+                            failed: number;
+                            unknown: number;
+                            skipped: number;
+                        };
+                        enabled: boolean;
+                    };
+                };
+            };
+        };
+    };
+    SmsCampaignController_cancel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        body: string;
+                        recipientLimit: number;
+                        /** @enum {string} */
+                        state: "draft" | "scheduled" | "cancelled";
+                        message: string;
+                        /** Format: date-time */
+                        createdAt: string;
+                        /** Format: date-time */
+                        scheduledFor: string | null;
+                        /** Format: date-time */
+                        cancelledAt: string | null;
+                        cancellationReason: string | null;
+                        recipientCount: number;
+                        deliveryCounts: {
+                            queued: number;
+                            sending: number;
+                            accepted: number;
+                            delivered: number;
+                            failed: number;
+                            unknown: number;
+                            skipped: number;
+                        };
+                        enabled: boolean;
                     };
                 };
             };
