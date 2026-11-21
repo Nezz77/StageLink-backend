@@ -23,7 +23,7 @@ An identical retry by the same administrator returns the original cancellation. 
 
 The claim boundary is decisive: if cancellation obtains the row before submission is claimed, the worker skips it. If the worker has already committed its claim, cancellation fails even while the provider request is still in flight. This prevents an administrator from receiving a false cancellation confirmation after a message has started sending. Existing provider reconciliation continues independently.
 
-Cancellation remains available when delivery is disabled. This task does not enable `BOOKING_SMS_REMINDERS`, create recipient consent or send real SMS.
+Cancellation remains available when delivery is disabled or read-only maintenance is active. The maintenance exception applies only to this cancellation route; administrator verification and CSRF/origin checks still apply. This task does not enable `BOOKING_SMS_REMINDERS`, create recipient consent or send real SMS.
 
 ## Verification
 

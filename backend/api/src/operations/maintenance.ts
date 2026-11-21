@@ -20,6 +20,7 @@ const availableActions = new Set([
   'PUT /api/v1/admin/announcements',
   'POST /api/v1/admin/cache/invalidate',
   'POST /api/v1/admin/sessions/revoke',
+  'POST /api/v1/admin/sms-reminders/:id/cancel',
   'PUT /api/v1/me/marketing-preferences',
   'POST ' + promotionalUnsubscribePath,
 ]);
