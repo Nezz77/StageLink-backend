@@ -17,4 +17,4 @@ Overlapping controller registration and support assignment edits were resolved t
 
 Frontend data replacement, Figma flows, hosted proxy and storage checks, real sandbox merchant capability checks, and live provider delivery remain pending. Unsupported financial paths remain disabled. This evidence proves local implementation and compatibility, not a deployment or live integration.
 
-The branch also corrects documentation that instructed task authors to push directly to `main`, records the frontend checkout's current remote, and removes stale local-test items from the remaining-work descriptions. The dated historical progress entries remain as checkpoints.
+The branch also corrects documentation that instructed task authors to push directly to `main`, records the frontend repository's canonical URL and default branch, and removes stale local-test items from the remaining-work descriptions. The dated historical progress entries remain as checkpoints.

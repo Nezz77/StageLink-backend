@@ -1,6 +1,6 @@
 # StageLink backend
 
-Backend development lives in [Nezz77/StageLink-backend](https://github.com/Nezz77/StageLink-backend). Keep changes on separate `backend/<task>` branches, push the task branch and open a draft pull request against `main` for CI and review. Do not push task work directly to `main`. The current frontend checkout uses [Nezz77/StageLink-Frontend](https://github.com/Nezz77/StageLink-Frontend).
+Backend development lives in [Nezz77/StageLink-backend](https://github.com/Nezz77/StageLink-backend). Keep changes on separate `backend/<task>` branches, push the task branch and open a draft pull request against `main` for CI and review. Do not push task work directly to `main`. The frontend repository is [Nezz77/StageLink](https://github.com/Nezz77/StageLink), whose default branch is `frontend` (the checkout's older `StageLink-Frontend` remote URL redirects there).
 
 StageLink uses a layered architecture. The core is a modular NestJS REST API, with a separate BullMQ worker process and an internal FastAPI service. Prisma connects the Node services to PostgreSQL, Redis backs the queue and rate limiting, and an S3 adapter stores media. The private FastAPI service exposes health checks and supports opt-in model previews, artist writing suggestions and public gig embeddings.
 
