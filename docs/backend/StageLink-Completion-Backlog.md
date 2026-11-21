@@ -100,6 +100,7 @@ A checked box marks implemented backend code. Client wiring and hosted checks ha
 - [x] P16 Private provider verification submissions, administrative review and resubmission history.
 - [x] P16 Role-specific provider identity approval for sandbox payout and arbitration reservations.
 - [x] P16 Support tickets, member/staff replies, private notes, assignments and reopen history.
+- [x] P16 Bounded private support PDF attachments with rendered derivatives, case-bound staff access and revocable download capabilities.
 - [x] P16 Booking disputes, private evidence, audited dismissal and atomic arbitration reservations.
 - [x] P17 Durable 24-hour and 2-hour booking email reminder queue with audited controls.
 - [x] P17 In-app notifications, unread counts, read state and email reminder preferences.

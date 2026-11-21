@@ -18,10 +18,13 @@ test('image processing decodes actual bytes, re-encodes and rejects forged MIME 
  const huge=await sharp({create:{width:4001,height:4000,channels:3,background:'black'}}).png().toBuffer();await assert.rejects(deriveMedia(huge,'image/png'));
 });
 
-test('PDF uploads are limited to private verification and are rejected for other media purposes', () => {
+test('PDF uploads are limited to bounded private verification and support evidence', () => {
   const file = { filename: 'evidence.pdf', mime: 'application/pdf', bytes: 1000, sha256: '0'.repeat(64) };
-  assert.ok(upload.safeParse({ ...file, purpose: 'verification' }).success);
-  for (const purpose of ['portfolio', 'avatar', 'equipment', 'review', 'chat', 'support', 'inspection', 'evidence']) {
+  for (const purpose of ['verification', 'support']) {
+    assert.ok(upload.safeParse({ ...file, purpose }).success);
+    assert.equal(upload.safeParse({ ...file, purpose, bytes: 5 * 1024 * 1024 + 1 }).success, false);
+  }
+  for (const purpose of ['portfolio', 'avatar', 'equipment', 'review', 'chat', 'inspection', 'evidence']) {
     assert.equal(upload.safeParse({ ...file, purpose }).success, false);
   }
   assert.equal(upload.safeParse({ ...file, purpose: 'verification', bytes: 5 * 1024 * 1024 + 1 }).success, false);
