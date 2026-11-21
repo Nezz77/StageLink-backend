@@ -1,6 +1,6 @@
 # SMS contact verification and consent
 
-StageLink uses text.lk for verified SMS contacts, booking reminders and promotional campaigns. Booking and marketing consent are separate choices. Client controls and their Figma handoff remain open.
+StageLink uses text.lk for verified SMS contacts, booking reminders and promotional campaigns. Booking and marketing consent are separate choices. The web app supports opt-out. Contact enrollment, enabling consent, hosted browser testing and Figma updates remain open.
 
 ## Member flow
 
@@ -18,6 +18,8 @@ All routes require the current authenticated account. Mutations require the conf
 `POST /api/v1/me/sms-contact/opt-out` accepts `{channel: "booking"}`, `{channel: "marketing"}` or `{channel: "all"}`. It can only turn consent off, preserves the verified contact and pending number verification, and requires the current signed-in account, Origin, JSON and CSRF token. It needs no contact revision or verified email and makes no provider request. Repeated identical opt-outs return the same contact revision without duplicate consent events. An account without an SMS contact remains unchanged.
 
 Opt-out and number revocation remain available during read-only maintenance. The ordinary consent update, verification request and confirmation routes remain blocked by maintenance; the off-only endpoint cannot enable either channel or change another account. Email preferences are independent.
+
+The web app links to `/account/sms-preferences` from the marketplace footer and member profile when its API origin is configured. Members sign in to the backend account for this flow, see its masked contact and current choices, and can stop either type of text or both. Local tests verified each choice during maintenance, account isolation and sign-out. [Frontend setup and Figma handoff](https://github.com/Nezz77/StageLink/blob/frontend/FRONTEND_WORKFLOWS.md#sms-preferences).
 
 Changed choices, consent evidence and queued-message invalidation commit together under the account lock used by send claims. Marketing opt-out preserves booking SMS consent and eligible booking reminders. Booking opt-out preserves the marketing consent flag, but any contact revision change conservatively invalidates a previously reviewed campaign audience, as before. The existing `PUT /me/sms-contact/consent` now invalidates ineligible queued sends immediately too. Late scheduler inserts still undergo current-consent checks before a send can be claimed.
 

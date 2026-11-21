@@ -25,7 +25,7 @@ Full PayHere sandbox arbitration refunds and audited recovery are on `main`. Rec
 | 2 | Hosted payment verification, P11–P16 | Verify PayHere and Stripe test callbacks, retrieval and audited recovery with merchant accounts. Confirm Stripe LKR and Connect eligibility. Verify sandbox refunds, transfers, rental deductions and arbitration settlements with the supported routes. |
 | 3 | Remaining payment implementation, P12–P16 | Establish exact provider evidence for partial PayHere refunds, then implement supported reconciliation. Complete PayHere deduction, provider payout and fee settlement and manual bank payouts. Issue production documents and report live financial totals after confirming live settlements. |
 | 4 | AI and private evidence, P15–P16 | Smoke test hosted models, evaluate ranking against representative listings and event briefs, and verify private PDF access on staging storage. |
-| 5 | Hosted communication, P10 and P17 | Verify SMTP and SMS delivery, WebSocket upgrades and reconnect through the hosted proxy. Wire and verify member opt-out controls for promotional SMS. |
+| 5 | Hosted communication, P10 and P17 | Verify SMTP and SMS delivery, WebSocket upgrades and reconnect through the hosted proxy. Verify the member SMS opt-out flow on the hosted frontend and update its Figma screens. |
 | 6 | Frontend and release, all phases | Connect supported workflows in the frontend and update their Figma flows. Run staging end-to-end, access control, accessibility, load, backup restore and rollback checks. |
 
 ## Backend build order
@@ -115,6 +115,7 @@ A checked box marks implemented backend code. Client wiring and hosted checks ha
 - [x] P16 PayHere sandbox customer arbitration refunds for full captured card-payment allocations, with reconciliation, shared reserve settlement and participant status.
 - [ ] P16 Hosted verification PDF access, hosted arbitration execution verification, partial PayHere refund reconciliation, and PayHere provider payout and fee execution.
 - [x] P17 Maintenance-safe member SMS opt-out, transactional queue invalidation and consent audit records for number revocation.
+- [x] P17 Member web SMS preferences with backend sign-in and off-only controls for booking and promotional texts. [Frontend PR](https://github.com/Nezz77/StageLink/pull/1).
 - [x] P17 Database-clock reminder claims, recovery and SMS expiry/receipt timing, with forward/backward clock and lock-wait regressions.
 - [x] P17 SMS contact foundation: encrypted phone verification, explicit revisioned booking/marketing SMS consent, delivery status/reconciliation and masked history. Provider delivery defaults off.
 - [x] P17 Booking SMS reminder scheduling at 24 and 2 hours with current consent checks, a shared hourly send limit, delivery reconciliation and member history.
