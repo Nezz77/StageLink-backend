@@ -6578,6 +6578,7 @@ export interface operations {
                     body: string;
                     /** Format: uuid */
                     bookingId?: string;
+                    /** @description Owned ready support images or sanitized PDFs, at most five attachments. */
                     assetIds?: string[];
                 };
             };

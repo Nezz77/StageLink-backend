@@ -1892,7 +1892,7 @@
       "ui_coverage_ids": [
         "UI-043"
       ],
-      "remaining": "Add support notification events, realtime delivery, and private PDF attachments. Verify integration and frontend/Figma wiring."
+      "remaining": "Private support PDFs, staff-reply notifications and realtime inbox refresh are implemented. Add case-scoped realtime conversation refresh. Frontend/Figma wiring and hosted storage verification remain pending."
     },
     {
       "id": "BE-054",
