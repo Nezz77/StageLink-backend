@@ -1,8 +1,8 @@
 # StageLink backend
 
-Backend development uses `main` in [Nezz77/StageLink-backend](https://github.com/Nezz77/StageLink-backend). Push backend commits with `git push origin main`. The frontend repository is [Nezz77/StageLink](https://github.com/Nezz77/StageLink). See the [whole-backend plan](StageLink-Backend-Implementation-Plan.md), [backlog](backend-backlog.json), [coverage](UI-Backend-Coverage.csv), [foundation decisions](ADR-001-foundation.md), [account decisions](ADR-002-accounts.md), and [progress](PROGRESS.md).
+Backend development uses separate `backend/<task>` branches in [Nezz77/StageLink-backend](https://github.com/Nezz77/StageLink-backend), with draft pull requests targeting `main` for CI and review. Push the task branch; do not push task work directly to `main`. The current frontend checkout uses [Nezz77/StageLink-Frontend](https://github.com/Nezz77/StageLink-Frontend). See the [whole-backend plan](StageLink-Backend-Implementation-Plan.md), [backlog](backend-backlog.json), [coverage](UI-Backend-Coverage.csv), [foundation decisions](ADR-001-foundation.md), [account decisions](ADR-002-accounts.md), and [progress](PROGRESS.md).
 
-The API supports accounts, profile onboarding, payout destination review, media, artist gigs, and rental listings. Bookings, chat and payments are tracked in the backlog.
+The API supports accounts, onboarding, catalog and discovery, booking journeys, quotations, chat, private media, sandbox payment and settlement flows, documents, AI operations, support, notifications and administration. Backend implementation, frontend wiring and hosted verification have separate status entries in the completion backlog.
 
 ## Start locally
 

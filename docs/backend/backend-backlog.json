@@ -502,7 +502,7 @@
       "ui_coverage_ids": [
         "UI-002"
       ],
-      "remaining": "Verified rating filter and PostgreSQL integration."
+      "remaining": "The minimum-rating filter and local PostgreSQL HTTP coverage are implemented. Frontend/Figma wiring and hosted catalog verification remain pending."
     },
     {
       "id": "BE-013",
@@ -1412,7 +1412,7 @@
       "ui_coverage_ids": [
         "UI-029"
       ],
-      "remaining": "Run the isolated PostgreSQL API integration suite and connect the existing frontend flows and Figma design."
+      "remaining": "Local PostgreSQL HTTP integration covers this workflow. Connect the existing frontend and Figma flow and verify it against staging."
     },
     {
       "id": "BE-040",
@@ -1647,7 +1647,7 @@
       "ui_coverage_ids": [
         "UI-036"
       ],
-      "remaining": "Run the isolated PostgreSQL API integration suite and connect the existing frontend flows and Figma design."
+      "remaining": "Local PostgreSQL HTTP integration covers this workflow. Connect the existing frontend and Figma flow and verify it against staging."
     },
     {
       "id": "BE-047",
@@ -1892,7 +1892,7 @@
       "ui_coverage_ids": [
         "UI-043"
       ],
-      "remaining": "Private support PDFs, staff-reply notifications and realtime inbox refresh are implemented. Add case-scoped realtime conversation refresh. Frontend/Figma wiring and hosted storage verification remain pending."
+      "remaining": "Private support PDFs, case-scoped realtime refresh, owner reply notifications and eligible assignee alerts are implemented and locally integration-tested. Frontend/Figma wiring and hosted storage, queue and proxy verification remain pending."
     },
     {
       "id": "BE-054",
@@ -2134,7 +2134,7 @@
       "ui_coverage_ids": [
         "UI-050"
       ],
-      "remaining": "Run isolated HTTP integration and connect the frontend and Figma system controls."
+      "remaining": "Local HTTP integration covers maintenance, announcements and session revocation. Connect frontend/Figma system controls and verify the hosted behavior."
     },
     {
       "id": "BE-061",
@@ -2273,7 +2273,7 @@
       "ui_coverage_ids": [
         "UI-054"
       ],
-      "remaining": "Run PostgreSQL HTTP integration and wire the review-and-confirm flow in the frontend and Figma."
+      "remaining": "Local PostgreSQL HTTP integration is implemented. Wire the review-and-confirm flow in the frontend and Figma, then verify the hosted behavior."
     },
     {
       "id": "BE-065",
