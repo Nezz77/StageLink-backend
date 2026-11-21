@@ -8,7 +8,7 @@ import type { AuthService } from '../auth/service.js';
 import { rentalSpecs } from '../catalog/equipment-specs.js';
 import { schema } from '../payments/orders.js';
 import { ProfileService } from '../profiles/service.js';
-import { equipmentReferenceBundle, equipmentReferenceBundleDigest } from '../../../shared/equipment-reference-bundle.js';
+import { equipmentKey, equipmentReferenceBundle, equipmentReferenceBundleDigest } from '../../../shared/equipment-reference-bundle.js';
 
 const label = (max: number) => z.string().trim().min(1).max(max).refine(value => !value.includes('\0'));
 const modelName = label(120);
@@ -54,8 +54,6 @@ export const equipmentSuggestion = z.object({
   match: z.enum(['matched', 'unknown', 'ambiguous', 'withdrawn']),
   manufacturer: z.string().nullable(), model: z.string(), specs: factualSpecs, source: citation.nullable(),
 });
-
-export const equipmentKey = (value: string) => value.normalize('NFC').trim().replace(/\s+/gu, ' ').toLowerCase();
 
 function sameReference(row: EquipmentSpecSource, input: z.infer<typeof sourceInput>) {
   const saved = factualSpecs.safeParse(row.specs);
