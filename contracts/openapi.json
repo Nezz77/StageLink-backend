@@ -10521,6 +10521,189 @@
         ]
       }
     },
+    "/api/v1/admin/communications": {
+      "get": {
+        "operationId": "CommunicationsController_status",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "checkedAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    },
+                    "email": {
+                      "type": "object",
+                      "properties": {
+                        "bookingRemindersEnabled": {
+                          "type": "boolean"
+                        },
+                        "promotionalEnabled": {
+                          "type": "boolean"
+                        },
+                        "security": {
+                          "type": "string",
+                          "enum": [
+                            "implicit_tls",
+                            "starttls_required",
+                            "development"
+                          ]
+                        },
+                        "authenticationConfigured": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "bookingRemindersEnabled",
+                        "promotionalEnabled",
+                        "security",
+                        "authenticationConfigured"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "sms": {
+                      "type": "object",
+                      "properties": {
+                        "providerConfigured": {
+                          "type": "boolean"
+                        },
+                        "verificationEnabled": {
+                          "type": "boolean"
+                        },
+                        "bookingRemindersEnabled": {
+                          "type": "boolean"
+                        },
+                        "promotionalEnabled": {
+                          "type": "boolean"
+                        },
+                        "hourlyLimit": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "providerConfigured",
+                        "verificationEnabled",
+                        "bookingRemindersEnabled",
+                        "promotionalEnabled",
+                        "hourlyLimit"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "checkedAt",
+                    "email",
+                    "sms"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Communication readiness"
+        ]
+      }
+    },
+    "/api/v1/admin/communications/smtp-check": {
+      "post": {
+        "operationId": "CommunicationsController_smtp",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "connection": {
+                      "type": "string",
+                      "enum": [
+                        "ready",
+                        "unavailable"
+                      ]
+                    },
+                    "security": {
+                      "type": "string",
+                      "enum": [
+                        "implicit_tls",
+                        "starttls_required",
+                        "development"
+                      ]
+                    },
+                    "latencyMs": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "messageSent": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ]
+                    },
+                    "code": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "checkedAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    }
+                  },
+                  "required": [
+                    "connection",
+                    "security",
+                    "latencyMs",
+                    "messageSent",
+                    "code",
+                    "checkedAt"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Communication readiness"
+        ]
+      }
+    },
     "/api/v1/admin/sms-reminders": {
       "get": {
         "operationId": "SmsRemindersController_list",

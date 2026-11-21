@@ -933,6 +933,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/communications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["CommunicationsController_status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/communications/smtp-check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["CommunicationsController_smtp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/sms-reminders": {
         parameters: {
             query?: never;
@@ -7559,6 +7591,76 @@ export interface operations {
                         /** Format: date-time */
                         acceptedAt: string | null;
                         lastCode: string | null;
+                    };
+                };
+            };
+        };
+    };
+    CommunicationsController_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: date-time */
+                        checkedAt: string;
+                        email: {
+                            bookingRemindersEnabled: boolean;
+                            promotionalEnabled: boolean;
+                            /** @enum {string} */
+                            security: "implicit_tls" | "starttls_required" | "development";
+                            authenticationConfigured: boolean;
+                        };
+                        sms: {
+                            providerConfigured: boolean;
+                            verificationEnabled: boolean;
+                            bookingRemindersEnabled: boolean;
+                            promotionalEnabled: boolean;
+                            hourlyLimit: number;
+                        };
+                    };
+                };
+            };
+        };
+    };
+    CommunicationsController_smtp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        connection: "ready" | "unavailable";
+                        /** @enum {string} */
+                        security: "implicit_tls" | "starttls_required" | "development";
+                        latencyMs: number;
+                        /** @enum {boolean} */
+                        messageSent: false;
+                        code: string | null;
+                        /** Format: date-time */
+                        checkedAt: string;
                     };
                 };
             };

@@ -17,6 +17,7 @@
     "db:generate": "prisma generate --schema prisma/schema.prisma",
     "db:migrate": "prisma migrate deploy --schema prisma/schema.prisma",
     "contracts": "npm run build && node dist/scripts/openapi.js && openapi-typescript ../contracts/openapi.json -o ../packages/contracts/src/api.d.ts",
+    "communications:check": "node dist/scripts/communications-smoke.js",
     "payments:smoke": "node dist/scripts/payment-smoke.js",
     "ai:smoke": "node dist/scripts/ai-model-smoke.js",
     "equipment:coverage": "node dist/scripts/equipment-reference-coverage.js",

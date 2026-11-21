@@ -372,6 +372,16 @@ Financial activity uses the journal posting date and accepts `currency=LKR` and 
 
 Sandbox `settled.paidOutMinor` and `settled.feeRevenueMinor` report net bank payouts and platform fees from posted Stripe test bank settlement journals. A compensating journal reduces the totals on its own posting date, so a day or period can show a negative amount. An empty sandbox period reports zero. Provider reports include only their own bookings. Live financial activity and settlement amounts return `null` pending supported provider execution.
 
+## Communication readiness
+
+Verified administrators use `GET /api/v1/admin/communications` for delivery-enabled flags, SMTP security mode and SMS provider configuration presence. The response omits credentials, relay host, sender identity and recipient details.
+
+`POST /api/v1/admin/communications/smtp-check` accepts `{}` with the configured Origin and CSRF token and requires a sign-in within 15 minutes. It checks the deployment's configured SMTP relay using Nodemailer's connection verification, closes the transport, and returns a normalized connection result, security mode, latency and database timestamp with `messageSent: false`. It does not submit email, select recipients or accept arbitrary relay settings. Failures omit private provider replies. Checks are limited to three per administrator per five minutes and twenty per deployment per minute. The endpoint remains available during maintenance.
+
+After building the backend, set `STAGELINK_SMOKE_ORIGIN` and `STAGELINK_SMOKE_WEB_ORIGIN` to the staging HTTPS origins, then run `npm --prefix backend run --silent communications:check` with a recently signed-in administrator `{accessToken, csrfToken}` JSON object piped from a protected source to stdin. Do not put tokens in shell arguments. The command checks API readiness, secure SMTP connection and the email/SMS reminder queue APIs. It returns sanitized check names/results and sets a failing exit status for missing access, connection failure, plaintext development SMTP, malformed responses or inconsistent queue flags.
+
+This checks connection readiness, not sender authorization or recipient deliverability. See [Nodemailer SMTP verification](https://nodemailer.com/smtp). SMS provider delivery, actual email delivery, TLS/authentication against the hosted relay, and frontend/Figma controls still need staging verification. No live messages are sent by this command.
+
 ## SMS contact verification
 
 `SMS_VERIFICATION_ENABLED` enables contact verification and `BOOKING_SMS_REMINDERS` enables 24-hour and 2-hour reminders for opted-in verified contacts. Both settings default to false and share `SMS_HOURLY_LIMIT`. Members read delivery status at `GET /api/v1/me/booking-sms-reminders`. [SMS verification and booking reminders](SMS-Contact-Verification.md).
