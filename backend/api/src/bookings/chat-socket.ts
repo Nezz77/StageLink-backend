@@ -1,3 +1,4 @@
+import { canReadSupport, supportSignals, type SupportChange } from '../support/realtime.js';
 import type { Server as HttpServer } from 'node:http';
 import { Server, type Socket } from 'socket.io';
 import { z } from 'zod';
@@ -14,6 +15,7 @@ const interval = 15_000;
 const bookingId = z.uuid().transform(id => id.toLowerCase());
 const roomInput = z.object({ bookingId }).strict();
 const writeInput = roomInput.extend({ data: z.unknown() });
+const supportRoomInput = z.object({ caseId: z.uuid().transform(id => id.toLowerCase()) }).strict();
 const empty = z.object({}).strict();
 const typingInput = roomInput.extend({ typing: z.boolean() });
 
@@ -44,6 +46,7 @@ export function attachBookingChat(server: HttpServer, auth: AuthService, chat: B
   });
   const room = (id: string) => 'booking:' + id;
   const inboxRoom = (id: string) => 'notifications:' + id;
+  const supportRoom = (id: string) => 'support:' + id;
   const credentials = new WeakMap<Socket, string>();
 
   async function authenticate(socket: Socket) {
@@ -69,7 +72,7 @@ export function attachBookingChat(server: HttpServer, auth: AuthService, chat: B
     next(Object.assign(new Error('Sign in to use booking chat.'), { data: { code: 'UNAUTHORIZED' } }));
   });
 
-  async function deliver(roomName: string, send: (socket: Socket, identity: Identity) => void, skip?: Socket) {
+  async function deliver(roomName: string, send: (socket: Socket, identity: Identity) => unknown, skip?: Socket) {
     const sockets = io.sockets.adapter.rooms.get(roomName);
     if (!sockets) return;
     await Promise.all([...sockets].map(async id => {
@@ -77,7 +80,7 @@ export function attachBookingChat(server: HttpServer, auth: AuthService, chat: B
       if (!socket || socket === skip) return;
       try {
         const identity = await authenticate(socket);
-        if (socket.connected && socket.rooms.has(roomName)) send(socket, identity);
+        if (socket.connected && socket.rooms.has(roomName)) await send(socket, identity);
       } catch (error) {
         if (!(error instanceof PublicError)) log('chat.delivery_failed', { code: 'CHAT_UNAVAILABLE' });
       }
@@ -93,6 +96,16 @@ export function attachBookingChat(server: HttpServer, auth: AuthService, chat: B
     }
   }
 
+  function deliverSupport(change: SupportChange) {
+    void deliver(supportRoom(change.caseId), async (socket, actor) => {
+      if (await canReadSupport(auth.deps.db, actor, change.caseId, change.staffOnly)) {
+        if (socket.connected && socket.rooms.has(supportRoom(change.caseId))) socket.emit('support:changed', { caseId: change.caseId });
+      } else if (!await canReadSupport(auth.deps.db, actor, change.caseId)) {
+        await socket.leave(supportRoom(change.caseId));
+      }
+    });
+  }
+  const support = supportSignals(auth.deps.redis, auth.config.AUTH_RATE_PREFIX, deliverSupport);
   const bookingSignals = bookingChatSignals(auth.deps.redis, auth.config.AUTH_RATE_PREFIX, deliverBooking);
   const inbox = subscribeToNotificationChanges(auth.deps.redis, userIds => {
     for (const userId of userIds) {
@@ -166,6 +179,25 @@ export function attachBookingChat(server: HttpServer, auth: AuthService, chat: B
       }
       return { bookingId };
     });
+    handle('support:join', async (actor, raw) => {
+      const { caseId } = parse(supportRoomInput, raw);
+      if (!await canReadSupport(auth.deps.db, actor, caseId)) {
+        throw new PublicError(404, 'SUPPORT_CASE_NOT_FOUND', 'This support case is unavailable.');
+      }
+      try { await support.start(); }
+      catch { throw new PublicError(503, 'SUPPORT_UNAVAILABLE', 'Live support updates are temporarily unavailable.'); }
+      const inboxCount = Number(socket.rooms.has(inboxRoom(actor.user.id)));
+      if (socket.rooms.size > maxRooms + inboxCount && !socket.rooms.has(supportRoom(caseId))) {
+        throw new PublicError(429, 'CHAT_ROOM_LIMIT', 'Leave another conversation first.');
+      }
+      if (socket.connected) await socket.join(supportRoom(caseId));
+      return { caseId };
+    });
+    handle('support:leave', async (_actor, raw) => {
+      const { caseId } = parse(supportRoomInput, raw);
+      await socket.leave(supportRoom(caseId));
+      return { caseId };
+    });
     handle('notifications:subscribe', async (actor, raw) => {
       parse(empty, raw);
       try { await inbox.start(); }
@@ -197,7 +229,12 @@ export function attachBookingChat(server: HttpServer, auth: AuthService, chat: B
       deliverBooking(change);
       void bookingSignals.publish(change);
     },
+    notifySupport(change: SupportChange) {
+      deliverSupport(change);
+      void support.publish(change);
+    },
     close() {
+      support.close();
       stopped = true;
       clearInterval(timer);
       bookingSignals.close();

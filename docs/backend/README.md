@@ -314,6 +314,8 @@ Run `npm run build` from `backend/` and then `npm run --silent verification:smok
 
 ## Support cases
 
+See [live support refresh](Support-Realtime.md) for case subscriptions, member/staff visibility and reconnect recovery.
+
 Members create and read their own cases through `POST /api/v1/cases` and `GET /api/v1/me/cases`. Use the case replies endpoint for the shared conversation. Administrators use `/api/v1/admin/cases` for the queue, replies, private notes, assignment and status changes. Validated private images and PDFs use upload purpose `support`. PDFs are limited to 5 MiB and one to eight unencrypted pages. The worker renders and rebuilds the file; downloads expose only the sanitized derivative and use the fixed name `support-attachment.pdf`. The owner can read their library file, and a verified active administrator gains access only after it is attached to a support case. Existing download grants recheck the session and case binding. Original quarantined files are not downloadable. Frontend attachment controls and Figma updates remain pending.
 
 ## Realtime booking chat

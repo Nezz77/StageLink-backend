@@ -1,3 +1,5 @@
+import type { SupportChange } from './realtime.js';
+import { log } from '../../../shared/log.js';
 import { notifyUsers } from '../../../shared/notifications.js';
 import { Body, Controller, Get, HttpCode, Param, Post, Query, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
@@ -65,20 +67,21 @@ function missing(): never {
   throw new PublicError(404, 'SUPPORT_CASE_NOT_FOUND', 'This support case is unavailable.');
 }
 
-export function makeSupportController(auth: AuthService) {
+export function makeSupportController(auth: AuthService, notify?: (change: SupportChange) => void) {
   const db = auth.deps.db;
   const profiles = new ProfileService(auth);
   const identity = (req: Request) => auth.authenticate(req.get('Authorization'));
 
   async function write<T>(
     req: Request, staff: boolean, work: (tx: Prisma.TransactionClient, actorId: string) => Promise<T>,
+    change?: SupportChange,
   ) {
     if (req.get('Origin') !== auth.config.WEB_ORIGIN || req.get('Sec-Fetch-Site') === 'cross-site' || !req.is('application/json')) {
       throw new PublicError(403, 'ORIGIN_REJECTED', 'Open StageLink in its own browser tab and try again.');
     }
     const actor = await identity(req);
     profiles.checkCsrf(actor, req.get('X-CSRF-Token'));
-    return db.$transaction(async tx => {
+    const result = await db.$transaction(async tx => {
       const current = await profiles.actor(tx, actor, undefined, staff);
       profiles.verified(current);
       if (!staff && !current.user.roles.some(role => role !== 'admin')) {
@@ -86,6 +89,10 @@ export function makeSupportController(auth: AuthService) {
       }
       return work(tx, current.user.id);
     });
+    if (change) {
+      try { notify?.(change); } catch { log('support.signal_failed', { code: 'SIGNAL_UNAVAILABLE' }); }
+    }
+    return result;
   }
 
   async function getCase(tx: Prisma.TransactionClient, id: string, ownerId?: string) {
@@ -144,7 +151,7 @@ export function makeSupportController(auth: AuthService) {
       const entry = await tx.supportEntry.create({ data: { ...key, kind, staff, body: input.body } });
       if (staff && kind === 'reply') await notifyUsers(tx, [row.ownerId], 'support', row.id, String(entry.id));
       return entry;
-    });
+    }, { caseId, staffOnly: kind === 'note' });
   }
 
   @ApiTags('Support cases')
@@ -283,7 +290,7 @@ export function makeSupportController(auth: AuthService) {
             entries: { create: { kind: 'status', staff: true, status: input.status, revision: row.revision + 1, actorId, body: input.reason } },
           }, include: { attachments },
         }));
-      });
+      }, { caseId: id, staffOnly: false });
     }
 
     @Post('admin/cases/:id/assignment')
@@ -308,7 +315,7 @@ export function makeSupportController(auth: AuthService) {
             entries: { create: { kind: 'assignment', staff: true, assigneeId, revision: row.revision + 1, actorId, body: input.reason } },
           }, include: { attachments },
         }));
-      });
+      }, { caseId: id, staffOnly: true });
     }
   }
   return SupportController;
