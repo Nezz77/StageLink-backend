@@ -5,6 +5,7 @@ import { SignJWT } from 'jose';
 import { io, type Socket } from 'socket.io-client';
 import { createApp } from '../api/src/app.js';
 import { csrfFor } from '../api/src/auth/security.js';
+import { runChatWebSocketSmoke } from '../scripts/chat-websocket-smoke.js';
 import { readConfig } from '../shared/config.js';
 import { publishNotificationChange } from '../shared/notification-signals.js';
 import { notifyUsers } from '../shared/notifications.js';
@@ -90,6 +91,12 @@ test('booking chat and notifications cross API replicas while enforcing particip
       holdExpiresAt: startsAt, snapshot: {},
     } });
     bookingId = booking.id;
+    const smoke = await runChatWebSocketSmoke({
+      origin: base, webOrigin: config.WEB_ORIGIN, bookingId,
+      sessions: { sender: customer.accessToken, receiver: provider.accessToken },
+    });
+    assert.equal(smoke.passed, true, JSON.stringify(smoke));
+
     for (const socket of [client('invalid'), client(customer.accessToken, 'https://untrusted.example')]) {
       const rejected = next(socket, 'connect_error');
       socket.connect();

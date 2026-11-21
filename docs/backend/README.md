@@ -320,6 +320,10 @@ Join as a booking participant before sending, reading or publishing typing state
 
 When an access token expires, reconnect with a refreshed token and rejoin the conversation. A revoked session is rejected. Forward WebSocket upgrades through the proxy. Replicas that share PostgreSQL and Redis must use the same Redis database and `AUTH_RATE_PREFIX` for booking fanout. Redis relays booking IDs and event references, while each replica checks active sessions before delivering to its local rooms. If a relay signal is missed, recover the conversation through the REST history endpoint.
 
+To check the hosted proxy, use a disposable staging booking that permits chat and has two separate test participants. Set `STAGELINK_SMOKE_ORIGIN` to the API HTTPS origin behind the proxy, `STAGELINK_SMOKE_WEB_ORIGIN` to the configured web HTTPS origin and `STAGELINK_SMOKE_BOOKING_ID` to the fixture booking ID. From `backend/`, run `npm run build` and then `npm run --silent chat:smoke`, piping a JSON object with `sender` and `receiver` access tokens through protected stdin.
+
+The check writes three synthetic messages to the fixture conversation. It opens two WebSocket connections, verifies live delivery, disconnects one participant while a message is saved, then reconnects and rejoins that participant. It verifies the missed message through cursor-based REST history and confirms live delivery resumes. It reports check outcomes without printing tokens, booking IDs, message IDs or bodies. A failed check exits with a nonzero status.
+
 ## Booking disputes
 
 Booking participants can open a dispute at `POST /api/v1/bookings/:id/disputes` and attach private images uploaded with purpose `evidence`. Administrators review the case and eligible service balance under `/api/v1/admin/disputes`. A dismissal releases the dispute hold. A financial decision requires the reviewed balance and reserves the sandbox refund, fee and provider amounts atomically. `GET /api/v1/arbitrations/:id` reports execution as `awaiting_gateway`, `settled` or `review_required`, with the related `payoutId` when reserved.
