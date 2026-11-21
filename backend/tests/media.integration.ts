@@ -64,7 +64,7 @@ test('persistent private uploads, real derivatives, publication, capabilities, r
   await call(`me/portfolio/${p.id}/submit`,{revision:p.revision},a);const pending=await deps.db.portfolioItem.findUniqueOrThrow({where:{id:p.id}});
   assert.equal((await call('admin/media',undefined,a)).status,403);assert.ok((await call('admin/media',undefined,admin)).data.items.some((x:any)=>x.id===p.id));
   const decision={revision:pending.revision,approved:true,reason:'Integration review checked the submitted fixture media'};
-  await deps.db.authUser.update({where:{id:a.user.id},data:{roles:['customer','artist','admin']}});await deps.db.authSession.updateMany({where:{userId:a.user.id},data:{activeRole:'admin'}});
+  await deps.db.authUser.update({where:{id:a.user.id},data:{roles:{push:'admin'}}});await deps.db.authSession.updateMany({where:{userId:a.user.id},data:{activeRole:'admin'}});
   assert.equal((await call(`admin/media/${p.id}/decision`,decision,a)).status,403);await deps.db.authSession.updateMany({where:{userId:a.user.id},data:{activeRole:'artist'}});
   const decisions=await Promise.all([call(`admin/media/${p.id}/decision`,decision,admin),call(`admin/media/${p.id}/decision`,decision,admin)]);assert.deepEqual(decisions.map(x=>x.status).sort(),[200,409]);
   assert.equal((await call(`public/providers/${a.user.id}/artist/media`)).status,404,'Provider profile must also be approved');
