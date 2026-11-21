@@ -8,6 +8,7 @@ import { createApp } from '../api/src/app.js';
 import { csrfFor } from '../api/src/auth/security.js';
 import { readConfig } from '../shared/config.js';
 import { resources } from '../shared/resources.js';
+import { runAiModelSmoke } from '../scripts/ai-model-smoke.js';
 
 const baseConfig = readConfig();
 if (baseConfig.NODE_ENV !== 'test' || !new URL(baseConfig.DATABASE_URL).pathname.endsWith('_test')) {
@@ -21,6 +22,12 @@ test('model previews require opt-in, obey the shared budget and record usage aga
   const models = [model, fallbackModel];
   const requests: { credential?: string; key: string; template: string; fields: Record<string, string> }[] = [];
   const service = createServer(async (req, res) => {
+    if (req.url === '/health/ready') {
+      res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({
+        status: 'ready', service: 'fixture-ai', version: '0.1.0', capabilities: ['prompt-preview'],
+      }));
+      return;
+    }
     let body = '';
     for await (const chunk of req) body += chunk.toString();
     requests.push({ credential: req.headers.authorization, ...JSON.parse(body) });
@@ -41,7 +48,7 @@ test('model previews require opt-in, obey the shared budget and record usage aga
   const config = {
     ...baseConfig, AUTH_RATE_PREFIX: 'ai-preview-test-' + randomUUID(),
     AI_SERVICE_ORIGIN: 'http://127.0.0.1:' + (service.address() as AddressInfo).port,
-    AI_INTERNAL_TOKEN: token, AI_PREVIEW_DAILY_LIMIT: 2,
+    AI_INTERNAL_TOKEN: token, AI_PREVIEW_DAILY_LIMIT: 3,
   };
   const deps = resources(config);
   const { app } = await createApp(config, deps);
@@ -84,10 +91,6 @@ test('model previews require opt-in, obey the shared budget and record usage aga
 
     const inline = 'Draft {{artist_name}} in {{genres}} for {{event_type}}.';
     assert.equal((await preview({ generate: true, body: inline })).data.modelStatus, 'succeeded');
-    const overBudget = await preview({ generate: true });
-    assert.equal(overBudget.status, 429);
-    assert.equal(requests.length, 2);
-
     const observed = await deps.db.aiModelCall.findMany({ where: { model: { in: models } } });
     assert.deepEqual(observed.map(row => ({
       provider: row.provider, outcome: row.outcome, source: row.promptSource,
@@ -97,6 +100,18 @@ test('model previews require opt-in, obey the shared budget and record usage aga
       { provider: 'openai', outcome: 'failed', source: 'inline', version: null, key: 'bio', tokens: null },
       { provider: 'openai', outcome: 'succeeded', source: 'published', version: active.version, key: 'bio', tokens: 120 },
     ]);
+
+    const smoke = await runAiModelSmoke({
+      origin: base, webOrigin: config.WEB_ORIGIN,
+      session: { accessToken, csrfToken: headers['X-CSRF-Token'] },
+    });
+    assert.equal(smoke.passed, true, JSON.stringify(smoke));
+    assert.equal(smoke.checks.length, 4);
+    assert.doesNotMatch(JSON.stringify(smoke), /A biography draft\.|Fixture Jazz Ensemble|fixture-/);
+
+    const overBudget = await preview({ generate: true });
+    assert.equal(overBudget.status, 429);
+    assert.equal(requests.length, 3);
   } finally {
     try {
       await deps.db.aiModelCall.deleteMany({ where: { model: { in: models } } });
