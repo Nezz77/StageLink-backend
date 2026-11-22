@@ -105,6 +105,7 @@ A checked box marks implemented backend code. Client wiring and hosted checks ha
 - [x] P16 Booking disputes, private evidence, audited dismissal and atomic arbitration reservations.
 - [x] P17 Durable 24-hour and 2-hour booking email reminder queue with audited controls.
 - [x] P17 In-app notifications, unread counts, read state and email reminder preferences.
+- [x] P17 Durable support assignment and member-reply alerts for the eligible current assignee, with duplicate and confidential-content protection. [Workflow](Support-Assignee-Notifications.md).
 - [x] P17 Account-scoped realtime inbox refresh signals after notification creation or read-state changes.
 - [x] P17 Read-only maintenance mode, public announcement controls, scoped cache invalidation, session revocation and operations audit.
 - [x] P17 Promotional email opt-in, campaign drafts, verified audience preview, scheduling and cancellation.
