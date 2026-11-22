@@ -7291,7 +7291,8 @@
                       "type": "string",
                       "format": "uuid",
                       "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                    }
+                    },
+                    "description": "Owned ready support images or sanitized PDFs, at most five attachments."
                   }
                 },
                 "required": [
@@ -49574,6 +49575,216 @@
         ],
         "tags": [
           "Payment orders"
+        ]
+      }
+    },
+    "/api/v1/payments/capabilities": {
+      "get": {
+        "operationId": "PaymentCapabilitiesController_read",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "checkedAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    },
+                    "environment": {
+                      "type": "string",
+                      "enum": [
+                        "sandbox"
+                      ]
+                    },
+                    "currency": {
+                      "type": "string",
+                      "enum": [
+                        "LKR"
+                      ]
+                    },
+                    "liveMoneyMovementEnabled": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ]
+                    },
+                    "merchantEligibilityChecked": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ]
+                    },
+                    "bookingEligibilityChecked": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ]
+                    },
+                    "account": {
+                      "type": "object",
+                      "properties": {
+                        "customerMembership": {
+                          "type": "boolean"
+                        },
+                        "emailVerified": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "customerMembership",
+                        "emailVerified"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "checkout": {
+                      "type": "object",
+                      "properties": {
+                        "requiresEligiblePaymentOrder": {
+                          "type": "boolean",
+                          "enum": [
+                            true
+                          ]
+                        },
+                        "gateways": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "gateway": {
+                                "type": "string",
+                                "enum": [
+                                  "stripe",
+                                  "payhere"
+                                ]
+                              },
+                              "mode": {
+                                "type": "string",
+                                "enum": [
+                                  "test",
+                                  "sandbox"
+                                ]
+                              },
+                              "configured": {
+                                "type": "boolean"
+                              },
+                              "availableToAccount": {
+                                "type": "boolean"
+                              },
+                              "unavailableReasons": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "enum": [
+                                    "GATEWAY_NOT_CONFIGURED",
+                                    "EMAIL_VERIFICATION_REQUIRED",
+                                    "CUSTOMER_MEMBERSHIP_REQUIRED"
+                                  ]
+                                }
+                              }
+                            },
+                            "required": [
+                              "gateway",
+                              "mode",
+                              "configured",
+                              "availableToAccount",
+                              "unavailableReasons"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "requiresEligiblePaymentOrder",
+                        "gateways"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "adminExecution": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "stripeTestRefundsEnabled": {
+                          "type": "boolean"
+                        },
+                        "stripeTestTransfersEnabled": {
+                          "type": "boolean"
+                        },
+                        "payhereFullSandboxRefundsEnabled": {
+                          "type": "boolean"
+                        },
+                        "payherePartialSandboxRefundsEnabled": {
+                          "type": "boolean",
+                          "enum": [
+                            false
+                          ]
+                        },
+                        "payhereProviderPayoutsEnabled": {
+                          "type": "boolean",
+                          "enum": [
+                            false
+                          ]
+                        },
+                        "manualBankPayoutsEnabled": {
+                          "type": "boolean",
+                          "enum": [
+                            false
+                          ]
+                        },
+                        "productionDocumentsEnabled": {
+                          "type": "boolean",
+                          "enum": [
+                            false
+                          ]
+                        },
+                        "liveFinancialTotalsEnabled": {
+                          "type": "boolean",
+                          "enum": [
+                            false
+                          ]
+                        }
+                      },
+                      "required": [
+                        "stripeTestRefundsEnabled",
+                        "stripeTestTransfersEnabled",
+                        "payhereFullSandboxRefundsEnabled",
+                        "payherePartialSandboxRefundsEnabled",
+                        "payhereProviderPayoutsEnabled",
+                        "manualBankPayoutsEnabled",
+                        "productionDocumentsEnabled",
+                        "liveFinancialTotalsEnabled"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "checkedAt",
+                    "environment",
+                    "currency",
+                    "liveMoneyMovementEnabled",
+                    "merchantEligibilityChecked",
+                    "bookingEligibilityChecked",
+                    "account",
+                    "checkout",
+                    "adminExecution"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Payment configuration capabilities"
         ]
       }
     },

@@ -1,3 +1,5 @@
+import type { SupportChange } from './realtime.js';
+import { log } from '../../../shared/log.js';
 import { notifyUsers } from '../../../shared/notifications.js';
 import { Body, Controller, Get, HttpCode, Param, Post, Query, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
@@ -18,7 +20,7 @@ const subject = z.string().trim().min(3).max(140);
 const message = z.string().trim().min(1).max(2000);
 const create = z.object({
   requestKey: uuid, subject, body: message.min(20), bookingId: uuid.optional(),
-  assetIds: z.array(uuid).max(5).refine(ids => new Set(ids.map(id => id.toLowerCase())).size === ids.length).optional(),
+  assetIds: z.array(uuid).max(5).refine(ids => new Set(ids.map(id => id.toLowerCase())).size === ids.length).describe('Owned ready support images or sanitized PDFs, at most five attachments.').optional(),
 }).strict();
 const reply = z.object({ requestKey: uuid, body: message }).strict();
 const update = z.object({ expectedRevision: revision.max(2_147_483_646), reason: message.min(10) }).strict();
@@ -65,20 +67,21 @@ function missing(): never {
   throw new PublicError(404, 'SUPPORT_CASE_NOT_FOUND', 'This support case is unavailable.');
 }
 
-export function makeSupportController(auth: AuthService) {
+export function makeSupportController(auth: AuthService, notify?: (change: SupportChange) => void) {
   const db = auth.deps.db;
   const profiles = new ProfileService(auth);
   const identity = (req: Request) => auth.authenticate(req.get('Authorization'));
 
   async function write<T>(
     req: Request, staff: boolean, work: (tx: Prisma.TransactionClient, actorId: string) => Promise<T>,
+    change?: SupportChange,
   ) {
     if (req.get('Origin') !== auth.config.WEB_ORIGIN || req.get('Sec-Fetch-Site') === 'cross-site' || !req.is('application/json')) {
       throw new PublicError(403, 'ORIGIN_REJECTED', 'Open StageLink in its own browser tab and try again.');
     }
     const actor = await identity(req);
     profiles.checkCsrf(actor, req.get('X-CSRF-Token'));
-    return db.$transaction(async tx => {
+    const result = await db.$transaction(async tx => {
       const current = await profiles.actor(tx, actor, undefined, staff);
       profiles.verified(current);
       if (!staff && !current.user.roles.some(role => role !== 'admin')) {
@@ -86,6 +89,10 @@ export function makeSupportController(auth: AuthService) {
       }
       return work(tx, current.user.id);
     });
+    if (change) {
+      try { notify?.(change); } catch { log('support.signal_failed', { code: 'SIGNAL_UNAVAILABLE' }); }
+    }
+    return result;
   }
 
   async function getCase(tx: Prisma.TransactionClient, id: string, ownerId?: string) {
@@ -128,6 +135,15 @@ export function makeSupportController(auth: AuthService) {
     }, { isolationLevel: 'RepeatableRead' });
   }
 
+  async function notifyAssignee(tx: Prisma.TransactionClient, row: SupportCase, actorId: string, eventKey: string) {
+    if (!row.assigneeId || row.assigneeId === actorId) return;
+    const assignee = await tx.authUser.findFirst({
+      where: { id: row.assigneeId, roles: { has: 'admin' }, disabledAt: null, emailVerifiedAt: { not: null } },
+      select: { id: true },
+    });
+    if (assignee) await notifyUsers(tx, [assignee.id], 'support', row.id, eventKey);
+  }
+
   async function addMessage(req: Request, id: string, input: z.infer<typeof reply>, staff: boolean, kind: 'reply' | 'note') {
     const caseId = parse(uuid, id);
     return write(req, staff, async (tx, actorId) => {
@@ -143,8 +159,9 @@ export function makeSupportController(auth: AuthService) {
       if (kind === 'reply' && row.status === 'resolved') throw new PublicError(409, 'SUPPORT_CASE_RESOLVED', 'Reopen this case before replying.');
       const entry = await tx.supportEntry.create({ data: { ...key, kind, staff, body: input.body } });
       if (staff && kind === 'reply') await notifyUsers(tx, [row.ownerId], 'support', row.id, String(entry.id));
+      if (!staff && kind === 'reply') await notifyAssignee(tx, row, actorId, 'member-reply:' + entry.id);
       return entry;
-    });
+    }, { caseId, staffOnly: kind === 'note' });
   }
 
   @ApiTags('Support cases')
@@ -173,8 +190,9 @@ export function makeSupportController(auth: AuthService) {
         for (const assetId of [...assetIds].sort()) {
           await tx.$queryRaw`SELECT id FROM assets WHERE id=${assetId}::uuid FOR UPDATE`;
           const asset = await tx.asset.findFirst({ where: { id: assetId, ownerId, purpose: 'support', status: 'ready' }, select: { variants: true } });
-          if ((asset?.variants as { display?: { mime?: string } } | undefined)?.display?.mime !== 'image/webp') {
-            throw new PublicError(409, 'SUPPORT_ATTACHMENT_UNAVAILABLE', 'Choose validated private support images.');
+          const displayMime = (asset?.variants as { display?: { mime?: string } } | undefined)?.display?.mime;
+          if (!displayMime || !['image/webp', 'application/pdf'].includes(displayMime)) {
+            throw new PublicError(409, 'SUPPORT_ATTACHMENT_UNAVAILABLE', 'Choose validated private support images or PDFs.');
           }
         }
         return presentCase(await tx.supportCase.create({
@@ -282,7 +300,7 @@ export function makeSupportController(auth: AuthService) {
             entries: { create: { kind: 'status', staff: true, status: input.status, revision: row.revision + 1, actorId, body: input.reason } },
           }, include: { attachments },
         }));
-      });
+      }, { caseId: id, staffOnly: false });
     }
 
     @Post('admin/cases/:id/assignment')
@@ -301,13 +319,15 @@ export function makeSupportController(auth: AuthService) {
         if (assigneeId && !await tx.authUser.findFirst({
           where: { id: assigneeId, roles: { has: 'admin' }, disabledAt: null, emailVerifiedAt: { not: null } },
         })) throw new PublicError(409, 'SUPPORT_ASSIGNEE_UNAVAILABLE', 'Choose an active administrator.');
-        return presentStaffCase(await tx.supportCase.update({
+        const assigned = await tx.supportCase.update({
           where: { id }, data: {
             assigneeId, revision: { increment: 1 },
             entries: { create: { kind: 'assignment', staff: true, assigneeId, revision: row.revision + 1, actorId, body: input.reason } },
           }, include: { attachments },
-        }));
-      });
+        });
+        await notifyAssignee(tx, assigned, actorId, 'assignment:' + assigned.revision);
+        return presentStaffCase(assigned);
+      }, { caseId: id, staffOnly: true });
     }
   }
   return SupportController;

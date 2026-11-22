@@ -47,6 +47,7 @@ A checked box marks implemented backend code. Client wiring and hosted checks ha
 - [ ] P10 Verify the WebSocket upgrade and reconnect paths on the hosted proxy.
 - [x] P11 financial journal foundation. Balanced immutable postings, duplicate command protection, and atomic available-to-reserved fund transfers.
 - [x] P11 server-priced advance and deposit orders with participant-only status reads.
+- [x] P11 Account-scoped payment configuration capabilities, explicit sandbox and unsupported-route flags, and sanitized administrator execution settings. [Contract guide](Payment-Capabilities.md).
 - [x] P11 PayHere sandbox hosted checkout and signed notification intake for advances and deposits.
 - [x] P11 Stripe test-mode hosted Checkout and signed notification intake for advances and deposits.
 - [x] P11 Administrator read-only checkout reconciliation using Stripe test Checkout retrieval and PayHere sandbox Merchant API evidence.
@@ -99,9 +100,12 @@ A checked box marks implemented backend code. Client wiring and hosted checks ha
 - [x] P16 Private provider verification submissions, administrative review and resubmission history.
 - [x] P16 Role-specific provider identity approval for sandbox payout and arbitration reservations.
 - [x] P16 Support tickets, member/staff replies, private notes, assignments and reopen history.
+- [x] P16 Bounded private support PDF attachments with rendered derivatives, case-bound staff access and revocable download capabilities.
+- [x] P16 Case-scoped live support refresh across API replicas, with private staff-event filtering and REST reconnect recovery. [Protocol](Support-Realtime.md).
 - [x] P16 Booking disputes, private evidence, audited dismissal and atomic arbitration reservations.
 - [x] P17 Durable 24-hour and 2-hour booking email reminder queue with audited controls.
 - [x] P17 In-app notifications, unread counts, read state and email reminder preferences.
+- [x] P17 Durable support assignment and member-reply alerts for the eligible current assignee, with duplicate and confidential-content protection. [Workflow](Support-Assignee-Notifications.md).
 - [x] P17 Account-scoped realtime inbox refresh signals after notification creation or read-state changes.
 - [x] P17 Read-only maintenance mode, public announcement controls, scoped cache invalidation, session revocation and operations audit.
 - [x] P17 Promotional email opt-in, campaign drafts, verified audience preview, scheduling and cancellation.

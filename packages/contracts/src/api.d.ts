@@ -3269,6 +3269,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/payments/capabilities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["PaymentCapabilitiesController_read"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/payment-orders/{id}/reconciliation": {
         parameters: {
             query?: never;
@@ -6578,6 +6594,7 @@ export interface operations {
                     body: string;
                     /** Format: uuid */
                     bookingId?: string;
+                    /** @description Owned ready support images or sanitized PDFs, at most five attachments. */
                     assetIds?: string[];
                 };
             };
@@ -19913,6 +19930,70 @@ export interface operations {
                         status: "open" | "pending" | "failed" | "cancelled" | "paid" | "review";
                         /** Format: date-time */
                         createdAt: string;
+                    };
+                };
+            };
+        };
+    };
+    PaymentCapabilitiesController_read: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: date-time */
+                        checkedAt: string;
+                        /** @enum {string} */
+                        environment: "sandbox";
+                        /** @enum {string} */
+                        currency: "LKR";
+                        /** @enum {boolean} */
+                        liveMoneyMovementEnabled: false;
+                        /** @enum {boolean} */
+                        merchantEligibilityChecked: false;
+                        /** @enum {boolean} */
+                        bookingEligibilityChecked: false;
+                        account: {
+                            customerMembership: boolean;
+                            emailVerified: boolean;
+                        };
+                        checkout: {
+                            /** @enum {boolean} */
+                            requiresEligiblePaymentOrder: true;
+                            gateways: {
+                                /** @enum {string} */
+                                gateway: "stripe" | "payhere";
+                                /** @enum {string} */
+                                mode: "test" | "sandbox";
+                                configured: boolean;
+                                availableToAccount: boolean;
+                                unavailableReasons: ("GATEWAY_NOT_CONFIGURED" | "EMAIL_VERIFICATION_REQUIRED" | "CUSTOMER_MEMBERSHIP_REQUIRED")[];
+                            }[];
+                        };
+                        adminExecution: {
+                            stripeTestRefundsEnabled: boolean;
+                            stripeTestTransfersEnabled: boolean;
+                            payhereFullSandboxRefundsEnabled: boolean;
+                            /** @enum {boolean} */
+                            payherePartialSandboxRefundsEnabled: false;
+                            /** @enum {boolean} */
+                            payhereProviderPayoutsEnabled: false;
+                            /** @enum {boolean} */
+                            manualBankPayoutsEnabled: false;
+                            /** @enum {boolean} */
+                            productionDocumentsEnabled: false;
+                            /** @enum {boolean} */
+                            liveFinancialTotalsEnabled: false;
+                        } | null;
                     };
                 };
             };

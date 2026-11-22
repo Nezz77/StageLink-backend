@@ -21,7 +21,7 @@ Setup creates ignored configuration files with separate random signing, mail-enc
 
 Host ports bind loopback: API 4000, PostgreSQL 55432, Redis 56379, Mailpit 8025/1025, and S3Mock 59090. AI has no public port. Migrations must succeed before API/worker start. No accounts or business records are seeded automatically.
 
-When connecting a separately running web client, set `WEB_ORIGIN` to its exact origin. Browser mutations enforce this origin. Verification and recovery messages are available in Mailpit.
+When connecting a separately running web client, set `WEB_ORIGIN` to its exact origin. Browser mutations enforce this origin. Credentialed responses expose only `Content-Disposition` and `X-Request-ID` in addition to the browser default headers, so the allowed client can read private download filenames and display server error references. This does not make download URLs public or permit other web origins. Verification and recovery messages are available in Mailpit.
 
 Stop while retaining database/Redis volumes:
 
@@ -314,7 +314,9 @@ Run `npm run build` from `backend/` and then `npm run --silent verification:smok
 
 ## Support cases
 
-Members create and read their own cases through `POST /api/v1/cases` and `GET /api/v1/me/cases`. Use the case replies endpoint for the shared conversation. Administrators use `/api/v1/admin/cases` for the queue, replies, private notes, assignment and status changes. Validated private images use upload purpose `support`.
+See [live support refresh](Support-Realtime.md) for case subscriptions, member/staff visibility and reconnect recovery.
+
+Members create and read their own cases through `POST /api/v1/cases` and `GET /api/v1/me/cases`. Use the case replies endpoint for the shared conversation. Administrators use `/api/v1/admin/cases` for the queue, replies, private notes, assignment and status changes. Validated private images and PDFs use upload purpose `support`. PDFs are limited to 5 MiB and one to eight unencrypted pages. The worker renders and rebuilds the file; downloads expose only the sanitized derivative and use the fixed name `support-attachment.pdf`. The owner can read their library file, and a verified active administrator gains access only after it is attached to a support case. Existing download grants recheck the session and case binding. Original quarantined files are not downloadable. Frontend attachment controls and Figma updates remain pending.
 
 ## Realtime booking chat
 
@@ -415,3 +417,5 @@ Verified administrators can monitor real booking SMS queue counts, filter by boo
 Use a controlled, opted-in staging audience and record the IDs of a completed contact verification, a booking reminder, and a promotional campaign. Set `STAGELINK_SMOKE_ORIGIN` to the staging API HTTPS origin. Set `STAGELINK_SMOKE_SMS_VERIFICATION_ID`, `STAGELINK_SMOKE_SMS_REMINDER_ID`, and `STAGELINK_SMOKE_SMS_CAMPAIGN_ID` to those IDs, and set `STAGELINK_SMOKE_SMS_CAMPAIGN_RECIPIENTS` to the campaign's expected audience size.
 
 Build from `backend/` and run `npm run --silent sms:smoke`. Pipe a JSON object with `member` and `admin` access tokens through protected stdin. The member must own the verification and reminder records, which must be in that account's latest 20 history entries. The command reads recorded delivery evidence and requires a delivered and confirmed verification, a delivered booking reminder, and delivery to the whole expected campaign audience. It prints check outcomes and status codes. A failed check exits with a nonzero status.
+
+Payment choices can use the account-scoped [payment configuration capabilities](Payment-Capabilities.md) endpoint. Configured sandbox credentials do not establish merchant or booking eligibility.
