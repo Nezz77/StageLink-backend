@@ -1,10 +1,16 @@
 # StageLink backend checkpoint
 
-Updated 20 November 2026. Backend development uses `main` in [Nezz77/StageLink-backend](https://github.com/Nezz77/StageLink-backend). The [completion backlog](StageLink-Completion-Backlog.md) tracks current status. The entries below record the checks and implementation as each phase landed. Later entries supersede historical open-work notes.
+Updated 22 November 2026. Backend development uses `main` in [Nezz77/StageLink-backend](https://github.com/Nezz77/StageLink-backend). The [completion backlog](StageLink-Completion-Backlog.md) tracks current status. The entries below record the checks and implementation as each phase landed. Later entries supersede historical open-work notes.
 
 The PayHere refund recovery build at `52e0102` includes full sandbox recovery and matching audit evidence constraints. The Node and Python jobs passed, including integration tests, API contract consistency and both container builds. [GitHub run 44688362522](https://github.com/Nezz77/StageLink-backend/actions/runs/44688362522).
 
 P15 combines the six tested starter references with six Yamaha and CHAUVET DJ references in one administrator workflow. The pack uses a digest of the reviewed measurements and citations. Approval records the acting administrator and preserves existing approvals. Staging approval, broader catalog coverage, and frontend and Figma wiring remain open. [Manufacturer reference bundle](Equipment-Reference-Bundle.md).
+
+The combined backend release at `205953a` includes account-scoped sandbox payment capabilities, sanitized support PDFs, case-scoped live refresh, assignee alerts and CORS exposure for download filenames and request IDs. GitHub CI passed Node and Python checks, contract regeneration and both container builds. [Integration PR](https://github.com/Nezz77/StageLink-backend/pull/25). [GitHub run](https://github.com/Nezz77/StageLink-backend/actions/runs/44980820024).
+
+The member SMS page now connects phone verification and replacement, separate booking and marketing opt-ins, maintenance-safe opt-out and removal, and masked delivery history. Local checks used the real API and a simulated SMS transport. Hosted browser, provider and Figma verification remain pending. [Enrollment](https://github.com/Nezz77/StageLink/pull/4). [Delivery history](https://github.com/Nezz77/StageLink/pull/5).
+
+The marketplace frontend now connects registration, sign-in, cookie refresh, assigned roles, sign-out, email verification and password recovery to the account API. It also handles email-change confirmation links. The signed-in workspace labels its bookings and payments as sample activity. Configured email and account flows passed local HTTP checks using the real API and simulated mail transport. Hosted browser checks and Figma updates remain pending. [Connected account PR](https://github.com/Nezz77/StageLink/pull/6).
 
 ## Completed
 
