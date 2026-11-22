@@ -1,6 +1,6 @@
 # StageLink completion backlog
 
-Updated 21 November 2026. Scope comes from the final proposal, sections 4, 5 and 7, and the [interim report](https://chatgpt.com/library?file_id=libfile_52b19e94cb7c8191abf03766b2de8ca8&account_id=personal), sections 5.11, 6.4–6.8 and 7.6.
+Updated 22 November 2026. Scope comes from the final proposal, sections 4, 5 and 7, and the [interim report](https://chatgpt.com/library?file_id=libfile_52b19e94cb7c8191abf03766b2de8ca8&account_id=personal), sections 5.11, 6.4–6.8 and 7.6.
 
 ## Completed backend work
 
@@ -25,14 +25,15 @@ Full PayHere sandbox arbitration refunds and audited recovery are on `main`. Rec
 | 2 | Hosted payment verification, P11–P16 | Verify PayHere and Stripe test callbacks, retrieval and audited recovery with merchant accounts. Confirm Stripe LKR and Connect eligibility. Verify sandbox refunds, transfers, rental deductions and arbitration settlements with the supported routes. |
 | 3 | Remaining payment implementation, P12–P16 | Establish exact provider evidence for partial PayHere refunds, then implement supported reconciliation. Complete PayHere deduction, provider payout and fee settlement and manual bank payouts. Issue production documents and report live financial totals after confirming live settlements. |
 | 4 | AI and private evidence, P15–P16 | Smoke test hosted models, evaluate ranking against representative listings and event briefs, and verify private PDF access on staging storage. |
-| 5 | Hosted communication, P10 and P17 | Verify SMTP and SMS delivery, WebSocket upgrades and reconnect through the hosted proxy. Verify the member SMS opt-out flow on the hosted frontend and update its Figma screens. |
-| 6 | Frontend and release, all phases | Connect supported workflows in the frontend and update their Figma flows. Run staging end-to-end, access control, accessibility, load, backup restore and rollback checks. |
+| 5 | Hosted communication, P10 and P17 | Verify SMTP and SMS delivery, WebSocket upgrades and reconnect through the hosted proxy. Verify member SMS enrollment, replacement, consent, opt-out and delivery history on the hosted frontend. Update the corresponding Figma flows. |
+| 6 | Frontend and release, all phases | Connect account settings, marketplace bookings, support, payments and staff operations to the API. Update their Figma flows. Run staging end-to-end, access control, accessibility, load, backup restore and rollback checks. |
 
 ## Backend build order
 
-A checked box marks implemented backend code. Client wiring and hosted checks have their own entries.
+Checked boxes mark completed repository work. Hosted checks and remaining client integration have separate entries.
 
 - [x] P00–P04 foundation, accounts, profiles and reviewed media.
+- [x] P02 Main frontend uses real registration, sign-in, session restore, assigned roles, verification and recovery when configured with the backend. [Frontend PR](https://github.com/Nezz77/StageLink/pull/6).
 - [x] P05 catalog. Versioned gigs and packages, equipment, venues, bundles, rate plans, refundable deposit policies, serialized inventory and rental galleries.
 - [x] P06 published feed, scheduled announcements, featured package previews, private event briefs and catalog search by name, price, city, radius, genre, rental type and category.
 - [x] P06 minimum-rating filter from published verified booking reviews.
@@ -119,7 +120,9 @@ A checked box marks implemented backend code. Client wiring and hosted checks ha
 - [x] P16 PayHere sandbox customer arbitration refunds for full captured card-payment allocations, with reconciliation, shared reserve settlement and participant status.
 - [ ] P16 Hosted verification PDF access, hosted arbitration execution verification, partial PayHere refund reconciliation, and PayHere provider payout and fee execution.
 - [x] P17 Maintenance-safe member SMS opt-out, transactional queue invalidation and consent audit records for number revocation.
-- [x] P17 Member web SMS preferences with backend sign-in and off-only controls for booking and promotional texts. [Frontend PR](https://github.com/Nezz77/StageLink/pull/1).
+- [x] P17 Member web SMS preferences with backend sign-in and maintenance-safe opt-out. [Frontend PR](https://github.com/Nezz77/StageLink/pull/1).
+- [x] P17 Member web SMS enrollment, replacement, separate booking and promotional opt-ins, and contact removal. [Frontend PR](https://github.com/Nezz77/StageLink/pull/4).
+- [x] P17 Member web delivery history for masked verification attempts and booking SMS reminders. [Frontend PR](https://github.com/Nezz77/StageLink/pull/5).
 - [x] P17 Database-clock reminder claims, recovery and SMS expiry/receipt timing, with forward/backward clock and lock-wait regressions.
 - [x] P17 SMS contact foundation: encrypted phone verification, explicit revisioned booking/marketing SMS consent, delivery status/reconciliation and masked history. Provider delivery defaults off.
 - [x] P17 Booking SMS reminder scheduling at 24 and 2 hours with current consent checks, a shared hourly send limit, delivery reconciliation and member history.
@@ -129,7 +132,7 @@ A checked box marks implemented backend code. Client wiring and hosted checks ha
 - [x] P17 Administrator SMTP connection readiness and staging communication checks without sending messages.
 - [x] P17 SMTP transport smoke command with test inbox receipt verified against Mailpit.
 - [x] P17 Read-only staging SMS evidence checker for contact verification, booking reminders and promotional campaign delivery.
-- [ ] P17 Live SMTP reminder/campaign verification, hosted SMS verification/reminder/campaign delivery and frontend/Figma controls.
+- [ ] P17 Hosted SMTP and SMS delivery, hosted member SMS browser checks, administrator reminder and campaign interfaces, and Figma updates.
 - [x] P18 Administrator and provider analytics from booking records and posted sandbox journals.
 - [x] P18 Stripe test and PayHere sandbox refund settlements in administrator and provider analytics, with daily totals.
 - [x] P18 Net Stripe test bank payout and platform fee analytics by UTC day and period, scoped by role and inclusive of posted reversals.
@@ -137,6 +140,10 @@ A checked box marks implemented backend code. Client wiring and hosted checks ha
 - [ ] P18 Live financial totals for supported workflows and release verification for security, accessibility, backup and rollback.
 
 ## Verification and client integration
+
+- [x] Combined backend payment capabilities, private support PDFs, case-scoped live refresh, assignee alerts and browser response headers passed Node and Python CI, including integration, contract and container checks. [Backend run](https://github.com/Nezz77/StageLink-backend/actions/runs/44980820024).
+- [x] Member SMS enrollment and delivery history passed frontend tests, TypeScript and production builds. Local HTTP checks exercised real PostgreSQL and Redis with a simulated SMS provider and confirmed account isolation, maintenance-safe controls and session revocation.
+- [ ] Verify the connected member SMS workflows in a hosted browser and update their Figma screens.
 
 - [x] GitHub CI passed for uncertain PayHere refund recovery and matching database audit evidence at `52e0102`. See [run 44688362522](https://github.com/Nezz77/StageLink-backend/actions/runs/44688362522).
 
