@@ -41,12 +41,12 @@ async function pdfTool(tool: 'pdfinfo' | 'pdftoppm', args: string[], dir: string
       env: { PATH: process.env.PATH, HOME: dir, LC_ALL: 'C' },
     });
   } catch {
-    throw new InvalidMedia('Upload a readable, unencrypted verification PDF within processing limits.');
+    throw new InvalidMedia('Upload a readable, unencrypted private PDF within processing limits.');
   }
 }
 
-async function deriveVerificationPdf(input: Buffer): Promise<Derived> {
-  if (input.length > pdfInputLimit) throw new InvalidMedia('Verification PDFs must be no larger than 5 MiB.');
+async function derivePrivatePdf(input: Buffer): Promise<Derived> {
+  if (input.length > pdfInputLimit) throw new InvalidMedia('Private PDFs must be no larger than 5 MiB.');
   const dir = await mkdtemp(join(tmpdir(), 'stagelink-evidence-'));
   try {
     const original = join(dir, 'source.pdf');
@@ -69,7 +69,7 @@ async function deriveVerificationPdf(input: Buffer): Promise<Derived> {
       return pageNumber ? [{ name, page: Number(pageNumber) }] : [];
     }).sort((a, b) => a.page - b.page);
     if (rendered.length !== pages || rendered.some(({ page }, index) => page !== index + 1)) {
-      throw new InvalidMedia('The verification PDF could not be rendered in full.');
+      throw new InvalidMedia('The private PDF could not be rendered in full.');
     }
 
     let document: jsPDF | undefined;
@@ -78,12 +78,12 @@ async function deriveVerificationPdf(input: Buffer): Promise<Derived> {
     for (const { name } of rendered) {
       const file = join(dir, name);
       pageBytes += (await stat(file)).size;
-      if (pageBytes > pdfDerivativeLimit) throw new InvalidMedia('The rendered verification PDF is too large.');
+      if (pageBytes > pdfDerivativeLimit) throw new InvalidMedia('The rendered private PDF is too large.');
       const bytes = await readFile(file);
       const image = sharp(bytes, { limitInputPixels: 5_000_000, failOn: 'warning' }).timeout({ seconds: 5 });
       const { width, height, format } = await image.metadata();
       if (format !== 'jpeg' || !width || !height || Math.max(width, height) > 2201) {
-        throw new InvalidMedia('The verification PDF contains an unreadable page.');
+        throw new InvalidMedia('The private PDF contains an unreadable page.');
       }
       const size: [number, number] = [width / 2, height / 2];
       const orientation = width > height ? 'landscape' : 'portrait';
@@ -95,9 +95,9 @@ async function deriveVerificationPdf(input: Buffer): Promise<Derived> {
       }
       document.addImage(bytes, 'JPEG', 0, 0, ...size);
     }
-    if (!document || !poster) throw new InvalidMedia('The verification PDF has no readable pages.');
+    if (!document || !poster) throw new InvalidMedia('The private PDF has no readable pages.');
     const pdf = Buffer.from(document.output('arraybuffer'));
-    if (pdf.length > pdfDerivativeLimit) throw new InvalidMedia('The rendered verification PDF is too large.');
+    if (pdf.length > pdfDerivativeLimit) throw new InvalidMedia('The rendered private PDF is too large.');
     return {
       metadata: { pages }, variants: { display: { mime: 'application/pdf', bytes: pdf }, poster: { mime: 'image/webp', bytes: poster } },
     };
@@ -109,8 +109,8 @@ async function deriveVerificationPdf(input: Buffer): Promise<Derived> {
 export async function deriveMedia(input:Buffer,mime:string,purpose?:Asset['purpose']):Promise<Derived>{
  if(!magic(input,mime))throw new InvalidMedia('File contents do not match the selected file type.');
  if (mime === 'application/pdf') {
-  if (purpose !== 'verification') throw new InvalidMedia('PDFs are limited to private verification evidence.');
-  return deriveVerificationPdf(input);
+  if (purpose !== 'verification' && purpose !== 'support') throw new InvalidMedia('PDFs are limited to private verification or support evidence.');
+  return derivePrivatePdf(input);
  }
  if(mime.startsWith('image/')){
   try{

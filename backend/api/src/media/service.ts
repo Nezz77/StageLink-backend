@@ -146,6 +146,6 @@ export class MediaService {
   }else throw unauthorized();
   const v=(a.variants as Record<string,{mime:string;bytes:number}>)[String(payload.variant)];if(!v||v.bytes>9*1024*1024)throw missing();
   if(activeDownloads>=4)throw new PublicError(429,'MEDIA_READ_BUSY','Other previews are loading. Try again shortly.');
-  activeDownloads++;try{return{mime:v.mime,bytes:await this.store.get(derivativeKey(id,String(payload.variant)),9*1024*1024)};}catch{throw storageError();}finally{activeDownloads--;}
+  activeDownloads++;try{return{mime:v.mime,downloadFilename:a.purpose==='support'?'support-attachment.pdf':'verification-evidence.pdf',bytes:await this.store.get(derivativeKey(id,String(payload.variant)),9*1024*1024)};}catch{throw storageError();}finally{activeDownloads--;}
  }
 }

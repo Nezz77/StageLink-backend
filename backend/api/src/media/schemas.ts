@@ -5,7 +5,7 @@ export const upload=z.object({purpose,filename:z.string().trim().min(1).max(120)
  const limit=['verification','support'].includes(v.purpose)?5:v.mime.startsWith('image/')?8:v.mime.startsWith('audio/')?20:40;
  if(v.bytes>limit*1024*1024)ctx.addIssue({code:'custom',path:['bytes'],message:'File too large'});
  if (v.mime === 'application/pdf') {
-  if (v.purpose !== 'verification') ctx.addIssue({ code: 'custom', path: ['mime'], message: 'PDFs are limited to private verification evidence' });
+  if (!['verification', 'support'].includes(v.purpose)) ctx.addIssue({ code: 'custom', path: ['mime'], message: 'PDFs are limited to private verification or support evidence' });
  } else if (['avatar','equipment','evidence','chat','review','inspection','verification','support'].includes(v.purpose) && !v.mime.startsWith('image/')) {
   ctx.addIssue({ code: 'custom', path: ['mime'], message: 'Images required for this purpose' });
  }
