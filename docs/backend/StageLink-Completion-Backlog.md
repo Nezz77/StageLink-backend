@@ -93,6 +93,7 @@ Checked boxes mark completed repository work. Hosted checks and remaining client
 - [x] P15 Administrator indexing and status checks for versioned public gig embeddings.
 - [x] P15 Opt-in semantic reranking, weighted fallback, embedding provenance and repeatable synthetic ranking evaluation.
 - [x] P15 Offline paired ranking evaluator with graded relevance, fallback counts and snapshot compatibility checks.
+- [x] P15 Staging command to capture and score paired runs using the same briefs, explicit semantic opt-in and replay-safe request keys.
 - [x] P15 Staging smoke command for hosted model readiness, a synthetic prompt preview and recorded usage.
 - [ ] P15 Live model smoke test and ranking evaluation against a representative catalog and event briefs.
 - [x] P15 Manufacturer reference bundle with 12 cited models, administrator preview, digest-based approval and safeguards for duplicate, conflicting and retired entries. [Bundle guide](Equipment-Reference-Bundle.md).

@@ -24,6 +24,7 @@
     "sms:smoke": "node dist/scripts/sms-delivery-smoke.js",
     "equipment:coverage": "node dist/scripts/equipment-reference-coverage.js",
     "chat:smoke": "node dist/scripts/chat-websocket-smoke.js",
+    "recommendations:capture": "node dist/scripts/capture-recommendation-evaluation.js",
     "recommendations:evaluate": "node dist/scripts/evaluate-recommendations.js",
     "verification:smoke": "node dist/scripts/verification-pdf-smoke.js",
     "outbox:ping": "node dist/scripts/ping.js",

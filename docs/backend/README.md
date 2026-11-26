@@ -302,6 +302,12 @@ Create a JSON manifest with `version: 1`, `expectedModel` set to the deployed em
 
 From `backend/`, run `npm run build` and then `npm run --silent recommendations:evaluate -- <manifest.json>`. The evaluator reports reciprocal rank of the first relevant result, graded nDCG, and recall over judged relevant listings, all at rank three. Averages use the same comparable cases for both methods. It counts semantic fallbacks and excludes pairs with changed revisions, mismatched embedding provenance, stale listings or missing judgments. Incomplete data returns a nonzero status with the available results. A complete report can still show a quality regression. The command reads the file locally and emits no brief text, listing IDs, or request credentials.
 
+To capture and score staging runs in one command, set `STAGELINK_SMOKE_ORIGIN` and `STAGELINK_SMOKE_WEB_ORIGIN` to the staging HTTPS origins. From `backend/`, build and run `npm run --silent recommendations:capture -- <plan.json>`, piping the staging brief owner's `{accessToken, csrfToken}` session JSON through protected stdin.
+
+The plan uses `version: 1`, `expectedModel`, and one to five `cases` for briefs owned by that customer. Each case supplies `key`, `briefId`, `briefRevision`, optional `genres`, two distinct UUIDs as `weightedRequestKey` and `semanticRequestKey`, and the `judgments` described above. Choose staging briefs and listings that represent the event types and budgets you want to evaluate. Keep the catalog and matching weights fixed during capture.
+
+The command opts each staging brief into the semantic model once per new semantic request key. Use synthetic briefs cleared for embedding and preserve the plan's request keys to recover the same runs after interruption. It rereads both saved results and prints the existing evaluation report. A capture error prints the case key, failed stage and available HTTP status. The command exits nonzero on a capture error or an incomplete comparison.
+
 ## Provider verification
 
 Providers submit two to five validated private images or PDFs with `POST /api/v1/verification-cases`. Upload them with purpose `verification`, then pass their asset IDs in the case. Providers read their own history at `GET /api/v1/me/verification`. Administrators review pending cases at `GET /api/v1/admin/verification-cases` and record a reasoned decision at `POST /api/v1/admin/verification-cases/:id/decisions`. A rejected provider can submit a new version.
