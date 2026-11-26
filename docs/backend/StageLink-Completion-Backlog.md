@@ -137,7 +137,7 @@ Checked boxes mark completed repository work. Hosted checks and remaining client
 - [x] P18 Administrator and provider analytics from booking records and posted sandbox journals.
 - [x] P18 Stripe test and PayHere sandbox refund settlements in administrator and provider analytics, with daily totals.
 - [x] P18 Net Stripe test bank payout and platform fee analytics by UTC day and period, scoped by role and inclusive of posted reversals.
-- [x] P18 PostgreSQL test backup and restore drill compares data, sequences, constraints and indexes in CI.
+- [x] P18 PostgreSQL test backup and restore drill compares data, sequences, constraints, indexes, triggers and routines in CI.
 - [ ] P18 Live financial totals for supported workflows and release verification for security, accessibility, backup and rollback.
 
 ## Verification and client integration
