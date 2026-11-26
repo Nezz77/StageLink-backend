@@ -73,6 +73,7 @@ Checked boxes mark completed repository work. Hosted checks and remaining client
 - [x] P12 Signed Stripe test transfer creation and reversal events reconcile existing attempts and recover a lost submission response when Stripe confirms the transfer.
 - [x] P12 Read-only Stripe test confirmation of transfer inclusion in a reconciled automatic LKR bank payout, with fresh failure status.
 - [x] P12 Stripe test journal and fee settlement for confirmed automatic LKR bank payouts, with compensating entries when the payout fails or the transfer reverses.
+- [x] P12 Read-only staging checks for audited PayHere full refund recovery and matching Stripe test bank payout settlement evidence.
 - [ ] P12 Manual bank payout execution and investigation of attempts without conclusive Stripe evidence.
 - [x] P13 Sandbox invoice, per-capture receipt and payout reservation statement with private server-rendered PDFs.
 - [x] P13 Verified customer reviews, moderated event photos and public rating aggregates.
