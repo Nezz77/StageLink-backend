@@ -18,11 +18,23 @@ const receipt = z.object({
   gateway: z.enum(['PayHere', 'Stripe']), orderId: z.string().uuid(),
   disposition: z.enum(['captured', 'review']),
 });
-const settlement = z.object({
-  version: z.literal(1), kind: z.literal('settlement'), issuedAt: time,
+const bankSettlementReference = { settlementId: z.uuid(), journalId: z.uuid() };
+const bankSettlement = z.discriminatedUnion('state', [
+  z.object({ ...bankSettlementReference, state: z.literal('settled') }),
+  z.object({
+    ...bankSettlementReference, state: z.literal('reversed'), originalJournalId: z.uuid(),
+    reason: z.enum(['bank_payout_failed', 'transfer_reversed']),
+  }),
+]);
+const settlementFields = {
+  kind: z.literal('settlement'), issuedAt: time,
   grossMinor: minor, platformFeeMinor: minor, netMinor: minor,
   destinationRevision: z.number().int().positive(), damageClaimId: z.uuid().optional(), arbitrationId: z.uuid().optional(),
-});
+};
+const settlement = z.discriminatedUnion('version', [
+  z.object({ ...settlementFields, version: z.literal(1) }),
+  z.object({ ...settlementFields, version: z.literal(2), bankSettlement }),
+]);
 export const documentSnapshot = z.discriminatedUnion('kind', [invoice, receipt, settlement]);
 export async function issueDocument(
   tx: Prisma.TransactionClient, bookingId: string, sourceId: string, snapshot: z.infer<typeof documentSnapshot>,
@@ -42,7 +54,10 @@ const amount = (minorUnits: number) => 'LKR ' + (minorUnits / 100).toFixed(2);
 export function renderBookingDocument(record: Pick<BookingDocument, 'id' | 'kind' | 'bookingId' | 'snapshot'>) {
   const snapshot = documentSnapshot.parse(record.snapshot);
   if (snapshot.kind !== record.kind) throw new Error('Document kind mismatch');
-  const title = titles[snapshot.kind];
+  const bank = snapshot.kind === 'settlement' && snapshot.version === 2 ? snapshot.bankSettlement : undefined;
+  const title = bank
+    ? (bank.state === 'settled' ? 'Bank payout settlement' : 'Bank payout settlement reversal')
+    : titles[snapshot.kind];
   const number = documentNumber(record.kind, record.id);
   const pdf = new jsPDF({ unit: 'mm', format: 'a4', compress: true });
   pdf.setFileId(record.id.replaceAll('-', ''));
@@ -78,9 +93,23 @@ export function renderBookingDocument(record: Pick<BookingDocument, 'id' | 'kind
     case 'settlement':
       if (snapshot.damageClaimId) rows.push(['Damage claim', snapshot.damageClaimId]);
       if (snapshot.arbitrationId) rows.push(['Arbitration decision', snapshot.arbitrationId]);
-      rows.push([snapshot.damageClaimId ? 'Reserved deposit deduction' : 'Reserved service funds', amount(snapshot.grossMinor)], ['Platform fee', amount(snapshot.platformFeeMinor)],
-        ['Provider net', amount(snapshot.netMinor)], ['Destination revision', String(snapshot.destinationRevision)],
-        ['Settlement status', 'Funds reserved in sandbox']);
+      const grossLabel = snapshot.damageClaimId
+        ? (bank ? 'Deposit deduction' : 'Reserved deposit deduction')
+        : (bank ? 'Gross service funds' : 'Reserved service funds');
+      rows.push([grossLabel, amount(snapshot.grossMinor)],
+        ['Platform fee', amount(snapshot.platformFeeMinor)], ['Provider net', amount(snapshot.netMinor)],
+        ['Destination revision', String(snapshot.destinationRevision)]);
+      if (bank) {
+        rows.push(['Bank settlement', bank.settlementId], ['Ledger journal', bank.journalId]);
+        if (bank.state === 'settled') {
+          rows.push(['Settlement status', 'Posted from Stripe test bank payout evidence']);
+        } else {
+          rows.push(['Original journal', bank.originalJournalId], ['Settlement status', 'Reversed in the sandbox ledger'],
+            ['Reason', bank.reason === 'bank_payout_failed' ? 'Stripe test bank payout failed' : 'Stripe test transfer reversed']);
+        }
+      } else {
+        rows.push(['Settlement status', 'Funds reserved in sandbox']);
+      }
       break;
   }
   let y = 65;

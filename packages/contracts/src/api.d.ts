@@ -18171,9 +18171,7 @@ export interface operations {
                                 orderId: string;
                                 /** @enum {string} */
                                 disposition: "captured" | "review";
-                            } | {
-                                /** @enum {number} */
-                                version: 1;
+                            } | ({
                                 /** @enum {string} */
                                 kind: "settlement";
                                 /** Format: date-time */
@@ -18186,7 +18184,43 @@ export interface operations {
                                 damageClaimId?: string;
                                 /** Format: uuid */
                                 arbitrationId?: string;
-                            };
+                                /** @enum {number} */
+                                version: 1;
+                            } | {
+                                /** @enum {string} */
+                                kind: "settlement";
+                                /** Format: date-time */
+                                issuedAt: string;
+                                grossMinor: number;
+                                platformFeeMinor: number;
+                                netMinor: number;
+                                destinationRevision: number;
+                                /** Format: uuid */
+                                damageClaimId?: string;
+                                /** Format: uuid */
+                                arbitrationId?: string;
+                                /** @enum {number} */
+                                version: 2;
+                                bankSettlement: {
+                                    /** Format: uuid */
+                                    settlementId: string;
+                                    /** Format: uuid */
+                                    journalId: string;
+                                    /** @enum {string} */
+                                    state: "settled";
+                                } | {
+                                    /** Format: uuid */
+                                    settlementId: string;
+                                    /** Format: uuid */
+                                    journalId: string;
+                                    /** @enum {string} */
+                                    state: "reversed";
+                                    /** Format: uuid */
+                                    originalJournalId: string;
+                                    /** @enum {string} */
+                                    reason: "bank_payout_failed" | "transfer_reversed";
+                                };
+                            });
                         }[];
                         /** Format: uuid */
                         nextCursor: string | null;
@@ -18254,9 +18288,7 @@ export interface operations {
                             orderId: string;
                             /** @enum {string} */
                             disposition: "captured" | "review";
-                        } | {
-                            /** @enum {number} */
-                            version: 1;
+                        } | ({
                             /** @enum {string} */
                             kind: "settlement";
                             /** Format: date-time */
@@ -18269,7 +18301,43 @@ export interface operations {
                             damageClaimId?: string;
                             /** Format: uuid */
                             arbitrationId?: string;
-                        };
+                            /** @enum {number} */
+                            version: 1;
+                        } | {
+                            /** @enum {string} */
+                            kind: "settlement";
+                            /** Format: date-time */
+                            issuedAt: string;
+                            grossMinor: number;
+                            platformFeeMinor: number;
+                            netMinor: number;
+                            destinationRevision: number;
+                            /** Format: uuid */
+                            damageClaimId?: string;
+                            /** Format: uuid */
+                            arbitrationId?: string;
+                            /** @enum {number} */
+                            version: 2;
+                            bankSettlement: {
+                                /** Format: uuid */
+                                settlementId: string;
+                                /** Format: uuid */
+                                journalId: string;
+                                /** @enum {string} */
+                                state: "settled";
+                            } | {
+                                /** Format: uuid */
+                                settlementId: string;
+                                /** Format: uuid */
+                                journalId: string;
+                                /** @enum {string} */
+                                state: "reversed";
+                                /** Format: uuid */
+                                originalJournalId: string;
+                                /** @enum {string} */
+                                reason: "bank_payout_failed" | "transfer_reversed";
+                            };
+                        });
                     };
                 };
             };
@@ -18334,9 +18402,7 @@ export interface operations {
                             orderId: string;
                             /** @enum {string} */
                             disposition: "captured" | "review";
-                        } | {
-                            /** @enum {number} */
-                            version: 1;
+                        } | ({
                             /** @enum {string} */
                             kind: "settlement";
                             /** Format: date-time */
@@ -18349,7 +18415,43 @@ export interface operations {
                             damageClaimId?: string;
                             /** Format: uuid */
                             arbitrationId?: string;
-                        };
+                            /** @enum {number} */
+                            version: 1;
+                        } | {
+                            /** @enum {string} */
+                            kind: "settlement";
+                            /** Format: date-time */
+                            issuedAt: string;
+                            grossMinor: number;
+                            platformFeeMinor: number;
+                            netMinor: number;
+                            destinationRevision: number;
+                            /** Format: uuid */
+                            damageClaimId?: string;
+                            /** Format: uuid */
+                            arbitrationId?: string;
+                            /** @enum {number} */
+                            version: 2;
+                            bankSettlement: {
+                                /** Format: uuid */
+                                settlementId: string;
+                                /** Format: uuid */
+                                journalId: string;
+                                /** @enum {string} */
+                                state: "settled";
+                            } | {
+                                /** Format: uuid */
+                                settlementId: string;
+                                /** Format: uuid */
+                                journalId: string;
+                                /** @enum {string} */
+                                state: "reversed";
+                                /** Format: uuid */
+                                originalJournalId: string;
+                                /** @enum {string} */
+                                reason: "bank_payout_failed" | "transfer_reversed";
+                            };
+                        });
                     };
                 };
             };

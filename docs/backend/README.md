@@ -222,7 +222,9 @@ Use the same POST to reconcile a later bank payout failure. StageLink posts acco
 
 List documents at `GET /api/v1/bookings/:id/documents`, preview a snapshot at `GET /api/v1/documents/:id`, and download the worker-rendered PDF at `GET /api/v1/documents/:id/download`. The worker must be running with access to the private object store. A failed render can be queued again with `POST /api/v1/documents/:id/render-retry`.
 
-Booking participants can see the invoice. The customer can see payment receipts and the provider can see the payout reservation statement. Authorized administrators can access each type. These are sandbox documents. Production issuance needs confirmed issuer details and gateway outcomes.
+Booking participants can see the invoice. The customer can see payment receipts. The provider can see their payout reservation, bank settlement and settlement reversal statements. Authorized administrators can access each type. These are sandbox documents. Production issuance needs confirmed issuer details and gateway outcomes.
+
+Stripe test bank settlement and reversal statements come from posted ledger movements, with one document per journal. A later reversal adds a statement that references the original journal and preserves the original statement. Posting attempts without a bank settlement journal produce no statement. Existing posted journals are backfilled by the migration. The API exposes these as settlement snapshots with `version: 2` and a `bankSettlement` object. Deploy the matching API and PDF worker together so both understand the new snapshot version.
 
 ## Verified reviews
 
