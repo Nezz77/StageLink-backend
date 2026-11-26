@@ -75,7 +75,9 @@ docker compose -f infra/compose.test.yml exec -T postgres bash -s < backend/scri
 
 The drill covers PostgreSQL data and schema in the test environment. Hosted backup verification also needs an isolated restore of the hosted database, private media objects and access to the matching encryption keys. [PostgreSQL backup documentation](https://www.postgresql.org/docs/17/backup-dump.html)
 
-Generated contracts are `contracts/openapi.json` → `packages/contracts/src/api.d.ts`. Regenerate and commit both after endpoint changes; CI rejects drift. Never edit an applied migration. Update the expected migration constant when adding one.
+Generated contracts are `contracts/openapi.json` → `packages/contracts/src/api.d.ts`. Regenerate and commit both after endpoint changes; CI rejects drift. Never edit an applied migration.
+
+The build embeds the latest bundled Prisma migration in the API and worker. Their readiness endpoints return 503 if PostgreSQL has a different latest completed migration or an unfinished migration entry. Rolled-back entries are ignored. The normal local API and worker start commands regenerate the expected version from the checkout.
 
 AI remains health-only. Under `backend/ai`, use Python 3.12 / uv 0.11.29, `uv sync --frozen`, then `uv run --frozen pytest -q`. No model/provider is configured.
 
