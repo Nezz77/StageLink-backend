@@ -139,6 +139,7 @@ Checked boxes mark completed repository work. Hosted checks and remaining client
 - [x] P18 Net Stripe test bank payout and platform fee analytics by UTC day and period, scoped by role and inclusive of posted reversals.
 - [x] P18 PostgreSQL test backup and restore drill compares data, sequences, constraints, indexes, triggers and routines in CI.
 - [ ] P18 Live financial totals for supported workflows and release verification for security, accessibility, backup and rollback.
+- [x] P18 API and worker readiness use the build's migration version and reject unfinished migrations or a different database version.
 
 ## Verification and client integration
 
