@@ -5,6 +5,8 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { once } from 'node:events';
 import { Queue } from 'bullmq';
 import { Redis } from 'ioredis';
+import { createApp } from '../api/src/app.js';
+import { checkReleaseReadiness, releaseReadinessConfig } from '../scripts/release-readiness-check.js';
 import { readConfig } from '../shared/config.js';
 import { resources, closeResources, MIGRATION, readiness } from '../shared/resources.js';
 import { consume, dispatchBatch, insertPing, QUEUE } from '../shared/outbox.js';
@@ -57,6 +59,7 @@ test('migrations, transactional outbox, recovery, duplicate delivery and actual 
   const queue = new Queue(QUEUE, { connection, defaultJobOptions: { removeOnComplete: true, removeOnFail: true } });
   const ids: string[] = [];
   let worker: ChildProcess | undefined;
+  let app: Awaited<ReturnType<typeof createApp>>['app'] | undefined;
   async function stopWorker() {
     if (worker && worker.exitCode === null) {
       const exited = once(worker, 'exit'); worker.kill('SIGTERM'); await exited;
@@ -117,6 +120,26 @@ test('migrations, transactional outbox, recovery, duplicate delivery and actual 
     });
     await startWorker();
     await until(async () => (await deps.db.foundationReceipt.count({ where: { eventId: first.id } })) === 1);
+    app = (await createApp(config)).app;
+    await app.listen(0, '127.0.0.1');
+    const releaseConfig = releaseReadinessConfig({
+      STAGELINK_RELEASE_API_ORIGIN: await app.getUrl(),
+      STAGELINK_RELEASE_WORKER_ORIGIN: `http://127.0.0.1:${process.env.WORKER_HEALTH_PORT ?? '14001'}`,
+    });
+    assert.equal((await checkReleaseReadiness(releaseConfig)).passed, true);
+    const driftId = randomUUID();
+    try {
+      await deps.db.$executeRaw`
+        INSERT INTO _prisma_migrations (id, checksum, migration_name, logs)
+        VALUES (${driftId}, ${'0'.repeat(64)}, '29991231235959_release_fixture', 'Synthetic release test')
+      `;
+      const blocked = await checkReleaseReadiness(releaseConfig);
+      assert.equal(blocked.passed, false);
+      assert.deepEqual(blocked.checks.map(row => row.httpStatus), [503, 503]);
+    } finally {
+      await deps.db.$executeRaw`DELETE FROM _prisma_migrations WHERE id = ${driftId}`;
+    }
+    assert.equal((await checkReleaseReadiness(releaseConfig)).passed, true);
     await stopWorker();
 
     // Commit while worker is stopped; persisted event is consumed after process restart.
@@ -142,6 +165,7 @@ test('migrations, transactional outbox, recovery, duplicate delivery and actual 
     assert.equal(await deps.db.foundationReceipt.count({ where: { eventId: invalid.id } }), 0);
   } finally {
     await stopWorker();
+    await app?.close();
     // Only remove this test's records; never flush a shared Redis or DB.
     for (const id of ids) { const job = await queue.getJob(id); if (job) await job.remove(); }
     await deps.db.foundationReceipt.deleteMany({ where: { eventId: { in: ids } } });
