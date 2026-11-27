@@ -18338,6 +18338,40 @@ export interface operations {
                                     /** @enum {string} */
                                     reason: "bank_payout_failed" | "transfer_reversed";
                                 };
+                            } | {
+                                /** @enum {string} */
+                                kind: "settlement";
+                                /** Format: date-time */
+                                issuedAt: string;
+                                grossMinor: number;
+                                platformFeeMinor: number;
+                                netMinor: number;
+                                destinationRevision: number;
+                                /** Format: uuid */
+                                damageClaimId?: string;
+                                /** Format: uuid */
+                                arbitrationId?: string;
+                                /** @enum {number} */
+                                version: 3;
+                                manualSettlement: {
+                                    /** Format: uuid */
+                                    settlementId: string;
+                                    /** Format: uuid */
+                                    journalId: string;
+                                    revision: number;
+                                    /** @enum {string} */
+                                    state: "settled";
+                                } | {
+                                    /** Format: uuid */
+                                    settlementId: string;
+                                    /** Format: uuid */
+                                    journalId: string;
+                                    revision: number;
+                                    /** @enum {string} */
+                                    state: "reversed";
+                                    /** Format: uuid */
+                                    originalJournalId: string;
+                                };
                             });
                         }[];
                         /** Format: uuid */
@@ -18477,6 +18511,40 @@ export interface operations {
                                 /** @enum {string} */
                                 reason: "bank_payout_failed" | "transfer_reversed";
                             };
+                        } | {
+                            /** @enum {string} */
+                            kind: "settlement";
+                            /** Format: date-time */
+                            issuedAt: string;
+                            grossMinor: number;
+                            platformFeeMinor: number;
+                            netMinor: number;
+                            destinationRevision: number;
+                            /** Format: uuid */
+                            damageClaimId?: string;
+                            /** Format: uuid */
+                            arbitrationId?: string;
+                            /** @enum {number} */
+                            version: 3;
+                            manualSettlement: {
+                                /** Format: uuid */
+                                settlementId: string;
+                                /** Format: uuid */
+                                journalId: string;
+                                revision: number;
+                                /** @enum {string} */
+                                state: "settled";
+                            } | {
+                                /** Format: uuid */
+                                settlementId: string;
+                                /** Format: uuid */
+                                journalId: string;
+                                revision: number;
+                                /** @enum {string} */
+                                state: "reversed";
+                                /** Format: uuid */
+                                originalJournalId: string;
+                            };
                         });
                     };
                 };
@@ -18612,6 +18680,40 @@ export interface operations {
                                 originalJournalId: string;
                                 /** @enum {string} */
                                 reason: "bank_payout_failed" | "transfer_reversed";
+                            };
+                        } | {
+                            /** @enum {string} */
+                            kind: "settlement";
+                            /** Format: date-time */
+                            issuedAt: string;
+                            grossMinor: number;
+                            platformFeeMinor: number;
+                            netMinor: number;
+                            destinationRevision: number;
+                            /** Format: uuid */
+                            damageClaimId?: string;
+                            /** Format: uuid */
+                            arbitrationId?: string;
+                            /** @enum {number} */
+                            version: 3;
+                            manualSettlement: {
+                                /** Format: uuid */
+                                settlementId: string;
+                                /** Format: uuid */
+                                journalId: string;
+                                revision: number;
+                                /** @enum {string} */
+                                state: "settled";
+                            } | {
+                                /** Format: uuid */
+                                settlementId: string;
+                                /** Format: uuid */
+                                journalId: string;
+                                revision: number;
+                                /** @enum {string} */
+                                state: "reversed";
+                                /** Format: uuid */
+                                originalJournalId: string;
                             };
                         });
                     };

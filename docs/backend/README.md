@@ -254,6 +254,8 @@ A successful sandbox refund creates one receipt for its matching posted journal.
 
 Stripe test bank settlement and reversal statements come from posted ledger movements, with one document per journal. A later reversal adds a statement that references the original journal and preserves the original statement. Posting attempts without a bank settlement journal produce no statement. Existing posted journals are backfilled by the migration. The API exposes these as settlement snapshots with `version: 2` and a `bankSettlement` object. Deploy the matching API and PDF worker together so both understand the new snapshot version.
 
+Manual sandbox settlement and reversal statements use `version: 3` settlement snapshots with a `manualSettlement` object. Each statement identifies the posted ledger journal and the evidence revision. Reversal statements also identify the original settlement journal. Providers and authorized administrators can download both PDFs. Historical posted manual journals are backfilled.
+
 ## Verified reviews
 
 The customer submits one review after completion is verified. Use `POST /api/v1/bookings/:id/reviews` with `{rating, body, photoIds?}`. Use the private media upload pipeline with purpose `review` for photos. Administrators can list reviews at `GET /api/v1/admin/reviews` and record a revisioned moderation decision at `PATCH /api/v1/admin/reviews/:id/moderation`.
