@@ -20,6 +20,10 @@ test('server renders each sandbox booking document from its stable snapshot', ()
     { version: 2, issuedAt, ...allocation, kind: 'settlement', bankSettlement: {
       ...reference, state: 'reversed', originalJournalId: id, reason: 'transfer_reversed',
     } },
+    { version: 3, issuedAt, ...allocation, kind: 'settlement', manualSettlement: { ...reference, revision: 2, state: 'settled' } },
+    { version: 3, issuedAt, ...allocation, kind: 'settlement', manualSettlement: {
+      ...reference, revision: 2, state: 'reversed', originalJournalId: id,
+    } },
   ] as const;
   for (const snapshot of snapshots) {
     const record = { id, bookingId, kind: snapshot.kind, snapshot };

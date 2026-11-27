@@ -609,6 +609,15 @@ async function checkPayoutReconciliation(
       assert.equal(confirmed.revision, 2);
       assert.equal(confirmed.state, 'settled');
       assert.equal(await postedBalance(deps.db, reserved.account.id), 0n);
+      const posted = await deps.db.journalTransaction.findUniqueOrThrow({ where: { id: confirmed.journalId } });
+      const statement = await deps.db.bookingDocument.findFirstOrThrow({
+        where: { bookingId: booking.id, kind: 'settlement', sourceId: confirmed.journalId },
+      });
+      assert.deepEqual(statement.snapshot, {
+        version: 3, kind: 'settlement', issuedAt: posted.postedAt!.toISOString(),
+        grossMinor: 100000, platformFeeMinor: 5000, netMinor: 95000, destinationRevision: 1,
+        manualSettlement: { state: 'settled', settlementId: correction.id, revision: 2, journalId: posted.id },
+      });
       assert.equal(await deps.db.journalTransaction.count({
         where: { source: 'payout.sandbox.manual.settle', reference: { in: [report.id, correction.id] } },
       }), 1);
@@ -656,6 +665,40 @@ async function checkPayoutReconciliation(
       assert.deepEqual(Object.fromEntries(compensating.map(entry => [entry.accountId, entry.amountMinor])),
         Object.fromEntries(original.map(entry => [entry.accountId, -entry.amountMinor])));
       assert.equal(await deps.db.manualSandboxPayoutReversal.count({ where: { settlementId: correction.id } }), 1);
+      const reversalPosting = await deps.db.journalTransaction.findUniqueOrThrow({ where: { id: reversed.reversal.journalId } });
+      const reversalStatement = await deps.db.bookingDocument.findFirstOrThrow({
+        where: { bookingId: booking.id, kind: 'settlement', sourceId: reversalPosting.id },
+      });
+      assert.deepEqual(reversalStatement.snapshot, {
+        ...(statement.snapshot as object), issuedAt: reversalPosting.postedAt!.toISOString(),
+        manualSettlement: {
+          state: 'reversed', settlementId: correction.id, revision: 2, journalId: reversalPosting.id,
+          originalJournalId: posted.id,
+        },
+      });
+      assert.deepEqual(await deps.db.bookingDocument.findUnique({ where: { id: statement.id } }), statement);
+      const historical = await deps.db.$transaction(async tx => {
+        const where = { bookingId: booking.id, kind: 'settlement' as const, sourceId: { in: [posted.id, reversalPosting.id] } };
+        await tx.bookingDocument.deleteMany({ where });
+        for (const _ of [0, 1]) {
+          await tx.$queryRaw`SELECT record_manual_sandbox_payout_documents(${correction.id}::uuid)::text`;
+        }
+        return tx.bookingDocument.findMany({ where });
+      });
+      assert.equal(historical.length, 2);
+      for (const document of historical) {
+        assert.deepEqual(document.snapshot, document.sourceId === posted.id ? statement.snapshot : reversalStatement.snapshot);
+      }
+      for (const _ of [0, 1, 2]) await processBookingDocuments(deps.db, store);
+      for (const document of historical) {
+        const pdfPath = base + 'documents/' + document.id + '/download';
+        assert.equal((await fetch(pdfPath, customer)).status, 404);
+        const pdf = await fetch(pdfPath, provider);
+        assert.equal(pdf.status, 200);
+        assert.equal(pdf.headers.get('content-type'), 'application/pdf');
+        assert.equal(pdf.headers.get('cache-control'), 'private, no-store');
+        assert.match(Buffer.from(await pdf.arrayBuffer()).toString('latin1'), /^%PDF-/);
+      }
       const reversedAnalytics = await payoutAnalytics();
       assert.equal(reversedAnalytics.settled.paidOutMinor, '0');
       assert.equal(reversedAnalytics.settled.feeRevenueMinor, '0');

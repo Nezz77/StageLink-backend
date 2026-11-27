@@ -24,13 +24,18 @@ const receipt = z.discriminatedUnion('version', [
     refundExecutionId: z.uuid(), journalId: z.uuid(), refundContext: z.enum(['cancellation', 'deposit_claim', 'arbitration']),
   }),
 ]);
-const bankSettlementReference = { settlementId: z.uuid(), journalId: z.uuid() };
+const settlementReference = { settlementId: z.uuid(), journalId: z.uuid() };
 const bankSettlement = z.discriminatedUnion('state', [
-  z.object({ ...bankSettlementReference, state: z.literal('settled') }),
+  z.object({ ...settlementReference, state: z.literal('settled') }),
   z.object({
-    ...bankSettlementReference, state: z.literal('reversed'), originalJournalId: z.uuid(),
+    ...settlementReference, state: z.literal('reversed'), originalJournalId: z.uuid(),
     reason: z.enum(['bank_payout_failed', 'transfer_reversed']),
   }),
+]);
+const manualSettlementReference = { ...settlementReference, revision: z.number().int().positive() };
+const manualSettlement = z.discriminatedUnion('state', [
+  z.object({ ...manualSettlementReference, state: z.literal('settled') }),
+  z.object({ ...manualSettlementReference, state: z.literal('reversed'), originalJournalId: z.uuid() }),
 ]);
 const settlementFields = {
   kind: z.literal('settlement'), issuedAt: time,
@@ -40,6 +45,7 @@ const settlementFields = {
 const settlement = z.discriminatedUnion('version', [
   z.object({ ...settlementFields, version: z.literal(1) }),
   z.object({ ...settlementFields, version: z.literal(2), bankSettlement }),
+  z.object({ ...settlementFields, version: z.literal(3), manualSettlement }),
 ]);
 export const documentSnapshot = z.discriminatedUnion('kind', [invoice, receipt, settlement]);
 export async function issueDocument(
@@ -62,8 +68,10 @@ export function renderBookingDocument(record: Pick<BookingDocument, 'id' | 'kind
   const snapshot = documentSnapshot.parse(record.snapshot);
   if (snapshot.kind !== record.kind) throw new Error('Document kind mismatch');
   const bank = snapshot.kind === 'settlement' && snapshot.version === 2 ? snapshot.bankSettlement : undefined;
-  const title = bank
-    ? (bank.state === 'settled' ? 'Bank payout settlement' : 'Bank payout settlement reversal')
+  const manual = snapshot.kind === 'settlement' && snapshot.version === 3 ? snapshot.manualSettlement : undefined;
+  const movement = bank ?? manual;
+  const title = movement
+    ? (manual ? 'Manual payout settlement' : 'Bank payout settlement') + (movement.state === 'reversed' ? ' reversal' : '')
     : snapshot.kind === 'receipt' && snapshot.version === 2 ? 'Refund receipt' : titles[snapshot.kind];
   const number = documentNumber(record.kind, record.id);
   const pdf = new jsPDF({ unit: 'mm', format: 'a4', compress: true });
@@ -106,18 +114,21 @@ export function renderBookingDocument(record: Pick<BookingDocument, 'id' | 'kind
       if (snapshot.damageClaimId) rows.push(['Damage claim', snapshot.damageClaimId]);
       if (snapshot.arbitrationId) rows.push(['Arbitration decision', snapshot.arbitrationId]);
       const grossLabel = snapshot.damageClaimId
-        ? (bank ? 'Deposit deduction' : 'Reserved deposit deduction')
-        : (bank ? 'Gross service funds' : 'Reserved service funds');
+        ? (movement ? 'Deposit deduction' : 'Reserved deposit deduction')
+        : (movement ? 'Gross service funds' : 'Reserved service funds');
       rows.push([grossLabel, amount(snapshot.grossMinor)],
         ['Platform fee', amount(snapshot.platformFeeMinor)], ['Provider net', amount(snapshot.netMinor)],
         ['Destination revision', String(snapshot.destinationRevision)]);
-      if (bank) {
-        rows.push(['Bank settlement', bank.settlementId], ['Ledger journal', bank.journalId]);
-        if (bank.state === 'settled') {
-          rows.push(['Settlement status', 'Posted from Stripe test bank payout evidence']);
+      if (movement) {
+        rows.push([manual ? 'Manual settlement' : 'Bank settlement', movement.settlementId], ['Ledger journal', movement.journalId]);
+        if (manual) rows.push(['Evidence revision', String(manual.revision)]);
+        if (movement.state === 'settled') {
+          rows.push(['Settlement status', bank ? 'Posted from Stripe test bank payout evidence' : 'Posted in the sandbox ledger']);
         } else {
-          rows.push(['Original journal', bank.originalJournalId], ['Settlement status', 'Reversed in the sandbox ledger'],
-            ['Reason', bank.reason === 'bank_payout_failed' ? 'Stripe test bank payout failed' : 'Stripe test transfer reversed']);
+          rows.push(['Original journal', movement.originalJournalId], ['Settlement status', 'Reversed in the sandbox ledger']);
+          if (bank?.state === 'reversed') {
+            rows.push(['Reason', bank.reason === 'bank_payout_failed' ? 'Stripe test bank payout failed' : 'Stripe test transfer reversed']);
+          }
         }
       } else {
         rows.push(['Settlement status', 'Funds reserved in sandbox']);
