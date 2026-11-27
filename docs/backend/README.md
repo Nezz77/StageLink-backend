@@ -224,7 +224,9 @@ Use the same POST to reconcile a later bank payout failure. StageLink posts acco
 
 List documents at `GET /api/v1/bookings/:id/documents`, preview a snapshot at `GET /api/v1/documents/:id`, and download the worker-rendered PDF at `GET /api/v1/documents/:id/download`. The worker must be running with access to the private object store. A failed render can be queued again with `POST /api/v1/documents/:id/render-retry`.
 
-Booking participants can see the invoice. The customer can see payment receipts. The provider can see their payout reservation, bank settlement and settlement reversal statements. Authorized administrators can access each type. These are sandbox documents. Production issuance needs confirmed issuer details and gateway outcomes.
+Booking participants can see the invoice. The customer can see capture and refund receipts. The provider can see their payout reservation, bank settlement and settlement reversal statements. Authorized administrators can access each type. These are sandbox documents. Production issuance needs confirmed issuer details and gateway outcomes.
+
+A successful sandbox refund creates one receipt for its matching posted journal. This covers Stripe test and PayHere sandbox refunds for cancellations, rental deposit claims and arbitration, including audited PayHere recovery. Existing successful refunds with matching journals are backfilled. The API returns these receipts as `version: 2` receipt snapshots with `disposition: "refunded"`, the exact refunded amount, gateway, original payment order, and refund context.
 
 Stripe test bank settlement and reversal statements come from posted ledger movements, with one document per journal. A later reversal adds a statement that references the original journal and preserves the original statement. Posting attempts without a bank settlement journal produce no statement. Existing posted journals are backfilled by the migration. The API exposes these as settlement snapshots with `version: 2` and a `bankSettlement` object. Deploy the matching API and PDF worker together so both understand the new snapshot version.
 
