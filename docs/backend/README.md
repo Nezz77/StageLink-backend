@@ -240,6 +240,8 @@ A different verified administrator submits `{decision, reason, expectedRevision}
 
 For a flagged revision, submit `{expectedRevision, testReference, reason}` to `POST /api/v1/admin/payouts/:id/manual-sandbox-settlement/corrections`. StageLink rechecks the reserve and approved destination, then records the unused test reference as a new revision. The old reference and review stay in the audit history. A different administrator from the correction author must review the new revision. An identical retry returns the saved correction.
 
+To reverse a posted sandbox settlement, a verified administrator other than the administrator who confirmed it submits `{expectedRevision, requestKey, reason}` to `POST /api/v1/admin/payouts/:id/manual-sandbox-settlement/reversals`. StageLink checks the original journal and restores the gross reserve with one compensating journal. The original approval and postings remain in the history. Provider status becomes `reversed`, and sandbox analytics reflect the offsetting payout and fee. The reservation stays on the manual sandbox path. Reuse the same request key and reason for an identical retry.
+
 Administrators can read the current revision using `GET /api/v1/admin/payouts/:id/manual-sandbox-settlement` and page through older records using `GET /api/v1/admin/payouts/:id/manual-sandbox-settlement/history?beforeRevision=<cursor>`. History starts at the newest revision when the cursor is omitted. Providers see the latest manual settlement status beside the reservation in their payout and earnings views. Posted journal entries appear in sandbox analytics.
 
 ## Booking documents

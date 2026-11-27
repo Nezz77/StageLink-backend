@@ -119,6 +119,7 @@ model AuthUser {
   payoutDestinationRepairs PayoutDestinationRepair[]
   manualSandboxPayouts ManualSandboxPayout[] @relation("ManualSandboxPayoutRecorder")
   manualSandboxPayoutReviews ManualSandboxPayout[] @relation("ManualSandboxPayoutReviewer")
+  manualSandboxPayoutReversals ManualSandboxPayoutReversal[]
   payHereRefundExecutions PayHereRefundExecution[]
   payHereRefundRecoveries PayHereRefundRecovery[]
   openedDisputes BookingDispute[] @relation("DisputeOpener")
@@ -848,6 +849,7 @@ model JournalTransaction {
   refundReservation RefundItem?
   payoutReservation PayoutOrder?
   manualSandboxPayout ManualSandboxPayout?
+  manualSandboxPayoutReversal ManualSandboxPayoutReversal?
   depositReservation DamageClaim?
   arbitrationReservation ArbitrationDecision?
   @@unique([source, reference])
@@ -1215,8 +1217,23 @@ model ManualSandboxPayout {
   recorder AuthUser @relation("ManualSandboxPayoutRecorder", fields: [recordedBy], references: [id], onDelete: Restrict)
   reviewer AuthUser? @relation("ManualSandboxPayoutReviewer", fields: [reviewedBy], references: [id], onDelete: Restrict)
   journal JournalTransaction? @relation(fields: [journalId], references: [id], onDelete: Restrict)
+  reversal ManualSandboxPayoutReversal?
   @@unique([payoutId, revision])
   @@map("manual_sandbox_payouts")
+}
+
+model ManualSandboxPayoutReversal {
+  id String @id @default(uuid()) @db.Uuid
+  settlementId String @unique @map("settlement_id") @db.Uuid
+  requestKey String @map("request_key") @db.Uuid
+  actorId String @map("actor_id") @db.Uuid
+  reason String @db.VarChar(500)
+  journalId String @unique @map("journal_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  settlement ManualSandboxPayout @relation(fields: [settlementId], references: [id], onDelete: Restrict)
+  actor AuthUser @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  journal JournalTransaction @relation(fields: [journalId], references: [id], onDelete: Restrict)
+  @@map("manual_sandbox_payout_reversals")
 }
 
 enum StripePayoutTransferState {
