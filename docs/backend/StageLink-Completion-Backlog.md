@@ -82,6 +82,7 @@ Checked boxes mark completed repository work. Hosted checks and remaining client
 - [x] P13 Sandbox invoice, per-capture receipt and payout reservation statement with private server-rendered PDFs.
 - [x] P13 Private sandbox statements for posted Stripe test bank settlements and reversals, including backfill from historical journals.
 - [x] P13 Private statements for manual sandbox payouts and reversals, including evidence revision and historical journal backfill.
+- [x] P13 Read-only staging check for linked manual payout PDFs, private downloads and role-based access.
 - [x] P13 Private customer PDF receipts for posted Stripe test and PayHere sandbox refunds, including recovered and historical refunds.
 - [x] P13 Verified customer reviews, moderated event photos and public rating aggregates.
 - [x] P14 Serialized equipment allocation, private dispatch and return reports, correction history, comparison and stock clearance.
