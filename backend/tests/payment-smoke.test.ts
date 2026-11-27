@@ -89,3 +89,106 @@ test('a failed readiness request stops before sending credentials', async () => 
   assert.throws(() => paymentSmokeConfig({ ...env, STAGELINK_SMOKE_ORIGIN: 'https://user@staging.example.test' }, token), /STAGELINK_SMOKE_ORIGIN/);
   assert.throws(() => paymentSmokeConfig({ ...env, STAGELINK_SMOKE_PAYHERE_ORDER_ID: config.stripeOrder }, token), /distinct sandbox orders/);
 });
+
+const settlementEnv = {
+  ...env,
+  STAGELINK_SMOKE_PAYHERE_REFUND_EXECUTION_ID: '7c1d64e5-09f1-484d-a5f1-7cdf572abc82',
+  STAGELINK_SMOKE_PAYHERE_REFUND_AMOUNT_MINOR: '245000',
+  STAGELINK_SMOKE_STRIPE_PAYOUT_ORDER_ID: '813d79bf-9ac7-4161-b914-e93a48d97131',
+  STAGELINK_SMOKE_STRIPE_BANK_PAYOUT_ID: 'po_settlementFixture',
+};
+const settlementConfig = paymentSmokeConfig(settlementEnv, token);
+const bankEvidence = {
+  bankPayoutId: settlementEnv.STAGELINK_SMOKE_STRIPE_BANK_PAYOUT_ID, transferId: 'ce00230d-7b9b-4355-a374-f26b19bbbc5d',
+  status: 'included', stripePayoutStatus: 'paid', balanceTransactionId: 'txn_settlementFixture',
+};
+const journalId = '18ff5d5f-33d8-42a1-8a10-ee254c8c0f01';
+const bankSettlement = {
+  bankPayoutId: bankEvidence.bankPayoutId, transferId: bankEvidence.transferId,
+  balanceTransactionId: bankEvidence.balanceTransactionId, state: 'settled', journalId, reversalJournalId: null,
+};
+const refundAudit = {
+  executionId: settlementEnv.STAGELINK_SMOKE_PAYHERE_REFUND_EXECUTION_ID, amountMinor: 245000, journalId, observedAt: checkedAt,
+  paymentId: 'provider_payment_fixture', reason: 'private operator notes',
+};
+
+function settlementFixture(
+  bank: object,
+  stored: object,
+  refund: typeof refundAudit | null,
+  sequence: string[] = [],
+): typeof fetch {
+  return async (input, init) => {
+    const url = new URL(String(input));
+    const { pathname } = url;
+    assert.equal(url.origin, config.origin);
+    assert.equal(init?.method, 'GET');
+    assert.equal(init?.redirect, 'error');
+    if (pathname.endsWith('/health/ready')) return Response.json(readiness);
+    assert.equal(new Headers(init?.headers).get('Authorization'), 'Bearer ' + token);
+    if (pathname.endsWith('/stripe-capabilities')) return Response.json(capabilities);
+    if (pathname.endsWith('/recoveries')) return Response.json({ items: [{
+      orderId: config.recoveryOrder, gateway: 'payhere', outcome: 'captured', observedAt: checkedAt, journalId,
+    }] });
+    if (pathname === `/api/v1/admin/payhere-refund-executions/${refundAudit.executionId}/recovery`) {
+      return Response.json({ recovery: refund });
+    }
+    const payoutPath = `/api/v1/admin/payouts/${settlementEnv.STAGELINK_SMOKE_STRIPE_PAYOUT_ORDER_ID}/stripe-transfer`;
+    if (pathname === payoutPath + '/bank-payout') {
+      assert.equal(url.searchParams.get('bankPayoutId'), bankEvidence.bankPayoutId);
+      sequence.push('provider');
+      return Response.json(bank);
+    }
+    if (pathname === payoutPath + '/bank-settlements') {
+      sequence.push('journal');
+      return Response.json({ settlements: [stored] });
+    }
+    if (pathname.includes(config.stripeOrder)) return Response.json(order(config.stripeOrder, 'stripe'));
+    assert.ok(pathname.includes(config.payHereOrder));
+    return Response.json(order(config.payHereOrder, 'payhere'));
+  };
+}
+
+test('payment smoke matches a PayHere refund audit and a fresh bank payout with its posted journal', async () => {
+  const sequence: string[] = [];
+  const report = await runPaymentSmoke(settlementConfig, settlementFixture(bankEvidence, bankSettlement, refundAudit, sequence));
+  assert.equal(report.passed, true);
+  assert.deepEqual(sequence, ['provider', 'journal']);
+  assert.deepEqual(report.checks.slice(-2), [
+    { check: 'payhere_refund_recovery_audit', status: 'pass', evidence: {
+      recoveryRecorded: true, matchesExecution: true, matchesAmount: true,
+    } },
+    { check: 'stripe_bank_payout_settlement', status: 'pass', evidence: {
+      payoutMatches: true, providerStatus: 'included', stripePayoutStatus: 'paid',
+      settlementRecorded: true, journalRecorded: true, matchesBalanceTransaction: true,
+    } },
+  ]);
+  assert.doesNotMatch(JSON.stringify(report), /signature|private operator|provider_payment|245000|po_settlement|txn_settlement|18ff5d5f|ce00230d/);
+});
+
+test('payment smoke flags missing or mismatched refund evidence and reversed or stale bank settlements', async () => {
+  const differentTransfer = 'ae44eae4-634d-48fe-88e9-0b54f5312daf';
+  const reviewCases = [
+    { bank: { ...bankEvidence, status: 'review_required', stripePayoutStatus: 'failed', balanceTransactionId: null },
+      local: bankSettlement, refund: null },
+    { bank: bankEvidence, local: { ...bankSettlement, state: 'review_required', reversalJournalId: differentTransfer },
+      refund: { ...refundAudit, amountMinor: 245001 } },
+    { bank: bankEvidence, local: { ...bankSettlement, balanceTransactionId: 'txn_other' },
+      refund: { ...refundAudit, executionId: differentTransfer } },
+    { bank: bankEvidence, local: { ...bankSettlement, transferId: differentTransfer }, refund: null },
+  ];
+  for (const { bank, local, refund } of reviewCases) {
+    const report = await runPaymentSmoke(settlementConfig, settlementFixture(bank, local, refund));
+    assert.equal(report.passed, false);
+    assert.deepEqual(report.checks.slice(-2).map(check => check.status), ['review', 'review']);
+  }
+});
+
+test('optional settlement fixtures must include both fields and an exact integer refund amount', () => {
+  assert.throws(() => paymentSmokeConfig({ ...settlementEnv, STAGELINK_SMOKE_PAYHERE_REFUND_AMOUNT_MINOR: undefined }, token),
+    /expected refund amount/);
+  assert.throws(() => paymentSmokeConfig({ ...settlementEnv, STAGELINK_SMOKE_STRIPE_BANK_PAYOUT_ID: undefined }, token),
+    /bank payout ID/);
+  assert.throws(() => paymentSmokeConfig({ ...settlementEnv, STAGELINK_SMOKE_PAYHERE_REFUND_AMOUNT_MINOR: '100.50' }, token),
+    /STAGELINK_SMOKE_PAYHERE_REFUND_AMOUNT_MINOR/);
+});

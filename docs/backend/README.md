@@ -132,8 +132,14 @@ Run `npm run build` from `backend/`, then run `npm run --silent payments:smoke` 
 | `STAGELINK_SMOKE_PAYHERE_ORDER_ID` | ID of a paid PayHere sandbox order with a recorded capture |
 | `STAGELINK_SMOKE_STRIPE_ACCOUNT_ID` | Candidate Stripe test connected account ID |
 | `STAGELINK_SMOKE_RECOVERY_ORDER_ID` | Optional ID of a separate sandbox order with an audited capture recovery |
+| `STAGELINK_SMOKE_PAYHERE_REFUND_EXECUTION_ID` | Optional ID of a PayHere sandbox full refund execution with a recorded recovery |
+| `STAGELINK_SMOKE_PAYHERE_REFUND_AMOUNT_MINOR` | Expected positive integer refund amount in minor LKR units, required with the refund execution ID |
+| `STAGELINK_SMOKE_STRIPE_PAYOUT_ORDER_ID` | Optional StageLink payout order ID with a recorded Stripe test bank settlement |
+| `STAGELINK_SMOKE_STRIPE_BANK_PAYOUT_ID` | Stripe bank payout ID beginning with `po_`, required with the StageLink payout order ID |
 
-The command reads API readiness, checks both payment orders against fresh provider evidence, and reports the Stripe platform and connected account capabilities relevant to LKR. Available LKR balance is reported as a boolean and is separate from the capability result. Missing or unsupported capability evidence needs review. When a recovery fixture is supplied, the command checks for a recorded capture recovery with a journal. It emits a JSON report without credentials, payment IDs, balance amounts or response bodies and returns a nonzero exit status if any requested check fails or needs review. Callback provenance and actual refunds, transfers and bank payouts require their own hosted evidence.
+The command reads API readiness, checks both payment orders against fresh provider evidence, and reports the Stripe platform and connected account capabilities relevant to LKR. It reports available LKR balance as a boolean. The optional checkout recovery fixture verifies a recorded capture recovery with a journal.
+
+The optional PayHere refund fixture checks the recorded recovery against the expected execution and amount. The Stripe bank payout fixture compares fresh paid payout evidence with the stored settlement for the same transfer and balance transaction. A missing or reversed journal needs review. Prepare the sandbox transactions and recoveries in staging before running these checks. The command makes GET requests only and reports sanitized results without credentials, IDs, amounts or response bodies. Any requested check that fails or needs review produces a nonzero exit status.
 
 
 ## Booking completion
