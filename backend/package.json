@@ -5,6 +5,14 @@
   "engines": {
     "node": ">=24.22.1 <25"
   },
+  "overrides": {
+    "@prisma/config@7.10.1": {
+      "effect": "3.22.1"
+    },
+    "jspdf@4.2.1": {
+      "dompurify": "3.4.17"
+    }
+  },
   "scripts": {
     "prebuild": "node scripts/generate-migration-version.mjs",
     "build": "tsc -p tsconfig.json",
