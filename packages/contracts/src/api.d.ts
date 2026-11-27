@@ -16633,6 +16633,11 @@ export interface operations {
                 content: {
                     "application/json": {
                         available: boolean;
+                        stock?: {
+                            totalUnits: number;
+                            reservedUnits: number;
+                            availableUnits: number;
+                        };
                     };
                 };
             };

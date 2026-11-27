@@ -150,6 +150,12 @@ The command reads API readiness, checks both payment orders against fresh provid
 The optional PayHere refund fixture checks the recorded recovery against the expected execution and amount. The Stripe bank payout fixture compares fresh paid payout evidence with the stored settlement for the same transfer and balance transaction. A missing or reversed journal needs review. Prepare the sandbox transactions and recoveries in staging before running these checks. The command makes GET requests only and reports sanitized results without credentials, IDs, amounts or response bodies. Any requested check that fails or needs review produces a nonzero exit status.
 
 
+## Date-specific equipment availability
+
+Use `GET /api/v1/listings/:id/availability` with the published listing version, date range, requested quantity and rate unit. For standalone equipment with a bookable calendar window, the response includes `stock.totalUnits`, `stock.reservedUnits` and `stock.availableUnits`. Total units reflect the published stock limit and available registered units when the listing tracks serials. Reserved units reflect peak overlapping active holds and agreements, including demand from bundles that use the same equipment. Availability compares the requested quantity against the remaining stock for the entire interval.
+
+Calendar closures and other listing types return the existing `available` flag. Refresh the counts when the date range changes. The booking request still checks capacity inside the provider lock.
+
 ## Booking completion
 
 Booking participants can read `GET /api/v1/bookings/:id/journey`. The provider submits `{"confirmed":true}` to the booking's `check-ins` route during its scheduled window and to its `completion` route after the scheduled and approved overtime end. Both require a paid advance. A check-in records the provider's manual confirmation. Either gig participant can propose overtime after check-in, and the other participant must resolve the proposal before completion.

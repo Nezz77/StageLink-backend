@@ -49,23 +49,36 @@ export function peakReserved(allocations: (Window & { quantity: number })[], win
   return peak;
 }
 
+export async function reservationStock(tx: Prisma.TransactionClient, line: ReservationLine, window: Window, now: Date, exclude?: string) {
+  let totalUnits = line.capacity;
+  if (line.resource === 'equipment') {
+    const counts = await tx.inventoryUnit.groupBy({
+      by: ['status'], where: { listingId: line.resourceId }, _count: { _all: true },
+    });
+    if (counts.length) totalUnits = Math.min(totalUnits, counts.find(row => row.status === 'available')?._count._all ?? 0);
+  }
+  const held = await tx.bookingReservationLine.findMany({
+    where: {
+      resource: line.resource, resourceId: line.resourceId, ...(exclude ? { bookingId: { not: exclude } } : {}),
+      booking: {
+        cancelledAt: null, startsAt: { lt: window.endsAt }, endsAt: { gt: window.startsAt },
+        OR: [
+          { agreedAt: { not: null } },
+          { providerDecision: null, holdExpiresAt: { gt: now } },
+          { providerDecision: 'accepted', holdExpiresAt: { gt: now } },
+        ],
+      },
+    },
+    select: { quantity: true, booking: { select: { startsAt: true, endsAt: true } } },
+  });
+  const reservedUnits = peakReserved(held.map(row => ({ ...row.booking, quantity: row.quantity })), window);
+  return { totalUnits, reservedUnits, availableUnits: Math.max(0, totalUnits - reservedUnits) };
+}
+
 // Call with the provider user row locked, shared by catalog, calendar and inventory mutations.
 export async function checkCapacity(tx: Prisma.TransactionClient, lines: ReservationLine[], window: Window, now: Date, exclude?: string) {
   for (const line of lines) {
-    let capacity = line.capacity;
-    if (line.resource === 'equipment') {
-      const counts = await tx.inventoryUnit.groupBy({
-        by: ['status'], where: { listingId: line.resourceId }, _count: { _all: true },
-      });
-      if (counts.length) capacity = Math.min(capacity, counts.find(row => row.status === 'available')?._count._all ?? 0);
-    }
-    const held = await tx.bookingReservationLine.findMany({
-      where: {
-        resource: line.resource, resourceId: line.resourceId, ...(exclude ? { bookingId: { not: exclude } } : {}),
-        booking: { cancelledAt: null, OR: [{ agreedAt: { not: null } }, { providerDecision: null, holdExpiresAt: { gt: now } }, { providerDecision: 'accepted', holdExpiresAt: { gt: now } }], startsAt: { lt: window.endsAt }, endsAt: { gt: window.startsAt } },
-      },
-      select: { quantity: true, booking: { select: { startsAt: true, endsAt: true } } },
-    });
-    if (line.quantity + peakReserved(held.map(row => ({ ...row.booking, quantity: row.quantity })), window) > capacity) unavailable();
+    const stock = await reservationStock(tx, line, window, now, exclude);
+    if (line.quantity + stock.reservedUnits > stock.totalUnits) unavailable();
   }
 }

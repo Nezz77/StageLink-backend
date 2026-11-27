@@ -8,7 +8,7 @@ import type { Booking, Prisma } from '../../../generated/prisma/client.js';
 import type { AuthService, Identity } from '../auth/service.js';
 import { PublicError } from '../auth/errors.js';
 import { ProfileService } from '../profiles/service.js';
-import { checkCalendar, checkCapacity } from './reservations.js';
+import { checkCalendar, checkCapacity, reservationStock } from './reservations.js';
 import { bookingSelection, publishedTarget, selection, snapshot } from './selection.js';
 
 const uuid = z.string().uuid();
@@ -34,7 +34,14 @@ const availabilityQuery = selection.omit({ targetId: true }).extend({
   guestCount: z.string().regex(/^[1-9][0-9]{0,5}$/).transform(Number).pipe(selection.shape.guestCount.unwrap()).optional(),
   addonIds: z.string().max(74).optional().transform(value => value ? value.split(',') : []).pipe(selection.shape.addonIds.removeDefault()),
 }).strict();
-const availability = z.object({ available: z.boolean() });
+const availability = z.object({
+  available: z.boolean(),
+  stock: z.object({
+    totalUnits: z.number().int().nonnegative(),
+    reservedUnits: z.number().int().nonnegative(),
+    availableUnits: z.number().int().nonnegative(),
+  }).optional(),
+});
 const decide = z.object({
   revision: z.number().int().positive().max(2_147_483_647),
   decision: z.enum(['accepted', 'rejected']),
@@ -212,6 +219,11 @@ export function makeBookingRequestsController(auth: AuthService) {
         const quoted = await bookingSelection(tx, input, window.duration);
         try {
           await checkCalendar(tx, providerId, window, input.targetKind === 'gig');
+          const [line] = quoted.lines;
+          if (line?.resource === 'equipment' && line.resourceId === input.targetId) {
+            const stock = await reservationStock(tx, line, window, now);
+            return { available: line.quantity <= stock.availableUnits, stock };
+          }
           await checkCapacity(tx, quoted.lines, window, now);
           return { available: true };
         } catch (error) {
