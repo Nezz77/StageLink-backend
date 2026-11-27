@@ -132,8 +132,14 @@ Run `npm run build` from `backend/`, then run `npm run --silent payments:smoke` 
 | `STAGELINK_SMOKE_PAYHERE_ORDER_ID` | ID of a paid PayHere sandbox order with a recorded capture |
 | `STAGELINK_SMOKE_STRIPE_ACCOUNT_ID` | Candidate Stripe test connected account ID |
 | `STAGELINK_SMOKE_RECOVERY_ORDER_ID` | Optional ID of a separate sandbox order with an audited capture recovery |
+| `STAGELINK_SMOKE_PAYHERE_REFUND_EXECUTION_ID` | Optional ID of a PayHere sandbox full refund execution with a recorded recovery |
+| `STAGELINK_SMOKE_PAYHERE_REFUND_AMOUNT_MINOR` | Expected positive integer refund amount in minor LKR units, required with the refund execution ID |
+| `STAGELINK_SMOKE_STRIPE_PAYOUT_ORDER_ID` | Optional StageLink payout order ID with a recorded Stripe test bank settlement |
+| `STAGELINK_SMOKE_STRIPE_BANK_PAYOUT_ID` | Stripe bank payout ID beginning with `po_`, required with the StageLink payout order ID |
 
-The command reads API readiness, checks both payment orders against fresh provider evidence, and reports the Stripe platform and connected account capabilities relevant to LKR. Available LKR balance is reported as a boolean and is separate from the capability result. Missing or unsupported capability evidence needs review. When a recovery fixture is supplied, the command checks for a recorded capture recovery with a journal. It emits a JSON report without credentials, payment IDs, balance amounts or response bodies and returns a nonzero exit status if any requested check fails or needs review. Callback provenance and actual refunds, transfers and bank payouts require their own hosted evidence.
+The command reads API readiness, checks both payment orders against fresh provider evidence, and reports the Stripe platform and connected account capabilities relevant to LKR. It reports available LKR balance as a boolean. The optional checkout recovery fixture verifies a recorded capture recovery with a journal.
+
+The optional PayHere refund fixture checks the recorded recovery against the expected execution and amount. The Stripe bank payout fixture compares fresh paid payout evidence with the stored settlement for the same transfer and balance transaction. A missing or reversed journal needs review. Prepare the sandbox transactions and recoveries in staging before running these checks. The command makes GET requests only and reports sanitized results without credentials, IDs, amounts or response bodies. Any requested check that fails or needs review produces a nonzero exit status.
 
 
 ## Booking completion
@@ -206,6 +212,10 @@ A first Stripe submission that returns an authenticated `balance_insufficient` r
 
 An independent verified administrator can send `{transferId, reason}` to `POST /api/v1/admin/payouts/:id/stripe-transfer/retry-authorizations` after a confirmed rejection or full reversal with the original gross reserve intact. StageLink records the approval and retains the prior attempt and journals. Repeating the same approval returns the saved decision. Use `GET /api/v1/admin/payouts/:id/stripe-transfer/attempts` for the most recent 20 attempts and their retry approvals.
 
+Use `GET /api/v1/admin/payouts/:id/stripe-transfer/attempts/:attemptId/investigation` as a verified administrator to review a specific attempt. One database snapshot shows the attempt status and lease, recorded journal ID, original gross reserve, current posted reserve, booking payout block, and the 20 most recently received signed Stripe events for that attempt. The reserve balance is a decimal string in minor LKR units and is null when the reservation account cannot be verified for the attempt. Historical attempts share the current payout reserve balance. `latestAttempt` identifies the attempt targeted by reconciliation.
+
+For an uncertain latest attempt, check the investigation record before using the existing `{ "reconcileOnly": true }` transfer command. The investigation endpoint reads stored evidence and makes zero Stripe calls. An empty event list and intact reserve leave the Stripe outcome uncertain. A new attempt still requires a confirmed rejection or a reconciled full reversal and recorded retry approval.
+
 To begin a new attempt, send `{retryOfTransferId}` to the transfer endpoint using the approved transfer's ID. Use the same body to retry an uncertain response for that new attempt. A new attempt uses a new Stripe idempotency key and rechecks the current destination, captures, holds and reserve. An empty body returns the latest state after retry approval. Partial reversals and unresolved submissions remain held for review. Hosted LKR verification and bank payout execution remain open.
 
 #### Stripe test bank payout confirmation
@@ -219,6 +229,18 @@ The check returns the current Stripe payout state on each request. A later failu
 A verified administrator with a recent sign-in can send `{bankPayoutId}` to `POST /api/v1/admin/payouts/:id/stripe-transfer/bank-settlements` with the standard origin and CSRF headers. StageLink fetches fresh Stripe test evidence. When the linked transfer is included in a paid, reconciled automatic LKR bank payout, the booking is clear of holds, and its fee reserve is intact, the journal moves the provider amount into bank clearing and records the reserved platform fee as settled. One active settlement per transfer is allowed, so duplicate requests share the recorded journal.
 
 Use the same POST to reconcile a later bank payout failure. StageLink posts accounting entries that compensate the original settlement, restores the fee reserve, and preserves both journal entries. Reconciliation of a Stripe transfer reversal also compensates any active bank settlement for that transfer. `GET /api/v1/admin/payouts/:id/stripe-transfer/bank-settlements` shows the most recent 20 records and their review reasons. Manual bank payout initiation and hosted verification remain open.
+
+### Manual sandbox payout reconciliation
+
+Set `MANUAL_SANDBOX_PAYOUT_RECONCILIATION=true` to exercise the manual workflow with fictional payout references. This posts sandbox ledger records for ordinary booking service payouts. Live bank payouts remain disabled.
+
+A verified administrator with a recent sign-in sends `{testReference, amountMinor, destinationRevision, reason}` to `POST /api/v1/admin/payouts/:id/manual-sandbox-settlement` using the standard origin and CSRF headers. Use a unique reference beginning with `SBX-`. The amount is the exact net payout in minor LKR units. StageLink checks the reviewed destination, booking eligibility and full original reserve. An identical retry using the same administrator returns the saved record.
+
+A different verified administrator submits `{decision, reason, expectedRevision}` to `POST /api/v1/admin/payouts/:id/manual-sandbox-settlement/review`. Older clients can omit `expectedRevision` to review revision 1. A `confirm` decision rechecks eligibility and posts the provider net and platform fee once. A `flag` decision preserves the full reserve for review. A prior Stripe attempt prevents recording a manual payout. A manual record prevents Stripe transfer submission and payout destination repair for the same reservation.
+
+For a flagged revision, submit `{expectedRevision, testReference, reason}` to `POST /api/v1/admin/payouts/:id/manual-sandbox-settlement/corrections`. StageLink rechecks the reserve and approved destination, then records the unused test reference as a new revision. The old reference and review stay in the audit history. A different administrator from the correction author must review the new revision. An identical retry returns the saved correction.
+
+Administrators can read the current revision using `GET /api/v1/admin/payouts/:id/manual-sandbox-settlement` and page through older records using `GET /api/v1/admin/payouts/:id/manual-sandbox-settlement/history?beforeRevision=<cursor>`. History starts at the newest revision when the cursor is omitted. Providers see the latest manual settlement status beside the reservation in their payout and earnings views. Posted journal entries appear in sandbox analytics.
 
 ## Booking documents
 
@@ -307,6 +329,12 @@ For each staging brief, capture one weighted run and one run with `useSemantic: 
 Create a JSON manifest with `version: 1`, `expectedModel` set to the deployed embedding model, and a `cases` array. Each case has a short lowercase `key`, both full run responses under `weighted` and `semantic`, and `judgments` containing `{gigId, relevance}` records. Use grades 0 (irrelevant), 1 (partial fit), 2 (good fit), and 3 (strong fit). Judge every result returned by either run and include any other known relevant listings. Each case needs at least one positive judgment. Use case keys that contain no private details.
 
 From `backend/`, run `npm run build` and then `npm run --silent recommendations:evaluate -- <manifest.json>`. The evaluator reports reciprocal rank of the first relevant result, graded nDCG, and recall over judged relevant listings, all at rank three. Averages use the same comparable cases for both methods. It counts semantic fallbacks and excludes pairs with changed revisions, mismatched embedding provenance, stale listings or missing judgments. Incomplete data returns a nonzero status with the available results. A complete report can still show a quality regression. The command reads the file locally and emits no brief text, listing IDs, or request credentials.
+
+To capture and score staging runs in one command, set `STAGELINK_SMOKE_ORIGIN` and `STAGELINK_SMOKE_WEB_ORIGIN` to the staging HTTPS origins. From `backend/`, build and run `npm run --silent recommendations:capture -- <plan.json>`, piping the staging brief owner's `{accessToken, csrfToken}` session JSON through protected stdin.
+
+The plan uses `version: 1`, `expectedModel`, and one to five `cases` for briefs owned by that customer. Each case supplies `key`, `briefId`, `briefRevision`, optional `genres`, two distinct UUIDs as `weightedRequestKey` and `semanticRequestKey`, and the `judgments` described above. Choose staging briefs and listings that represent the event types and budgets you want to evaluate. Keep the catalog and matching weights fixed during capture.
+
+The command opts each staging brief into the semantic model once per new semantic request key. Use synthetic briefs cleared for embedding and preserve the plan's request keys to recover the same runs after interruption. It rereads both saved results and prints the existing evaluation report. A capture error prints the case key, failed stage and available HTTP status. The command exits nonzero on a capture error or an incomplete comparison.
 
 ## Provider verification
 

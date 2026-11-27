@@ -6,7 +6,7 @@ Each checkout gateway reports its configuration and whether this account meets t
 
 Stripe configuration requires the test secret key and webhook secret. PayHere configuration requires the sandbox merchant ID, secret and notification URL. These flags describe the server configuration. They do not establish merchant eligibility, LKR acceptance, account capabilities, booking ownership, an accepted quotation or a valid unpaid order. The checkout endpoints still enforce those requirements. Both `merchantEligibilityChecked` and `bookingEligibilityChecked` remain false.
 
-Only an email-verified session currently acting as administrator receives `adminExecution`; other accounts receive null. It reports configured Stripe test refund and transfer execution, and full PayHere sandbox refund execution. Existing captures can be refunded with configured PayHere retrieval credentials even if checkout credentials have been removed. These flags do not grant authorization for a particular refund or transfer.
+Only an email-verified session currently acting as administrator receives `adminExecution`; other accounts receive null. It reports configured Stripe test refund and transfer execution, full PayHere sandbox refund execution, and manual sandbox payout reconciliation. Existing captures can be refunded with configured PayHere retrieval credentials even if checkout credentials have been removed. The execution routes enforce authorization for each refund and payout.
 
 Partial PayHere refunds, PayHere provider payouts, manual bank payouts, production documents and live financial totals remain explicitly disabled. All advertised routes use test/sandbox money. `liveMoneyMovementEnabled` remains false. An internal reservation is not proof of a bank payout.
 

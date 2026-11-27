@@ -21,7 +21,7 @@ Full PayHere sandbox arbitration refunds and audited recovery are on `main`. Rec
 
 | Order | Task | Completion criteria |
 | --- | --- | --- |
-| 1 | Equipment reference catalog, P15 | Review and approve the 12 bundled references on staging, then expand coverage against the rental catalog. |
+| 1 | Equipment reference catalog, P15 | Review and approve the 18 bundled references on staging, then use the coverage report to prioritize further models from the rental catalog. |
 | 2 | Hosted payment verification, P11–P16 | Verify PayHere and Stripe test callbacks, retrieval and audited recovery with merchant accounts. Confirm Stripe LKR and Connect eligibility. Verify sandbox refunds, transfers, rental deductions and arbitration settlements with the supported routes. |
 | 3 | Remaining payment implementation, P12–P16 | Establish exact provider evidence for partial PayHere refunds, then implement supported reconciliation. Complete PayHere deduction, provider payout and fee settlement and manual bank payouts. Issue production documents and report live financial totals after confirming live settlements. |
 | 4 | AI and private evidence, P15–P16 | Smoke test hosted models, evaluate ranking against representative listings and event briefs, and verify private PDF access on staging storage. |
@@ -73,7 +73,11 @@ Checked boxes mark completed repository work. Hosted checks and remaining client
 - [x] P12 Signed Stripe test transfer creation and reversal events reconcile existing attempts and recover a lost submission response when Stripe confirms the transfer.
 - [x] P12 Read-only Stripe test confirmation of transfer inclusion in a reconciled automatic LKR bank payout, with fresh failure status.
 - [x] P12 Stripe test journal and fee settlement for confirmed automatic LKR bank payouts, with compensating entries when the payout fails or the transfer reverses.
-- [ ] P12 Manual bank payout execution and investigation of attempts without conclusive Stripe evidence.
+- [x] P12 Verified-admin investigation of uncertain Stripe test transfer attempts using stored webhook and ledger evidence.
+- [x] P12 Read-only staging checks for audited PayHere full refund recovery and matching Stripe test bank payout settlement evidence.
+- [x] P12 Manual sandbox payout recording, independent review and ledger settlement with Stripe route exclusion.
+- [x] P12 Versioned corrections for flagged sandbox payout references with independent review and preserved audit history.
+- [ ] P12 Manual bank payout execution.
 - [x] P13 Sandbox invoice, per-capture receipt and payout reservation statement with private server-rendered PDFs.
 - [x] P13 Private sandbox statements for posted Stripe test bank settlements and reversals, including backfill from historical journals.
 - [x] P13 Private customer PDF receipts for posted Stripe test and PayHere sandbox refunds, including recovered and historical refunds.
@@ -95,9 +99,10 @@ Checked boxes mark completed repository work. Hosted checks and remaining client
 - [x] P15 Administrator indexing and status checks for versioned public gig embeddings.
 - [x] P15 Opt-in semantic reranking, weighted fallback, embedding provenance and repeatable synthetic ranking evaluation.
 - [x] P15 Offline paired ranking evaluator with graded relevance, fallback counts and snapshot compatibility checks.
+- [x] P15 Staging command to capture and score paired runs using the same briefs, explicit semantic opt-in and replay-safe request keys.
 - [x] P15 Staging smoke command for hosted model readiness, a synthetic prompt preview and recorded usage.
 - [ ] P15 Live model smoke test and ranking evaluation against a representative catalog and event briefs.
-- [x] P15 Manufacturer reference bundle with 12 cited models, administrator preview, digest-based approval and safeguards for duplicate, conflicting and retired entries. [Bundle guide](Equipment-Reference-Bundle.md).
+- [x] P15 Manufacturer reference bundle with 18 cited models, including separate original DXR and DXS references, administrator preview, digest-based approval and safeguards for duplicate, conflicting and retired entries. [Bundle guide](Equipment-Reference-Bundle.md).
 - [x] P15 Read-only equipment reference coverage report for published rental listings and versioned manufacturer/model reviews.
 - [ ] P15 Approve the bundled references on staging and expand coverage against the rental catalog.
 - [x] P16 Private provider verification submissions, administrative review and resubmission history.

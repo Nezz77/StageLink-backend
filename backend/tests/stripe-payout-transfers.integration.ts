@@ -34,13 +34,20 @@ test('a Stripe test arbitration payout settles its provider and fee allocations 
   checkPayoutReconciliation(t, { arbitrationAward: true }));
 test('a provider-only arbitration payout settles without a customer refund execution', t =>
   checkPayoutReconciliation(t, { arbitrationAward: true, awardRefundMinor: 0 }));
+test('independent manual sandbox confirmation settles the original reserve once', t =>
+  checkPayoutReconciliation(t, { manualDecision: 'confirm' }));
+test('a flagged manual sandbox payout preserves its evidence and settles only its corrected revision', t =>
+  checkPayoutReconciliation(t, { manualDecision: 'flag' }));
 
 async function checkPayoutReconciliation(
   t: TestContext,
-  { initialReversedMinor = 0, rejectFirst = false, useWebhooks = false, damageDeduction = false, arbitrationAward = false, awardRefundMinor = 50000 }:
-    { initialReversedMinor?: number; rejectFirst?: boolean; useWebhooks?: boolean; damageDeduction?: boolean; arbitrationAward?: boolean; awardRefundMinor?: number } = {},
+  { initialReversedMinor = 0, rejectFirst = false, useWebhooks = false, damageDeduction = false, arbitrationAward = false, awardRefundMinor = 50000, manualDecision }:
+    { initialReversedMinor?: number; rejectFirst?: boolean; useWebhooks?: boolean; damageDeduction?: boolean; arbitrationAward?: boolean; awardRefundMinor?: number; manualDecision?: 'confirm' | 'flag' } = {},
 ) {
-  const config = { ...testConfig, AUTH_RATE_PREFIX: 'stripe-transfer-test-' + randomUUID() };
+  const config = {
+    ...testConfig, AUTH_RATE_PREFIX: 'stripe-transfer-test-' + randomUUID(),
+    MANUAL_SANDBOX_PAYOUT_RECONCILIATION: manualDecision || useWebhooks ? 'true' as const : 'false' as const,
+  };
   const localFetch = globalThis.fetch;
   const sessions = new Map<string, object>();
   const stripeId = 'acct_' + randomUUID().replaceAll('-', '');
@@ -53,6 +60,7 @@ async function checkPayoutReconciliation(
   let bankPayoutStatus = 'paid';
   let transfer: Record<string, unknown> | null = null;
   let submissions = 0;
+  let gatewayRequests = 0;
   const idempotencyKeys = new Set<string>();
   let sent!: () => void;
   let release!: () => void;
@@ -62,6 +70,7 @@ async function checkPayoutReconciliation(
   t.mock.method(globalThis, 'fetch', async (input: string | URL | Request, init?: RequestInit) => {
     const url = new URL(input instanceof Request ? input.url : input);
     if (url.hostname !== 'api.stripe.com') return localFetch(input, init);
+    gatewayRequests++;
     assert.equal(new Headers(init?.headers).get('Authorization'), 'Bearer sk_test_transfer');
     if (['/v1/payouts/po_fixture', '/v1/payouts/po_replacement', '/v1/balance_transactions'].includes(url.pathname)) {
       assert.equal(init?.method, 'GET');
@@ -463,7 +472,153 @@ async function checkPayoutReconciliation(
       assert.equal(submissions, 1);
       return;
     }
-    const path = base + 'admin/payouts/' + payoutId + '/stripe-transfer';
+    const payoutPath = base + 'admin/payouts/' + payoutId;
+    const manualPath = payoutPath + '/manual-sandbox-settlement';
+    const path = payoutPath + '/stripe-transfer';
+    const manualInput = {
+      amountMinor: 95000, destinationRevision: 1,
+      testReference: 'SBX-' + randomUUID().toUpperCase(), reason: 'Record a fictional sandbox payout reference.',
+    };
+    const recordManual = (actor = admin, body = manualInput) => fetch(manualPath, {
+      method: 'POST', headers: actor.headers, body: JSON.stringify(body),
+    });
+    if (manualDecision) {
+      const reviewer = await fixture('admin');
+      const operator = (await (await fetch(base + 'payments/capabilities', admin)).json()).adminExecution;
+      assert.equal(operator.manualSandboxPayoutReconciliationEnabled, true);
+      assert.equal(operator.manualBankPayoutsEnabled, false);
+      assert.equal((await recordManual(provider)).status, 403);
+      assert.equal((await recordManual(admin, { ...manualInput, amountMinor: 94999 })).status, 409);
+      assert.equal((await recordManual(admin, { ...manualInput, destinationRevision: 2 })).status, 409);
+      assert.deepEqual(await (await fetch(manualPath, admin)).json(), { settlement: null });
+      const reports = await Promise.all([recordManual(), recordManual()]);
+      assert.ok(reports.every(result => result.status === 200));
+      const [report, replay] = await Promise.all(reports.map(result => result.json()));
+      assert.deepEqual(report, replay);
+      assert.equal(report.recordedBy, admin.id);
+      assert.equal(report.revision, 1);
+      assert.equal(report.state, 'awaiting_review');
+      assert.equal(await postedBalance(deps.db, reserved.account.id), 100000n);
+      assert.equal((await (await recordManual(admin, { ...manualInput, reason: 'Changed the original recording reason.' })).json()).code,
+        'MANUAL_SANDBOX_PAYOUT_STARTED');
+
+      const before = gatewayRequests;
+      const submitStripe = () => fetch(path, { method: 'POST', headers: admin.headers, body: '{}' });
+      assert.equal((await (await submitStripe()).json()).code, 'MANUAL_SANDBOX_PAYOUT_STARTED');
+      const repair = await fetch(base + 'admin/bookings/' + booking.id + '/payout-destination-repairs', {
+        method: 'POST', headers: admin.headers, body: JSON.stringify({
+          requestKey: randomUUID(), expectedDestinationRevision: 1, destinationRevision: 2,
+          reason: 'Try to change a destination that has a sandbox reference.',
+        }),
+      });
+      assert.equal((await repair.json()).code, 'MANUAL_SANDBOX_PAYOUT_STARTED');
+
+      const reviewInput = { decision: manualDecision, reason: 'Independently reviewed the fictional sandbox payout.' };
+      const review = (actor = reviewer, input: typeof reviewInput & { expectedRevision?: number } = reviewInput) => fetch(manualPath + '/review', {
+        method: 'POST', headers: actor.headers, body: JSON.stringify(input),
+      });
+      assert.equal((await (await review(admin)).json()).code, 'MANUAL_PAYOUT_INDEPENDENT_REVIEW_REQUIRED');
+      if (manualDecision === 'confirm') {
+        await deps.db.bookingPayoutHold.create({ data: {
+          bookingId, revision: 1, held: true, reason: 'Fixture review hold.', actorId: admin.id, createdAt: now,
+        } });
+        assert.equal((await review()).status, 409);
+        assert.equal(await postedBalance(deps.db, reserved.account.id), 100000n);
+        await deps.db.bookingPayoutHold.create({ data: {
+          bookingId, revision: 2, held: false, reason: 'Fixture review hold cleared.', actorId: admin.id, createdAt: now,
+        } });
+      }
+      const reviewed = await Promise.all([review(), review()]);
+      assert.ok(reviewed.every(result => result.status === 200));
+      const [decision, duplicate] = await Promise.all(reviewed.map(result => result.json()));
+      assert.deepEqual(decision, duplicate);
+      assert.equal(decision.reviewedBy, reviewer.id);
+      assert.equal(decision.amountMinor, 95000);
+      const settled = manualDecision === 'confirm';
+      assert.equal(decision.state, settled ? 'settled' : 'review_required');
+      assert.equal((await (await review(reviewer, { ...reviewInput, reason: 'Changed the original review reason.' })).json()).code,
+        'MANUAL_PAYOUT_REVIEW_RECORDED');
+      assert.deepEqual((await (await fetch(manualPath, admin)).json()).settlement, decision);
+      assert.equal((await fetch(manualPath, provider)).status, 403);
+      assert.equal((await (await submitStripe()).json()).code, 'MANUAL_SANDBOX_PAYOUT_STARTED');
+      assert.equal(gatewayRequests, before);
+      assert.equal(await postedBalance(deps.db, reserved.account.id), settled ? 0n : 100000n);
+      const journals = await deps.db.journalTransaction.findMany({
+        where: { source: 'payout.sandbox.manual.settle', reference: report.id },
+        include: { entries: { include: { account: true } } },
+      });
+      if (settled) {
+        assert.equal(journals.length, 1);
+        assert.equal(journals[0]!.id, decision.journalId);
+        assert.deepEqual(Object.fromEntries(journals[0]!.entries.map(entry => [entry.account.scope, entry.amountMinor])), {
+          [reserved.account.scope]: -100000n, 'platform:sandbox:manual:fees': 5000n, 'sandbox:manual-payouts': 95000n,
+        });
+      } else {
+        assert.equal(journals.length, 0);
+        assert.equal(decision.journalId, null);
+      }
+      const providerView = await (await fetch(base + 'payouts/' + payoutId, provider)).json();
+      assert.equal(providerView.manualSandboxPayoutStatus, decision.state);
+      assert.ok(!JSON.stringify(providerView).includes(manualInput.testReference));
+      const from = new Date(now.getTime() - 86_400_000).toISOString().slice(0, 10);
+      const to = new Date(now.getTime() + 86_400_000).toISOString().slice(0, 10);
+      const analytics = await (await fetch(base + `me/analytics?from=${from}&to=${to}&environment=sandbox`, provider)).json();
+      assert.equal(analytics.settled.paidOutMinor, settled ? '95000' : '0');
+      assert.equal(analytics.settled.feeRevenueMinor, settled ? '5000' : '0');
+      const correctionInput = {
+        expectedRevision: 1, testReference: 'SBX-' + randomUUID().toUpperCase(),
+        reason: 'Replace the flagged fictional reference after checking the evidence.',
+      };
+      const correct = (input = correctionInput, actor = admin) => fetch(manualPath + '/corrections', {
+        method: 'POST', headers: actor.headers, body: JSON.stringify(input),
+      });
+      if (settled) {
+        assert.equal((await (await correct()).json()).code, 'MANUAL_PAYOUT_NOT_FLAGGED');
+        return;
+      }
+      assert.equal((await correct(correctionInput, provider)).status, 403);
+      assert.equal((await (await correct({ ...correctionInput, testReference: manualInput.testReference })).json()).code,
+        'MANUAL_PAYOUT_REFERENCE_REUSED');
+      const corrections = await Promise.all([correct(), correct()]);
+      assert.ok(corrections.every(result => result.status === 200));
+      const [correction, repeatedCorrection] = await Promise.all(corrections.map(result => result.json()));
+      assert.deepEqual(repeatedCorrection, correction);
+      assert.equal(correction.revision, 2);
+      assert.equal(correction.state, 'awaiting_review');
+      assert.equal(await postedBalance(deps.db, reserved.account.id), 100000n);
+      assert.deepEqual((await (await fetch(manualPath, admin)).json()).settlement, correction);
+      assert.deepEqual(await (await review()).json(), decision, 'the original flag review can be replayed');
+      assert.equal((await (await review(reviewer, { ...reviewInput, decision: 'confirm' })).json()).code,
+        'MANUAL_PAYOUT_REVIEW_RECORDED');
+      assert.equal((await (await review(reviewer, { ...reviewInput, decision: 'confirm', expectedRevision: 3 })).json()).code,
+        'MANUAL_PAYOUT_REVISION_CHANGED');
+      assert.equal((await (await submitStripe()).json()).code, 'MANUAL_SANDBOX_PAYOUT_STARTED');
+      const confirmation = { decision: 'confirm' as const, reason: reviewInput.reason, expectedRevision: 2 };
+      assert.equal((await (await review(admin, confirmation)).json()).code, 'MANUAL_PAYOUT_INDEPENDENT_REVIEW_REQUIRED');
+      const confirmations = await Promise.all([review(reviewer, confirmation), review(reviewer, confirmation)]);
+      assert.ok(confirmations.every(result => result.status === 200));
+      const [confirmed, repeatedConfirmation] = await Promise.all(confirmations.map(result => result.json()));
+      assert.deepEqual(repeatedConfirmation, confirmed);
+      assert.equal(confirmed.revision, 2);
+      assert.equal(confirmed.state, 'settled');
+      assert.equal(await postedBalance(deps.db, reserved.account.id), 0n);
+      assert.equal(await deps.db.journalTransaction.count({
+        where: { source: 'payout.sandbox.manual.settle', reference: { in: [report.id, correction.id] } },
+      }), 1);
+      assert.deepEqual(await (await recordManual()).json(), decision, 'the initial recording still returns revision one');
+      const historyPath = manualPath + '/history';
+      assert.equal((await fetch(historyPath, provider)).status, 403);
+      assert.deepEqual(await (await fetch(historyPath, admin)).json(), { items: [confirmed, decision], nextBeforeRevision: null });
+      assert.deepEqual(await (await fetch(historyPath + '?beforeRevision=2', admin)).json(), {
+        items: [decision], nextBeforeRevision: null,
+      });
+      const latestStatus = await (await fetch(base + 'payouts/' + payoutId, provider)).json();
+      assert.equal(latestStatus.manualSandboxPayoutStatus, 'settled');
+      assert.ok(!JSON.stringify(latestStatus).includes(correctionInput.testReference));
+      assert.equal(gatewayRequests, before);
+      return;
+    }
+    const investigationPath = (attemptId: string) => path + '/attempts/' + attemptId + '/investigation';
     const bankPath = path + '/bank-payout?bankPayoutId=po_fixture';
     const settlementPath = path + '/bank-settlements';
     const settleBank = (bankPayoutId = 'po_fixture', actor = admin) => fetch(settlementPath, {
@@ -498,6 +653,7 @@ async function checkPayoutReconciliation(
     let activeLinkId = link.id;
     let holdRevision = 1;
     if (!initialReversedMinor && !rejectFirst && !useWebhooks) {
+      assert.equal((await (await recordManual()).json()).code, 'MANUAL_SANDBOX_PAYOUT_DISABLED');
       const pending = { ...dest, revision: 2, status: 'pending' };
       await deps.db.payoutDestinationVersion.create({ data: pending });
       await deps.db.payoutDestination.update({ where: { userId: provider.id }, data: pending });
@@ -559,7 +715,15 @@ async function checkPayoutReconciliation(
     const first = submit();
     await Promise.race([sending, first.then(async value => assert.fail(await value.clone().text()))]);
     try {
-      assert.equal((await (await submit()).json()).state, 'processing');
+      const pending = await (await submit()).json();
+      assert.equal(pending.state, 'processing');
+      if (useWebhooks) {
+        assert.equal((await (await recordManual()).json()).code, 'PAYOUT_TRANSFER_STARTED');
+        const snapshot = await (await fetch(investigationPath(pending.id), admin)).json();
+        assert.equal(snapshot.transfer.state, 'processing');
+        assert.ok(Date.parse(snapshot.leaseExpiresAt) > Date.parse(snapshot.checkedAt));
+        assert.equal(snapshot.payoutBlocked, false);
+      }
       assert.equal(await postedBalance(deps.db, reserved.account.id), 100000n);
       const expectedDestinationRevision = initialReversedMinor || rejectFirst || useWebhooks ? 1 : 2;
       const claimedRepair = { ...repairInput, requestKey: randomUUID(), expectedDestinationRevision, destinationRevision: expectedDestinationRevision + 1 };
@@ -606,6 +770,14 @@ async function checkPayoutReconciliation(
       assert.equal(await postedBalance(deps.db, reserved.account.id), 100000n);
       const receipts = await deps.db.stripePayoutTransferEvent.findMany({ where: { transferId: firstOutcome.id } });
       assert.deepEqual(receipts.map(row => row.observedReversedMinor).sort((a, b) => a - b), [0, 1000, 95000]);
+      const requestsBefore = gatewayRequests;
+      const snapshot = await (await fetch(investigationPath(firstOutcome.id), admin)).json();
+      assert.deepEqual(snapshot.transfer, firstOutcome);
+      assert.ok(snapshot.transferJournalId);
+      assert.equal(snapshot.postedReserveMinor, '100000');
+      assert.equal(snapshot.hasOlderEvents, false);
+      assert.deepEqual(snapshot.events.map((event: { id: string }) => event.id).sort(), receipts.map(row => row.id).sort());
+      assert.equal(gatewayRequests, requestsBefore);
       const postings = await deps.db.journalEntry.findMany({
         where: { accountId: reserved.account.id, transaction: { source: { in: ['stripe.test.payout.transfer', 'stripe.test.payout.transfer_reversal'] } } },
         orderBy: { amountMinor: 'asc' },
@@ -641,10 +813,33 @@ async function checkPayoutReconciliation(
       assert.equal((await (await submit(admin, retryCommand)).json()).id, latest.id);
       const history = await (await fetch(path + '/attempts', admin)).json();
       assert.deepEqual(history.attempts, [latest, { ...firstOutcome, retryAuthorization: decision }]);
+      const oldAttempt = await (await fetch(investigationPath(firstOutcome.id), admin)).json();
+      assert.equal(oldAttempt.latestAttempt, false);
+      assert.equal(oldAttempt.transfer.id, firstOutcome.id);
       assert.equal(submissions, 2);
       assert.equal(idempotencyKeys.size, 2);
       assert.equal(await postedBalance(deps.db, reserved.account.id), 5000n);
       return;
+    }
+    if (!initialReversedMinor) {
+      assert.equal(firstOutcome.state, 'uncertain');
+      const investigation = investigationPath(firstOutcome.id);
+      const requestsBefore = gatewayRequests;
+      assert.equal((await fetch(investigation, provider)).status, 403);
+      assert.equal((await fetch(investigationPath(randomUUID()), admin)).status, 404);
+      const response = await fetch(investigation, admin);
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get('cache-control'), 'no-store');
+      const snapshot = await response.json();
+      assert.deepEqual(snapshot, {
+        transfer: firstOutcome, latestAttempt: true, leaseExpiresAt: null, transferJournalId: null,
+        originalGrossReserveMinor: 100000, postedReserveMinor: '100000',
+        payoutBlocked: true, reconciliationConfigured: true, events: [], hasOlderEvents: false,
+        checkedAt: snapshot.checkedAt,
+      });
+      assert.ok(Number.isFinite(Date.parse(snapshot.checkedAt)));
+      assert.equal(gatewayRequests, requestsBefore);
+      assert.equal(await postedBalance(deps.db, reserved.account.id), 100000n);
     }
     const uncertain = firstOutcome;
     assert.equal(uncertain.state, 'uncertain');
@@ -927,6 +1122,7 @@ async function checkPayoutReconciliation(
         await deps.db.stripeBankPayoutSettlement.deleteMany({ where: { transfer: { payout } } });
         await deps.db.stripePayoutTransferEvent.deleteMany({ where: { transfer: { payout } } });
         await deps.db.stripePayoutTransfer.deleteMany({ where: { payout } });
+        await deps.db.manualSandboxPayout.deleteMany({ where: { payout } });
         await deps.db.payoutDestinationRepair.deleteMany({ where: { payout } });
         await deps.db.payoutOrder.deleteMany({ where: payout });
         await deps.db.stripeRefundExecution.deleteMany({ where: { damageClaim: { bookingId } } });

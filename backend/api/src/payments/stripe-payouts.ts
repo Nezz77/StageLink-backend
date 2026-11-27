@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import type { Request } from 'express';
 import { z } from 'zod';
 import type { Prisma, StripeBankPayoutSettlement, StripePayoutTransfer } from '../../../generated/prisma/client.js';
+import { databaseNow } from '../../../shared/database-clock.js';
 import { postedBalance } from '../../../shared/payments/journal.js';
 import { checkStripeBankPayout, stripeBankPayoutEvidence, stripeBankPayoutId } from '../../../shared/payments/stripe-bank-payouts.js';
 import { readStripeTestAccounts } from '../../../shared/payments/stripe-capabilities.js';
@@ -16,6 +17,7 @@ import { parse, schema, uuid } from './orders.js';
 import { approvedStripeArbitration, approvedStripeDeduction, assertPayoutProvider, payoutBlocked, payoutReservationAccount, stripePayoutCapture, stripePayoutCaptureInclude } from './payout-eligibility.js';
 import { reconcileBankSettlement } from './stripe-bank-payout-settlement.js';
 import { recordConfirmedStripeTransfer } from './stripe-transfer-settlement.js';
+import { assertNoManualSandboxPayout } from './manual-sandbox-payouts.js';
 
 const command = z.object({
   reconcileOnly: z.boolean().optional(), retryOfTransferId: uuid.optional(),
@@ -37,8 +39,26 @@ const view = z.object({
   rejection: stripeTransferRejection.nullable(),
   providerTransferId: z.string().nullable(), createdAt: z.iso.datetime(), updatedAt: z.iso.datetime(),
 });
+const investigationEventLimit = 20;
+const investigationView = z.object({
+  transfer: view,
+  latestAttempt: z.boolean(),
+  leaseExpiresAt: z.iso.datetime().nullable(),
+  transferJournalId: uuid.nullable(),
+  originalGrossReserveMinor: z.number().int().positive(),
+  postedReserveMinor: z.string().regex(/^-?\d+$/).nullable(),
+  payoutBlocked: z.boolean(),
+  reconciliationConfigured: z.boolean(),
+  events: z.array(z.object({
+    id: z.string(), type: z.string(), observedReversedMinor: z.number().int().nonnegative(),
+    createdAt: z.iso.datetime(), receivedAt: z.iso.datetime(),
+  })).max(investigationEventLimit),
+  hasOlderEvents: z.boolean(),
+  checkedAt: z.iso.datetime(),
+});
 
 const payoutInclude = {
+  manualSandboxPayouts: { select: { id: true }, take: 1 },
   stripeTransfers: { include: { destination: true }, orderBy: { attempt: 'desc' }, take: 2 },
   booking: { select: { customerId: true, providerId: true, targetKind: true } },
 } satisfies Prisma.PayoutOrderInclude;
@@ -51,14 +71,14 @@ function presentAuthorization(row: StripePayoutTransfer) {
   };
 }
 
-function present(row: StripePayoutTransfer) {
+function present(row: StripePayoutTransfer, now = new Date()) {
   const { id, payoutId, destinationLinkId, amountMinor, attempt, reversedMinor, status, providerTransferId, createdAt, updatedAt } = row;
   return {
     id, payoutId, destinationLinkId, amountMinor, attempt, retryAuthorization: presentAuthorization(row),
     rejection: row.rejectionCode === 'balance_insufficient' && row.rejectionRequestId
       ? { code: row.rejectionCode, requestId: row.rejectionRequestId } : null,
     reversedMinor, currency: 'LKR' as const, providerTransferId,
-    state: row.leaseUntil && row.leaseUntil > new Date() ? 'processing' : status,
+    state: row.leaseUntil && row.leaseUntil > now ? 'processing' : status,
     createdAt: createdAt.toISOString(), updatedAt: updatedAt.toISOString(),
   };
 }
@@ -286,7 +306,50 @@ export function makeStripePayoutTransfersController(auth: AuthService) {
       const attempts = await db.stripePayoutTransfer.findMany({
         where: { payoutId: payout.id }, orderBy: { attempt: 'desc' }, take: 20,
       });
-      return { attempts: attempts.map(present) };
+      return { attempts: attempts.map(attempt => present(attempt)) };
+    }
+
+    @Get('attempts/:attemptId/investigation')
+    @Header('Cache-Control', 'no-store')
+    @ApiParam({ name: 'id', format: 'uuid' })
+    @ApiParam({ name: 'attemptId', format: 'uuid' })
+    @ApiOkResponse({ schema: schema(investigationView) })
+    async investigate(@Req() req: Request, @Param('id') rawId: string, @Param('attemptId') rawAttemptId: string) {
+      await admin(req);
+      const id = parse(uuid, rawId);
+      const attemptId = parse(uuid, rawAttemptId);
+      return db.$transaction(async tx => {
+        const payout = await loadPayout(tx, id);
+        const attempt = await tx.stripePayoutTransfer.findFirst({ where: { id: attemptId, payoutId: payout.id } });
+        if (!attempt) throw new PublicError(404, 'STRIPE_TRANSFER_NOT_FOUND', 'This transfer attempt is unavailable.');
+        const [account, blocked, events, now] = await Promise.all([
+          payoutReservationAccount(tx, payout),
+          payoutBlocked(tx, payout.bookingId, payout.arbitrationId),
+          tx.stripePayoutTransferEvent.findMany({
+            where: { transferId: attempt.id },
+            orderBy: [{ receivedAt: 'desc' }, { id: 'desc' }],
+            take: investigationEventLimit + 1,
+          }),
+          databaseNow(tx),
+        ]);
+        const balance = account === attempt.reservedAccountId ? await postedBalance(tx, account) : null;
+        return {
+          transfer: present(attempt, now),
+          latestAttempt: payout.stripeTransfers[0]?.id === attempt.id,
+          leaseExpiresAt: attempt.leaseUntil?.toISOString() ?? null,
+          transferJournalId: attempt.journalId,
+          originalGrossReserveMinor: payout.grossMinor,
+          postedReserveMinor: balance?.toString() ?? null,
+          payoutBlocked: blocked,
+          reconciliationConfigured: Boolean(config.STRIPE_TEST_SECRET_KEY),
+          events: events.slice(0, investigationEventLimit).map(event => ({
+            id: event.id, type: event.eventType, observedReversedMinor: event.observedReversedMinor,
+            createdAt: event.createdAt.toISOString(), receivedAt: event.receivedAt.toISOString(),
+          })),
+          hasOlderEvents: events.length > investigationEventLimit,
+          checkedAt: now.toISOString(),
+        };
+      }, { isolationLevel: 'RepeatableRead' });
     }
 
     @Post('retry-authorizations')
@@ -341,6 +404,7 @@ export function makeStripePayoutTransfersController(auth: AuthService) {
       const id = parse(uuid, rawId);
       const source = await loadPayout(db, id);
       requireOperator(actor, source);
+      assertNoManualSandboxPayout(source);
       const { existing: prior } = transferTarget(source, retryOfTransferId);
       if (prior && returnWithoutClaim(prior, input)) return present(prior);
       if (!prior && reconcileOnly) throw new PublicError(409, 'STRIPE_TRANSFER_NOT_STARTED', 'Start the transfer before reconciling it.');
@@ -367,6 +431,7 @@ export function makeStripePayoutTransfersController(auth: AuthService) {
 
       const claim = await db.$transaction(async tx => {
         const { payout, operator } = await lockPayout(tx, source, actor);
+        assertNoManualSandboxPayout(payout);
         const { existing, retryOf } = transferTarget(payout, retryOfTransferId);
         if (existing && (returnWithoutClaim(existing, input) || (reconcileOnly && existing.id !== prior?.id))) {
           return { response: present(existing) };

@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { z } from 'zod';
 import { providerStatus } from '../shared/payments/reconciliation.js';
+import { stripeBankPayoutEvidence, stripeBankPayoutId } from '../shared/payments/stripe-bank-payouts.js';
 import { stripeAccountId, stripeCapabilities } from '../shared/payments/stripe-capabilities.js';
 
 const httpsOrigin = z.url({ protocol: /^https$/ }).refine(raw => {
@@ -13,6 +14,11 @@ const settings = z.object({
   STAGELINK_SMOKE_PAYHERE_ORDER_ID: z.uuid(),
   STAGELINK_SMOKE_STRIPE_ACCOUNT_ID: stripeAccountId,
   STAGELINK_SMOKE_RECOVERY_ORDER_ID: z.uuid().optional(),
+  STAGELINK_SMOKE_PAYHERE_REFUND_EXECUTION_ID: z.uuid().optional(),
+  STAGELINK_SMOKE_PAYHERE_REFUND_AMOUNT_MINOR: z.string().regex(/^[1-9][0-9]{0,9}$/)
+    .transform(Number).pipe(z.number().int().positive().max(2_147_483_647)).optional(),
+  STAGELINK_SMOKE_STRIPE_PAYOUT_ORDER_ID: z.uuid().optional(),
+  STAGELINK_SMOKE_STRIPE_BANK_PAYOUT_ID: stripeBankPayoutId.optional(),
 });
 const bearer = z.string().max(4096).regex(/^[\w-]+\.[\w-]+\.[\w-]+$/);
 const ready = z.object({
@@ -28,6 +34,14 @@ const reconciliation = z.object({
 const recoveries = z.object({ items: z.array(z.object({
   orderId: z.uuid(), gateway: paymentGateway, outcome: z.enum(['captured', 'expired']),
   journalId: z.uuid().nullable(), observedAt: z.iso.datetime(),
+})).max(20) });
+const payHereRefundAudit = z.object({ recovery: z.object({
+  executionId: z.uuid(), amountMinor: z.number().int().positive(), journalId: z.uuid(), observedAt: z.iso.datetime(),
+}).nullable() });
+const bankPayoutCheck = stripeBankPayoutEvidence.extend({ transferId: z.uuid(), bankPayoutId: stripeBankPayoutId });
+const bankSettlements = z.object({ settlements: z.array(z.object({
+  transferId: z.uuid(), bankPayoutId: stripeBankPayoutId, balanceTransactionId: z.string().nullable(),
+  state: z.enum(['settled', 'review_required']), journalId: z.uuid().nullable(), reversalJournalId: z.uuid().nullable(),
 })).max(20) });
 
 type Gateway = z.infer<typeof paymentGateway>;
@@ -52,14 +66,24 @@ export function paymentSmokeConfig(env: NodeJS.ProcessEnv, token: string) {
     STAGELINK_SMOKE_ORIGIN: origin, STAGELINK_SMOKE_STRIPE_ORDER_ID: stripeOrder,
     STAGELINK_SMOKE_PAYHERE_ORDER_ID: payHereOrder, STAGELINK_SMOKE_STRIPE_ACCOUNT_ID: connectedAccountId,
     STAGELINK_SMOKE_RECOVERY_ORDER_ID: recoveryOrder,
+    STAGELINK_SMOKE_PAYHERE_REFUND_EXECUTION_ID: refundExecutionId, STAGELINK_SMOKE_PAYHERE_REFUND_AMOUNT_MINOR: refundAmount,
+    STAGELINK_SMOKE_STRIPE_PAYOUT_ORDER_ID: payoutOrderId, STAGELINK_SMOKE_STRIPE_BANK_PAYOUT_ID: bankPayoutId,
   } = result.data;
   const orderIds = [stripeOrder, payHereOrder, ...(recoveryOrder ? [recoveryOrder] : [])].map(id => id.toLowerCase());
   if (new Set(orderIds).size !== orderIds.length) {
     throw new SmokeConfigError('Use distinct sandbox orders for the checkout and recovery fixtures.');
   }
+  if (Boolean(refundExecutionId) !== Boolean(refundAmount)) {
+    throw new SmokeConfigError('Supply both the PayHere refund execution ID and the expected refund amount in minor units.');
+  }
+  if (Boolean(payoutOrderId) !== Boolean(bankPayoutId)) {
+    throw new SmokeConfigError('Supply both the StageLink payout order ID and the Stripe bank payout ID.');
+  }
   return {
     origin: new URL(origin).origin, token: access.data, connectedAccountId,
     stripeOrder: stripeOrder.toLowerCase(), payHereOrder: payHereOrder.toLowerCase(), recoveryOrder: recoveryOrder?.toLowerCase(),
+    payHereRefund: refundExecutionId && refundAmount ? { executionId: refundExecutionId.toLowerCase(), amountMinor: refundAmount } : undefined,
+    stripeBankPayout: payoutOrderId && bankPayoutId ? { payoutOrderId: payoutOrderId.toLowerCase(), bankPayoutId } : undefined,
   };
 }
 
@@ -132,11 +156,51 @@ export async function runPaymentSmoke(config: ReturnType<typeof paymentSmokeConf
     return { check, status: recorded ? 'pass' : 'review', evidence: { recorded } };
   }
 
+  async function checkPayHereRefund(executionId: string, amountMinor: number): Promise<Check> {
+    const check = 'payhere_refund_recovery_audit';
+    const result = await read(`admin/payhere-refund-executions/${executionId}/recovery`, payHereRefundAudit);
+    if ('failure' in result) return unavailable(check, result);
+    const { recovery } = result.value;
+    const matchesExecution = recovery?.executionId === executionId;
+    const matchesAmount = recovery?.amountMinor === amountMinor;
+    return {
+      check, status: matchesExecution && matchesAmount ? 'pass' : 'review',
+      evidence: { recoveryRecorded: recovery !== null, matchesExecution, matchesAmount },
+    };
+  }
+
+  async function checkBankPayout(payoutOrderId: string, bankPayoutId: string): Promise<Check> {
+    const check = 'stripe_bank_payout_settlement';
+    const path = `admin/payouts/${payoutOrderId}/stripe-transfer`;
+    const query = new URLSearchParams({ bankPayoutId });
+    const current = await read(path + '/bank-payout?' + query, bankPayoutCheck);
+    if ('failure' in current) return unavailable(check, current);
+    const stored = await read(path + '/bank-settlements', bankSettlements);
+    if ('failure' in stored) return unavailable(check, stored);
+    const provider = current.value;
+    const payoutMatches = provider.bankPayoutId === bankPayoutId;
+    const included = payoutMatches && provider.status === 'included' && provider.stripePayoutStatus === 'paid' &&
+      provider.balanceTransactionId !== null;
+    const settlement = stored.value.settlements.find(row => row.transferId === provider.transferId && row.bankPayoutId === bankPayoutId);
+    const journalRecorded = settlement?.state === 'settled' && settlement.journalId !== null && settlement.reversalJournalId === null;
+    const matchesBalanceTransaction = included && settlement?.balanceTransactionId === provider.balanceTransactionId;
+    return {
+      check, status: journalRecorded && matchesBalanceTransaction ? 'pass' : 'review',
+      evidence: {
+        payoutMatches, providerStatus: provider.status, stripePayoutStatus: provider.stripePayoutStatus,
+        settlementRecorded: settlement !== undefined, journalRecorded, matchesBalanceTransaction,
+      },
+    };
+  }
+
   const readiness = await read('health/ready', ready, false);
   if ('failure' in readiness) return { passed: false, checks: [unavailable('api_readiness', readiness)] };
+  const { payHereRefund, stripeBankPayout } = config;
   const checks: Check[] = [{ check: 'api_readiness', status: 'pass' }, ...await Promise.all([
     checkOrder('stripe', config.stripeOrder), checkOrder('payhere', config.payHereOrder), checkStripe(),
     ...(config.recoveryOrder ? [checkRecovery(config.recoveryOrder)] : []),
+    ...(payHereRefund ? [checkPayHereRefund(payHereRefund.executionId, payHereRefund.amountMinor)] : []),
+    ...(stripeBankPayout ? [checkBankPayout(stripeBankPayout.payoutOrderId, stripeBankPayout.bankPayoutId)] : []),
   ])];
   return { passed: checks.every(check => check.status === 'pass'), checks };
 }

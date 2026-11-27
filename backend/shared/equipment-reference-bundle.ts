@@ -4,6 +4,7 @@ export const equipmentKey = (value: string) => value.normalize('NFC').trim().rep
 
 // DXR mkII wattage is dynamic amplifier output. Continuous output is 700 W.
 const yamahaUrl = 'https://europe.yamaha.com/en/audio/portable-pa/products/speakers/dxr/specs.html';
+const originalDxrDxsManual = 'https://data.yamaha.com/files/download/other_assets/3/325553/dxr-dxs_en_om_c0.pdf';
 const dbrUrl = 'https://data.yamaha.com/files/download/other_assets/4/332514/VHN5580_DBR15_TS_En_B0_views.pdf';
 const speaker = (model: string, spl: string, frequency: string, weight: string) => ({
   manufacturer: 'Yamaha', model,
@@ -11,6 +12,21 @@ const speaker = (model: string, spl: string, frequency: string, weight: string) 
   url: yamahaUrl, title: 'Yamaha DXR mkII Series — Specifications',
   locator: `${model} column: dynamic output (W), max SPL at 1m (dB), -10dB range (Hz), net weight (kg)`,
   notes: 'Use the mkII specifications. Dynamic output is 1100 W and continuous output is 700 W. The series is listed as discontinued.',
+});
+const originalSpeaker = (
+  model: string,
+  specSpl: string,
+  specFrequency: string,
+  specWeight: string,
+  specWattage: string,
+  continuousWatts: string,
+) => ({
+  manufacturer: 'Yamaha', model,
+  specs: { specWattage, specSpl, specFrequency: `${specFrequency} (-10 dB)`, specWeight },
+  url: originalDxrDxsManual,
+  title: 'Yamaha DXR15/DXR12/DXR10/DXR8/DXS15/DXS12 Owner’s Manual',
+  locator: `Page 12, Specifications, ${model} column (General, Enclosure and Amplifier)`,
+  notes: `First-generation model. Dynamic output is ${specWattage} W and continuous output is ${continuousWatts} W. Peak SPL uses IEC noise at 1 m. Weight is in kg.`,
 });
 const dbrSpeaker = (model: string, spl: string, lowFrequency: number, weight: string) => ({
   manufacturer: 'Yamaha', model,
@@ -21,13 +37,19 @@ const dbrSpeaker = (model: string, spl: string, lowFrequency: number, weight: st
 });
 
 export const equipmentReferenceBundle = {
-  version: '2026-11-20.2',
-  reviewedOn: '2026-11-20',
+  version: '2026-11-26.1',
+  reviewedOn: '2026-11-26',
   entries: [
     speaker('DXR15mkII', '134', '49 Hz - 20 kHz (-10 dB)', '21.8'),
     speaker('DXR12mkII', '134', '52 Hz - 20 kHz (-10 dB)', '18.6'),
     speaker('DXR10mkII', '132', '56 Hz - 20 kHz (-10 dB)', '13.9'),
     speaker('DXR8mkII', '130', '57 Hz - 20 kHz (-10 dB)', '12.8'),
+    originalSpeaker('DXR15', '133', '49 Hz - 20 kHz', '22.5', '1100', '700'),
+    originalSpeaker('DXR12', '132', '52 Hz - 20 kHz', '19.3', '1100', '700'),
+    originalSpeaker('DXR10', '131', '56 Hz - 20 kHz', '14.6', '1100', '700'),
+    originalSpeaker('DXR8', '129', '57 Hz - 20 kHz', '13.5', '1100', '700'),
+    originalSpeaker('DXS15', '132', '45 Hz - 160 Hz', '38.0', '950', '600'),
+    originalSpeaker('DXS12', '131', '47 Hz - 160 Hz', '33.0', '950', '600'),
     {
       manufacturer: 'CHAUVET DJ', model: 'Intimidator Spot 160 ILS', specs: { specWeight: '3.8' },
       url: 'https://www.chauvetdj.com/products/intimidator-spot-160-ils/',

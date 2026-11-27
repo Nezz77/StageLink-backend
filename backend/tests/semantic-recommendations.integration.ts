@@ -7,7 +7,7 @@ import { SignJWT } from 'jose';
 import { createApp } from '../api/src/app.js';
 import { csrfFor } from '../api/src/auth/security.js';
 import { listingEmbeddingInput } from '../api/src/ai/embedding-client.js';
-import { evaluateRecommendations } from '../scripts/evaluate-recommendations.js';
+import { captureRecommendationEvaluation } from '../scripts/capture-recommendation-evaluation.js';
 import { readConfig } from '../shared/config.js';
 import { resources } from '../shared/resources.js';
 
@@ -19,6 +19,7 @@ const offTopic = [0, 1, ...Array<number>(254).fill(0)];
 test('semantic recommendations preserve eligibility, consent, provenance, and weighted fallback', async () => {
   const config = readConfig({
     ...process.env, AUTH_RATE_PREFIX: 'recommendation-test-' + randomUUID(),
+    WEB_ORIGIN: 'https://web.stagelink.test',
     AI_EMBEDDING_MODEL: model, AI_INTERNAL_TOKEN: 'ab'.repeat(32),
     AI_SEMANTIC_RECOMMENDATIONS: 'true', AI_SEMANTIC_DAILY_LIMIT: '2',
   });
@@ -157,16 +158,23 @@ test('semantic recommendations preserve eligibility, consent, provenance, and we
     assert.deepEqual(await request(owner, 'recommendations/' + hybrid.data.id), hybrid);
     assert.equal((await request(other, 'recommendations/' + hybrid.data.id)).status, 404);
 
-    const stableBaseline = await request(owner, path, command());
-    assert.equal(stableBaseline.status, 200);
-    const report = evaluateRecommendations({ version: 1, expectedModel: model, cases: [{
-      key: 'catalog-fixture', weighted: stableBaseline.data, semantic: hybrid.data,
-      judgments: [
-        { gigId: relevant.id, relevance: 3 }, { gigId: stale.id, relevance: 1 }, { gigId: cheap.id, relevance: 0 },
-      ],
-    }] });
-    assert.equal(report.complete, true, JSON.stringify(report));
-    assert.equal(report.counts.improved, 1);
+    const report = await captureRecommendationEvaluation({
+      origin: 'https://api.stagelink.test', webOrigin: config.WEB_ORIGIN,
+      session: {
+        accessToken: owner.Authorization!.slice('Bearer '.length), csrfToken: owner['X-CSRF-Token'],
+      },
+      plan: { version: 1, expectedModel: model, cases: [{
+        key: 'catalog-fixture', briefId: brief.id, briefRevision: brief.revision,
+        weightedRequestKey: randomUUID(), semanticRequestKey: optedIn.requestKey,
+        judgments: [
+          { gigId: relevant.id, relevance: 3 }, { gigId: stale.id, relevance: 1 }, { gigId: cheap.id, relevance: 0 },
+        ],
+      }] },
+    }, (url, options) => fetch(new URL(new URL(String(url)).pathname, base), options));
+    assert.ok(report.captured, JSON.stringify(report));
+    assert.equal(report.evaluation.complete, true, JSON.stringify(report));
+    assert.equal(report.evaluation.counts.improved, 1);
+    assert.equal(calls.length, 1);
 
     const stored = await deps.db.recommendationRun.findUniqueOrThrow({ where: { id: hybrid.data.id } });
     const proof = stored.semanticProvenance as { candidates: { gigId: string; version: number; embeddingAttemptId: string | null }[] };

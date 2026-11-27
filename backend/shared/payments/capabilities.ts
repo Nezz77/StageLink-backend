@@ -5,7 +5,7 @@ export const paymentCapabilityView=z.object({
  checkedAt:z.iso.datetime(),environment:z.literal('sandbox'),currency:z.literal('LKR'),liveMoneyMovementEnabled:z.literal(false),merchantEligibilityChecked:z.literal(false),bookingEligibilityChecked:z.literal(false),
  account:z.object({customerMembership:z.boolean(),emailVerified:z.boolean()}),
  checkout:z.object({requiresEligiblePaymentOrder:z.literal(true),gateways:z.array(z.object({gateway:z.enum(['stripe','payhere']),mode:z.enum(['test','sandbox']),configured:z.boolean(),availableToAccount:z.boolean(),unavailableReasons:z.array(reason)}))}),
- adminExecution:z.object({stripeTestRefundsEnabled:z.boolean(),stripeTestTransfersEnabled:z.boolean(),payhereFullSandboxRefundsEnabled:z.boolean(),payherePartialSandboxRefundsEnabled:z.literal(false),payhereProviderPayoutsEnabled:z.literal(false),manualBankPayoutsEnabled:z.literal(false),productionDocumentsEnabled:z.literal(false),liveFinancialTotalsEnabled:z.literal(false)}).nullable(),
+ adminExecution:z.object({stripeTestRefundsEnabled:z.boolean(),stripeTestTransfersEnabled:z.boolean(),manualSandboxPayoutReconciliationEnabled:z.boolean(),payhereFullSandboxRefundsEnabled:z.boolean(),payherePartialSandboxRefundsEnabled:z.literal(false),payhereProviderPayoutsEnabled:z.literal(false),manualBankPayoutsEnabled:z.literal(false),productionDocumentsEnabled:z.literal(false),liveFinancialTotalsEnabled:z.literal(false)}).nullable(),
 });
 type Account={customerMembership:boolean;emailVerified:boolean;adminViewer:boolean};
 export function paymentCapabilities(config:Config,account:Account){
@@ -24,6 +24,7 @@ export function paymentCapabilities(config:Config,account:Account){
   adminExecution:account.adminViewer?{
    stripeTestRefundsEnabled:config.STRIPE_TEST_REFUND_EXECUTION==='true'&&stripe,
    stripeTestTransfersEnabled:config.STRIPE_TEST_PAYOUT_TRANSFERS==='true'&&stripe,
+   manualSandboxPayoutReconciliationEnabled:config.MANUAL_SANDBOX_PAYOUT_RECONCILIATION==='true',
    payhereFullSandboxRefundsEnabled:config.PAYHERE_SANDBOX_REFUND_EXECUTION==='true'&&Boolean(config.PAYHERE_SANDBOX_RETRIEVAL_APP_ID&&config.PAYHERE_SANDBOX_RETRIEVAL_APP_SECRET),
    payherePartialSandboxRefundsEnabled:false as const,payhereProviderPayoutsEnabled:false as const,manualBankPayoutsEnabled:false as const,productionDocumentsEnabled:false as const,liveFinancialTotalsEnabled:false as const,
   }:null};
