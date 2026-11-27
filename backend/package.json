@@ -30,6 +30,7 @@
     "recommendations:capture": "node dist/scripts/capture-recommendation-evaluation.js",
     "recommendations:evaluate": "node dist/scripts/evaluate-recommendations.js",
     "verification:smoke": "node dist/scripts/verification-pdf-smoke.js",
+    "payout-statements:smoke": "node dist/scripts/payout-statement-smoke.js",
     "outbox:ping": "node dist/scripts/ping.js",
     "admin:create": "node dist/scripts/bootstrap-admin.js"
   },

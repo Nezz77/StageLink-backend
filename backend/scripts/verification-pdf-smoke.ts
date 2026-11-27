@@ -1,6 +1,6 @@
-import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { z } from 'zod';
+import { pdfBodyDigest } from './pdf-smoke-body.js';
 
 const httpsOrigin = z.url({ protocol: /^https$/ }).refine(raw => {
   const { origin } = new URL(raw);
@@ -59,33 +59,14 @@ function contentUrl(raw: string, origin: string, id: string) {
 
 async function pdfDigest(response: Response) {
   const cacheDirectives = response.headers.get('Cache-Control')?.split(',').map(part => part.trim().toLowerCase());
-  const length = response.headers.get('Content-Length');
   if (response.headers.get('Content-Type') !== 'application/pdf' ||
     response.headers.get('Content-Disposition') !== 'attachment; filename="verification-evidence.pdf"' ||
     response.headers.get('X-Content-Type-Options') !== 'nosniff' || response.headers.get('Referrer-Policy') !== 'no-referrer' ||
-    !cacheDirectives?.includes('no-store') || (length !== null && (!/^\d+$/.test(length) || Number(length) > limit))) {
+    !cacheDirectives?.includes('no-store')) {
     await response.body?.cancel().catch(() => undefined);
     return null;
   }
-  const reader = response.body?.getReader();
-  if (!reader) return null;
-  const hash = createHash('sha256');
-  const magic = Buffer.alloc(5);
-  let bytes = 0;
-  try {
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (bytes < magic.length) magic.set(value.subarray(0, magic.length - bytes), bytes);
-      bytes += value.byteLength;
-      if (bytes > limit) return null;
-      hash.update(value);
-    }
-    const encoding = response.headers.get('Content-Encoding');
-    if (magic.toString('ascii') !== '%PDF-' || (length !== null && (!encoding || encoding === 'identity') && bytes !== Number(length))) return null;
-    return hash.digest('hex');
-  } catch { return null; }
-  finally { await reader.cancel().catch(() => undefined); }
+  return pdfBodyDigest(response, limit);
 }
 
 export async function runVerificationPdfSmoke(config: Config, send = fetch) {

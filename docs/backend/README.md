@@ -256,6 +256,12 @@ Stripe test bank settlement and reversal statements come from posted ledger move
 
 Manual sandbox settlement and reversal statements use `version: 3` settlement snapshots with a `manualSettlement` object. Each statement identifies the posted ledger journal and the evidence revision. Reversal statements also identify the original settlement journal. Providers and authorized administrators can download both PDFs. Historical posted manual journals are backfilled.
 
+### Verify payout statements on staging
+
+Use a dedicated sandbox booking with a posted manual payout and reversal. Wait until both PDFs are ready, then set `STAGELINK_SMOKE_ORIGIN` to the staging API HTTPS origin and set `STAGELINK_SMOKE_BOOKING_ID`, `STAGELINK_SMOKE_PAYOUT_SETTLEMENT_DOCUMENT_ID` and `STAGELINK_SMOKE_PAYOUT_REVERSAL_DOCUMENT_ID` to the fixture IDs. After `npm run build`, run `npm run --silent payout-statements:smoke` in `backend/` and supply the three staging access tokens as `{"admin":"...","provider":"...","customer":"..."}` through protected stdin.
+
+The command reads the linked records, checks that the administrator and booked provider receive identical private bytes for each PDF, and verifies that the customer and anonymous requests receive the expected denials. It exits nonzero on any failure. The report contains check names, outcomes and HTTP status codes.
+
 ## Verified reviews
 
 The customer submits one review after completion is verified. Use `POST /api/v1/bookings/:id/reviews` with `{rating, body, photoIds?}`. Use the private media upload pipeline with purpose `review` for photos. Administrators can list reviews at `GET /api/v1/admin/reviews` and record a revisioned moderation decision at `PATCH /api/v1/admin/reviews/:id/moderation`.

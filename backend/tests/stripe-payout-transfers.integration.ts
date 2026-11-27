@@ -5,6 +5,7 @@ import { SignJWT } from 'jose';
 import { createApp } from '../api/src/app.js';
 import { csrfFor } from '../api/src/auth/security.js';
 import { recordCapture } from '../api/src/payments/capture.js';
+import { payoutStatementSmokeConfig, runPayoutStatementSmoke } from '../scripts/payout-statement-smoke.js';
 import { documentKey, issueDocument, processBookingDocuments } from '../shared/booking-documents.js';
 import { readConfig } from '../shared/config.js';
 import { MediaStore } from '../shared/media-store.js';
@@ -690,15 +691,19 @@ async function checkPayoutReconciliation(
         assert.deepEqual(document.snapshot, document.sourceId === posted.id ? statement.snapshot : reversalStatement.snapshot);
       }
       for (const _ of [0, 1, 2]) await processBookingDocuments(deps.db, store);
-      for (const document of historical) {
-        const pdfPath = base + 'documents/' + document.id + '/download';
-        assert.equal((await fetch(pdfPath, customer)).status, 404);
-        const pdf = await fetch(pdfPath, provider);
-        assert.equal(pdf.status, 200);
-        assert.equal(pdf.headers.get('content-type'), 'application/pdf');
-        assert.equal(pdf.headers.get('cache-control'), 'private, no-store');
-        assert.match(Buffer.from(await pdf.arrayBuffer()).toString('latin1'), /^%PDF-/);
-      }
+      const smokeConfig = payoutStatementSmokeConfig({
+        STAGELINK_SMOKE_ORIGIN: 'https://staging.example.test',
+        STAGELINK_SMOKE_BOOKING_ID: booking.id,
+        STAGELINK_SMOKE_PAYOUT_SETTLEMENT_DOCUMENT_ID: historical.find(row => row.sourceId === posted.id)!.id,
+        STAGELINK_SMOKE_PAYOUT_REVERSAL_DOCUMENT_ID: historical.find(row => row.sourceId === reversalPosting.id)!.id,
+      }, {
+        admin: admin.headers.Authorization.slice('Bearer '.length),
+        provider: provider.headers.Authorization.slice('Bearer '.length),
+        customer: customer.headers.Authorization.slice('Bearer '.length),
+      });
+      const smokeReport = await runPayoutStatementSmoke(smokeConfig, (input, init) =>
+        fetch(new URL(new URL(String(input)).pathname, base), init));
+      assert.equal(smokeReport.passed, true, JSON.stringify(smokeReport));
       const reversedAnalytics = await payoutAnalytics();
       assert.equal(reversedAnalytics.settled.paidOutMinor, '0');
       assert.equal(reversedAnalytics.settled.feeRevenueMinor, '0');
