@@ -36,7 +36,7 @@ test('a provider-only arbitration payout settles without a customer refund execu
   checkPayoutReconciliation(t, { arbitrationAward: true, awardRefundMinor: 0 }));
 test('independent manual sandbox confirmation settles the original reserve once', t =>
   checkPayoutReconciliation(t, { manualDecision: 'confirm' }));
-test('a flagged manual sandbox payout preserves its evidence and settles only its corrected revision', t =>
+test('a corrected sandbox payout preserves the audit and reverses its settlement exactly once', t =>
   checkPayoutReconciliation(t, { manualDecision: 'flag' }));
 
 async function checkPayoutReconciliation(
@@ -594,6 +594,13 @@ async function checkPayoutReconciliation(
         'MANUAL_PAYOUT_REVISION_CHANGED');
       assert.equal((await (await submitStripe()).json()).code, 'MANUAL_SANDBOX_PAYOUT_STARTED');
       const confirmation = { decision: 'confirm' as const, reason: reviewInput.reason, expectedRevision: 2 };
+      const reversalInput = {
+        expectedRevision: 2, requestKey: randomUUID(), reason: 'Record a fictional reversal of the corrected sandbox payout.',
+      };
+      const reverse = (actor = admin, input = reversalInput) => fetch(manualPath + '/reversals', {
+        method: 'POST', headers: actor.headers, body: JSON.stringify(input),
+      });
+      assert.equal((await (await reverse()).json()).code, 'MANUAL_PAYOUT_NOT_SETTLED');
       assert.equal((await (await review(admin, confirmation)).json()).code, 'MANUAL_PAYOUT_INDEPENDENT_REVIEW_REQUIRED');
       const confirmations = await Promise.all([review(reviewer, confirmation), review(reviewer, confirmation)]);
       assert.ok(confirmations.every(result => result.status === 200));
@@ -615,6 +622,48 @@ async function checkPayoutReconciliation(
       const latestStatus = await (await fetch(base + 'payouts/' + payoutId, provider)).json();
       assert.equal(latestStatus.manualSandboxPayoutStatus, 'settled');
       assert.ok(!JSON.stringify(latestStatus).includes(correctionInput.testReference));
+
+      const payoutAnalytics = () => fetch(base + `me/analytics?from=${from}&to=${to}&environment=sandbox`, provider).then(result => result.json());
+      const settledAnalytics = await payoutAnalytics();
+      assert.equal(settledAnalytics.settled.paidOutMinor, '95000');
+      assert.equal(settledAnalytics.settled.feeRevenueMinor, '5000');
+      assert.equal((await reverse(provider)).status, 403);
+      assert.equal((await (await reverse(reviewer)).json()).code, 'MANUAL_PAYOUT_INDEPENDENT_REVERSAL_REQUIRED');
+      assert.equal((await (await reverse(admin, { ...reversalInput, expectedRevision: 1 })).json()).code,
+        'MANUAL_PAYOUT_REVISION_CHANGED');
+      await deps.db.bookingPayoutHold.create({ data: {
+        bookingId, revision: 1, held: true, reason: 'Preserve the payout hold during reversal.', actorId: admin.id, createdAt: now,
+      } });
+      const reversals = await Promise.all([reverse(), reverse()]);
+      assert.ok(reversals.every(result => result.status === 200));
+      const [reversed, duplicateReversal] = await Promise.all(reversals.map(result => result.json()));
+      assert.deepEqual(reversed, duplicateReversal);
+      assert.equal(reversed.state, 'reversed');
+      assert.equal(reversed.revision, 2);
+      assert.equal(reversed.journalId, confirmed.journalId);
+      assert.equal(reversed.reviewedBy, reviewer.id);
+      assert.equal(reversed.reversal.actorId, admin.id);
+      assert.equal(reversed.reversal.settlementId, correction.id);
+      assert.equal((await (await reverse(admin, { ...reversalInput, requestKey: randomUUID() })).json()).code,
+        'MANUAL_PAYOUT_REVERSAL_RECORDED');
+      assert.equal(await postedBalance(deps.db, reserved.account.id), 100000n);
+      const postings = await deps.db.journalEntry.findMany({
+        where: { transactionId: { in: [confirmed.journalId, reversed.reversal.journalId] } },
+      });
+      const original = postings.filter(entry => entry.transactionId === confirmed.journalId);
+      const compensating = postings.filter(entry => entry.transactionId === reversed.reversal.journalId);
+      assert.equal(original.length, 3);
+      assert.deepEqual(Object.fromEntries(compensating.map(entry => [entry.accountId, entry.amountMinor])),
+        Object.fromEntries(original.map(entry => [entry.accountId, -entry.amountMinor])));
+      assert.equal(await deps.db.manualSandboxPayoutReversal.count({ where: { settlementId: correction.id } }), 1);
+      const reversedAnalytics = await payoutAnalytics();
+      assert.equal(reversedAnalytics.settled.paidOutMinor, '0');
+      assert.equal(reversedAnalytics.settled.feeRevenueMinor, '0');
+      assert.deepEqual(await (await review(reviewer, confirmation)).json(), reversed);
+      assert.deepEqual(await (await fetch(historyPath, admin)).json(), { items: [reversed, decision], nextBeforeRevision: null });
+      assert.equal((await (await fetch(base + 'payouts/' + payoutId, provider)).json()).manualSandboxPayoutStatus, 'reversed');
+      assert.equal((await (await correct({ ...correctionInput, expectedRevision: 2 })).json()).code, 'MANUAL_PAYOUT_NOT_FLAGGED');
+      assert.equal((await (await submitStripe()).json()).code, 'MANUAL_SANDBOX_PAYOUT_STARTED');
       assert.equal(gatewayRequests, before);
       return;
     }
@@ -1122,6 +1171,7 @@ async function checkPayoutReconciliation(
         await deps.db.stripeBankPayoutSettlement.deleteMany({ where: { transfer: { payout } } });
         await deps.db.stripePayoutTransferEvent.deleteMany({ where: { transfer: { payout } } });
         await deps.db.stripePayoutTransfer.deleteMany({ where: { payout } });
+        await deps.db.manualSandboxPayoutReversal.deleteMany({ where: { settlement: { payout } } });
         await deps.db.manualSandboxPayout.deleteMany({ where: { payout } });
         await deps.db.payoutDestinationRepair.deleteMany({ where: { payout } });
         await deps.db.payoutOrder.deleteMany({ where: payout });

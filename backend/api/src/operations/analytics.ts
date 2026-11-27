@@ -103,6 +103,16 @@ async function financialFacts(tx: Prisma.TransactionClient, period: Period, prov
       FROM journal j JOIN stripe_bank_payout_settlements s ON s.reversal_journal_id = j.id
       WHERE j.source = 'stripe.test.bank_payout.reversal'
     ),
+    manual_journals AS (
+      SELECT j.id, j.posted_at, m.payout_id
+      FROM journal j JOIN manual_sandbox_payouts m ON m.journal_id = j.id
+      WHERE j.source = 'payout.sandbox.manual.settle'
+      UNION ALL
+      SELECT j.id, j.posted_at, m.payout_id
+      FROM journal j JOIN manual_sandbox_payout_reversals r ON r.journal_id = j.id
+      JOIN manual_sandbox_payouts m ON m.id = r.settlement_id
+      WHERE j.source = 'payout.sandbox.manual.reversal'
+    ),
     events(at, booking_id, metric, minor) AS (
       SELECT c.posted_at, c.booking_id,
         CASE WHEN a.scope = 'sandbox:review:' || c.order_id THEN 'captureReviewMinor'
@@ -151,13 +161,11 @@ async function financialFacts(tx: Prisma.TransactionClient, period: Period, prov
       SELECT j.posted_at, p.booking_id,
         CASE WHEN a.scope = 'sandbox:manual-payouts' THEN 'paidOutMinor' ELSE 'feeRevenueMinor' END,
         e.amount_minor
-      FROM journal j JOIN manual_sandbox_payouts m ON m.journal_id = j.id
-      JOIN payout_orders p ON p.id = m.payout_id
+      FROM manual_journals j JOIN payout_orders p ON p.id = j.payout_id
       JOIN journal_entries e ON e.transaction_id = j.id
       JOIN financial_accounts a ON a.id = e.account_id
-      WHERE j.source = 'payout.sandbox.manual.settle'
-        AND ((a.scope = 'sandbox:manual-payouts' AND a.kind = 'clearing')
-          OR (a.scope = 'platform:sandbox:manual:fees' AND a.kind = 'available'))
+      WHERE (a.scope = 'sandbox:manual-payouts' AND a.kind = 'clearing')
+         OR (a.scope = 'platform:sandbox:manual:fees' AND a.kind = 'available')
       UNION ALL
       SELECT j.posted_at, d.booking_id, 'feeRevenueMinor', e.amount_minor
       FROM journal j JOIN stripe_arbitration_fee_settlements s ON j.id = s.journal_id OR j.id = s.reversal_journal_id

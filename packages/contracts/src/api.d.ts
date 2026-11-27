@@ -3525,6 +3525,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/payouts/{id}/manual-sandbox-settlement/reversals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["PayoutsController_reverseManualSandboxSettlement"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/damage-claims/{id}/payout-destination-repairs": {
         parameters: {
             query?: never;
@@ -20432,7 +20448,7 @@ export interface operations {
                                 /** @enum {string|null} */
                                 stripeTransferStatus: "uncertain" | "transferred" | "review_required" | "rejected" | null;
                                 /** @enum {string|null} */
-                                manualSandboxPayoutStatus: "awaiting_review" | "settled" | "review_required" | null;
+                                manualSandboxPayoutStatus: "awaiting_review" | "settled" | "review_required" | "reversed" | null;
                             } | null;
                             deductionPayout: {
                                 /** Format: uuid */
@@ -20454,7 +20470,7 @@ export interface operations {
                                 /** @enum {string|null} */
                                 stripeTransferStatus: "uncertain" | "transferred" | "review_required" | "rejected" | null;
                                 /** @enum {string|null} */
-                                manualSandboxPayoutStatus: "awaiting_review" | "settled" | "review_required" | null;
+                                manualSandboxPayoutStatus: "awaiting_review" | "settled" | "review_required" | "reversed" | null;
                                 /** Format: uuid */
                                 damageClaimId: string;
                             } | null;
@@ -20478,7 +20494,7 @@ export interface operations {
                                 /** @enum {string|null} */
                                 stripeTransferStatus: "uncertain" | "transferred" | "review_required" | "rejected" | null;
                                 /** @enum {string|null} */
-                                manualSandboxPayoutStatus: "awaiting_review" | "settled" | "review_required" | null;
+                                manualSandboxPayoutStatus: "awaiting_review" | "settled" | "review_required" | "reversed" | null;
                                 /** Format: uuid */
                                 arbitrationId: string;
                             } | null;
@@ -20549,7 +20565,7 @@ export interface operations {
                                 /** @enum {string|null} */
                                 stripeTransferStatus: "uncertain" | "transferred" | "review_required" | "rejected" | null;
                                 /** @enum {string|null} */
-                                manualSandboxPayoutStatus: "awaiting_review" | "settled" | "review_required" | null;
+                                manualSandboxPayoutStatus: "awaiting_review" | "settled" | "review_required" | "reversed" | null;
                             } | null;
                             deductionPayout: {
                                 /** Format: uuid */
@@ -20571,7 +20587,7 @@ export interface operations {
                                 /** @enum {string|null} */
                                 stripeTransferStatus: "uncertain" | "transferred" | "review_required" | "rejected" | null;
                                 /** @enum {string|null} */
-                                manualSandboxPayoutStatus: "awaiting_review" | "settled" | "review_required" | null;
+                                manualSandboxPayoutStatus: "awaiting_review" | "settled" | "review_required" | "reversed" | null;
                                 /** Format: uuid */
                                 damageClaimId: string;
                             } | null;
@@ -20595,7 +20611,7 @@ export interface operations {
                                 /** @enum {string|null} */
                                 stripeTransferStatus: "uncertain" | "transferred" | "review_required" | "rejected" | null;
                                 /** @enum {string|null} */
-                                manualSandboxPayoutStatus: "awaiting_review" | "settled" | "review_required" | null;
+                                manualSandboxPayoutStatus: "awaiting_review" | "settled" | "review_required" | "reversed" | null;
                                 /** Format: uuid */
                                 arbitrationId: string;
                             } | null;
@@ -20645,7 +20661,7 @@ export interface operations {
                         /** @enum {string|null} */
                         stripeTransferStatus: "uncertain" | "transferred" | "review_required" | "rejected" | null;
                         /** @enum {string|null} */
-                        manualSandboxPayoutStatus: "awaiting_review" | "settled" | "review_required" | null;
+                        manualSandboxPayoutStatus: "awaiting_review" | "settled" | "review_required" | "reversed" | null;
                     };
                 };
             };
@@ -20730,7 +20746,7 @@ export interface operations {
                         /** @enum {string|null} */
                         stripeTransferStatus: "uncertain" | "transferred" | "review_required" | "rejected" | null;
                         /** @enum {string|null} */
-                        manualSandboxPayoutStatus: "awaiting_review" | "settled" | "review_required" | null;
+                        manualSandboxPayoutStatus: "awaiting_review" | "settled" | "review_required" | "reversed" | null;
                     };
                 };
             };
@@ -20778,7 +20794,7 @@ export interface operations {
                         /** @enum {string|null} */
                         stripeTransferStatus: "uncertain" | "transferred" | "review_required" | "rejected" | null;
                         /** @enum {string|null} */
-                        manualSandboxPayoutStatus: "awaiting_review" | "settled" | "review_required" | null;
+                        manualSandboxPayoutStatus: "awaiting_review" | "settled" | "review_required" | "reversed" | null;
                         /** Format: uuid */
                         damageClaimId: string;
                     };
@@ -20828,7 +20844,7 @@ export interface operations {
                         /** @enum {string|null} */
                         stripeTransferStatus: "uncertain" | "transferred" | "review_required" | "rejected" | null;
                         /** @enum {string|null} */
-                        manualSandboxPayoutStatus: "awaiting_review" | "settled" | "review_required" | null;
+                        manualSandboxPayoutStatus: "awaiting_review" | "settled" | "review_required" | "reversed" | null;
                         /** Format: uuid */
                         arbitrationId: string;
                     };
@@ -20912,7 +20928,7 @@ export interface operations {
                             /** @enum {string} */
                             currency: "LKR";
                             /** @enum {string} */
-                            state: "awaiting_review" | "settled" | "review_required";
+                            state: "awaiting_review" | "settled" | "review_required" | "reversed";
                             /** Format: uuid */
                             recordedBy: string;
                             recordReason: string;
@@ -20925,6 +20941,21 @@ export interface operations {
                             reviewedAt: string | null;
                             /** Format: uuid */
                             journalId: string | null;
+                            reversal: {
+                                /** Format: uuid */
+                                id: string;
+                                /** Format: uuid */
+                                settlementId: string;
+                                /** Format: uuid */
+                                requestKey: string;
+                                /** Format: uuid */
+                                actorId: string;
+                                reason: string;
+                                /** Format: uuid */
+                                journalId: string;
+                                /** Format: date-time */
+                                createdAt: string;
+                            } | null;
                         } | null;
                     };
                 };
@@ -20970,7 +21001,7 @@ export interface operations {
                         /** @enum {string} */
                         currency: "LKR";
                         /** @enum {string} */
-                        state: "awaiting_review" | "settled" | "review_required";
+                        state: "awaiting_review" | "settled" | "review_required" | "reversed";
                         /** Format: uuid */
                         recordedBy: string;
                         recordReason: string;
@@ -20983,6 +21014,21 @@ export interface operations {
                         reviewedAt: string | null;
                         /** Format: uuid */
                         journalId: string | null;
+                        reversal: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            settlementId: string;
+                            /** Format: uuid */
+                            requestKey: string;
+                            /** Format: uuid */
+                            actorId: string;
+                            reason: string;
+                            /** Format: uuid */
+                            journalId: string;
+                            /** Format: date-time */
+                            createdAt: string;
+                        } | null;
                     };
                 };
             };
@@ -21021,7 +21067,7 @@ export interface operations {
                             /** @enum {string} */
                             currency: "LKR";
                             /** @enum {string} */
-                            state: "awaiting_review" | "settled" | "review_required";
+                            state: "awaiting_review" | "settled" | "review_required" | "reversed";
                             /** Format: uuid */
                             recordedBy: string;
                             recordReason: string;
@@ -21034,6 +21080,21 @@ export interface operations {
                             reviewedAt: string | null;
                             /** Format: uuid */
                             journalId: string | null;
+                            reversal: {
+                                /** Format: uuid */
+                                id: string;
+                                /** Format: uuid */
+                                settlementId: string;
+                                /** Format: uuid */
+                                requestKey: string;
+                                /** Format: uuid */
+                                actorId: string;
+                                reason: string;
+                                /** Format: uuid */
+                                journalId: string;
+                                /** Format: date-time */
+                                createdAt: string;
+                            } | null;
                         }[];
                         nextBeforeRevision: number | null;
                     };
@@ -21079,7 +21140,7 @@ export interface operations {
                         /** @enum {string} */
                         currency: "LKR";
                         /** @enum {string} */
-                        state: "awaiting_review" | "settled" | "review_required";
+                        state: "awaiting_review" | "settled" | "review_required" | "reversed";
                         /** Format: uuid */
                         recordedBy: string;
                         recordReason: string;
@@ -21092,6 +21153,21 @@ export interface operations {
                         reviewedAt: string | null;
                         /** Format: uuid */
                         journalId: string | null;
+                        reversal: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            settlementId: string;
+                            /** Format: uuid */
+                            requestKey: string;
+                            /** Format: uuid */
+                            actorId: string;
+                            reason: string;
+                            /** Format: uuid */
+                            journalId: string;
+                            /** Format: date-time */
+                            createdAt: string;
+                        } | null;
                     };
                 };
             };
@@ -21136,7 +21212,7 @@ export interface operations {
                         /** @enum {string} */
                         currency: "LKR";
                         /** @enum {string} */
-                        state: "awaiting_review" | "settled" | "review_required";
+                        state: "awaiting_review" | "settled" | "review_required" | "reversed";
                         /** Format: uuid */
                         recordedBy: string;
                         recordReason: string;
@@ -21149,6 +21225,93 @@ export interface operations {
                         reviewedAt: string | null;
                         /** Format: uuid */
                         journalId: string | null;
+                        reversal: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            settlementId: string;
+                            /** Format: uuid */
+                            requestKey: string;
+                            /** Format: uuid */
+                            actorId: string;
+                            reason: string;
+                            /** Format: uuid */
+                            journalId: string;
+                            /** Format: date-time */
+                            createdAt: string;
+                        } | null;
+                    };
+                };
+            };
+        };
+    };
+    PayoutsController_reverseManualSandboxSettlement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    expectedRevision: number;
+                    /** Format: uuid */
+                    requestKey: string;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uuid */
+                        payoutId: string;
+                        revision: number;
+                        testReference: string;
+                        amountMinor: number;
+                        destinationRevision: number;
+                        /** @enum {string} */
+                        environment: "sandbox";
+                        /** @enum {string} */
+                        currency: "LKR";
+                        /** @enum {string} */
+                        state: "awaiting_review" | "settled" | "review_required" | "reversed";
+                        /** Format: uuid */
+                        recordedBy: string;
+                        recordReason: string;
+                        /** Format: date-time */
+                        createdAt: string;
+                        /** Format: uuid */
+                        reviewedBy: string | null;
+                        reviewReason: string | null;
+                        /** Format: date-time */
+                        reviewedAt: string | null;
+                        /** Format: uuid */
+                        journalId: string | null;
+                        reversal: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            settlementId: string;
+                            /** Format: uuid */
+                            requestKey: string;
+                            /** Format: uuid */
+                            actorId: string;
+                            reason: string;
+                            /** Format: uuid */
+                            journalId: string;
+                            /** Format: date-time */
+                            createdAt: string;
+                        } | null;
                     };
                 };
             };

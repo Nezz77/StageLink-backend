@@ -14,9 +14,9 @@ import { parse, schema, uuid } from './orders.js';
 import { approvedStripeArbitration, approvedStripeDeduction, assertPayoutProvider, payoutBlocked, payoutFund, payoutReservationAccount, payoutReservationSource, providerVerifiedForPayout } from './payout-eligibility.js';
 import { findReservedFunds } from './refund-reservations.js';
 import {
-  assertNoManualSandboxPayout, createManualEvidence, latestManualSandboxPayout, manualSandboxCorrection, manualSandboxRecord,
-  manualSandboxReview, manualSandboxState, manualSandboxStatus, manualSandboxView, matchesManualEvidence,
-  presentManualSandbox, reviewManualSandboxPayout,
+  assertNoManualSandboxPayout, createManualEvidence, latestManualSandboxPayout, manualEvidenceInclude, manualSandboxCorrection,
+  manualSandboxRecord, manualSandboxReversal, manualSandboxReview, manualSandboxState, manualSandboxStatus,
+  manualSandboxView, matchesManualEvidence, presentManualSandbox, reverseManualSandboxPayout, reviewManualSandboxPayout,
 } from './manual-sandbox-payouts.js';
 
 const timestamp = z.iso.datetime();
@@ -63,6 +63,7 @@ const page = z.object({ items: z.array(overview), nextCursor: uuid.nullable() })
 const pageSize = 30;
 const manualHistorySize = 20;
 const manualHistoryCursor = z.string().regex(/^[1-9][0-9]{0,9}$/).transform(Number).pipe(revision);
+const latestManualEvidence = { ...latestManualSandboxPayout, include: manualEvidenceInclude };
 
 const activeHold = { orderBy: { revision: 'desc' }, take: 1 } satisfies Prisma.Booking$payoutHoldsArgs;
 const serviceOrders = { purpose: { in: ['advance', 'balance'] } } satisfies Prisma.PaymentOrderWhereInput;
@@ -83,7 +84,9 @@ const overviewInclude = {
   paymentOrders: { orderBy: { purpose: 'asc' }, select: { id: true, purpose: true, amountMinor: true, status: true } },
   payoutOrders: { include: {
     stripeTransfers: { orderBy: { attempt: 'desc' }, take: 1, select: { status: true } },
-    manualSandboxPayouts: { ...latestManualSandboxPayout, select: { journalId: true, reviewedAt: true } },
+    manualSandboxPayouts: { ...latestManualSandboxPayout, select: {
+      journalId: true, reviewedAt: true, reversal: { select: { id: true } },
+    } },
   } },
 } satisfies Prisma.BookingInclude;
 
@@ -276,6 +279,7 @@ export function makePayoutsController(auth: AuthService) {
       where: { id: payoutId },
       select: { manualSandboxPayouts: {
         orderBy: { revision: 'desc' }, take, where: before === undefined ? undefined : { revision: { lt: before } },
+        include: manualEvidenceInclude,
       } },
     });
     if (!order) throw new PublicError(404, 'PAYOUT_NOT_FOUND', 'This payout reservation is unavailable.');
@@ -497,7 +501,9 @@ export function makePayoutsController(auth: AuthService) {
       const input = parse(manualSandboxRecord, raw);
       return manualWrite(req, payoutId, async (tx, booking, actorId) => {
         const order = await tx.payoutOrder.findUniqueOrThrow({ where: { id: payoutId } });
-        const prior = await tx.manualSandboxPayout.findUnique({ where: { payoutId_revision: { payoutId, revision: 1 } } });
+        const prior = await tx.manualSandboxPayout.findUnique({
+          where: { payoutId_revision: { payoutId, revision: 1 } }, include: manualEvidenceInclude,
+        });
         if (prior) {
           if (matchesManualEvidence(prior, actorId, input) && prior.amountMinor === input.amountMinor &&
             prior.destinationRevision === input.destinationRevision) {
@@ -521,12 +527,14 @@ export function makePayoutsController(auth: AuthService) {
       const next = input.expectedRevision + 1;
       return manualWrite(req, payoutId, async (tx, booking, actorId) => {
         const order = await tx.payoutOrder.findUniqueOrThrow({
-          where: { id: payoutId }, include: { manualSandboxPayouts: latestManualSandboxPayout },
+          where: { id: payoutId }, include: { manualSandboxPayouts: latestManualEvidence },
         });
         const [latest] = order.manualSandboxPayouts;
         if (!latest) throw new PublicError(404, 'MANUAL_PAYOUT_NOT_FOUND', 'This manual sandbox record is unavailable.');
         if (latest.revision !== input.expectedRevision) {
-          const prior = await tx.manualSandboxPayout.findUnique({ where: { payoutId_revision: { payoutId, revision: next } } });
+          const prior = await tx.manualSandboxPayout.findUnique({
+            where: { payoutId_revision: { payoutId, revision: next } }, include: manualEvidenceInclude,
+          });
           if (prior && matchesManualEvidence(prior, actorId, input)) return presentManualSandbox(prior);
           throw new PublicError(409, 'MANUAL_PAYOUT_REVISION_CHANGED', 'Reload the current manual sandbox payout revision.');
         }
@@ -548,19 +556,40 @@ export function makePayoutsController(auth: AuthService) {
       const input = parse(manualSandboxReview, raw);
       return manualWrite(req, payoutId, async (tx, booking, actorId) => {
         const order = await tx.payoutOrder.findUniqueOrThrow({
-          where: { id: payoutId }, include: { manualSandboxPayouts: latestManualSandboxPayout },
+          where: { id: payoutId }, include: { manualSandboxPayouts: latestManualEvidence },
         });
         const [latest] = order.manualSandboxPayouts;
         if (!latest) throw new PublicError(404, 'MANUAL_PAYOUT_NOT_FOUND', 'This manual sandbox record is unavailable.');
         const expectedRevision = input.expectedRevision ?? 1;
         const record = latest.revision === expectedRevision ? latest : await tx.manualSandboxPayout.findUnique({
-          where: { payoutId_revision: { payoutId, revision: expectedRevision } },
+          where: { payoutId_revision: { payoutId, revision: expectedRevision } }, include: manualEvidenceInclude,
         });
         if (!record || (record !== latest && !record.reviewedAt)) {
           throw new PublicError(409, 'MANUAL_PAYOUT_REVISION_CHANGED', 'Reload the current manual sandbox payout revision.');
         }
         return reviewManualSandboxPayout(tx, order, record, actorId, input, () =>
           sandboxPayoutReserve(tx, booking, order, record.amountMinor, record.destinationRevision));
+      });
+    }
+
+    @Post('admin/payouts/:id/manual-sandbox-settlement/reversals')
+    @HttpCode(200)
+    @ApiParam({ name: 'id', format: 'uuid' })
+    @ApiBody({ schema: schema(manualSandboxReversal) })
+    @ApiOkResponse({ schema: schema(manualSandboxView) })
+    reverseManualSandboxSettlement(@Req() req: Request, @Param('id') id: string, @Body() raw: unknown) {
+      const payoutId = parse(uuid, id);
+      const input = parse(manualSandboxReversal, raw);
+      return manualWrite(req, payoutId, async (tx, _booking, actorId) => {
+        const order = await tx.payoutOrder.findUniqueOrThrow({
+          where: { id: payoutId }, include: { manualSandboxPayouts: latestManualEvidence },
+        });
+        const [latest] = order.manualSandboxPayouts;
+        if (!latest) throw new PublicError(404, 'MANUAL_PAYOUT_NOT_FOUND', 'This manual sandbox record is unavailable.');
+        if (latest.revision !== input.expectedRevision) {
+          throw new PublicError(409, 'MANUAL_PAYOUT_REVISION_CHANGED', 'Reload the current manual sandbox payout revision.');
+        }
+        return reverseManualSandboxPayout(tx, order, latest, actorId, input);
       });
     }
 
