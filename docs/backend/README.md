@@ -75,7 +75,9 @@ docker compose -f infra/compose.test.yml exec -T postgres bash -s < backend/scri
 
 The drill covers PostgreSQL data and schema in the test environment. Hosted backup verification also needs an isolated restore of the hosted database, private media objects and access to the matching encryption keys. [PostgreSQL backup documentation](https://www.postgresql.org/docs/17/backup-dump.html)
 
-Generated contracts are `contracts/openapi.json` → `packages/contracts/src/api.d.ts`. Regenerate and commit both after endpoint changes; CI rejects drift. Never edit an applied migration. Update the expected migration constant when adding one.
+Generated contracts are `contracts/openapi.json` → `packages/contracts/src/api.d.ts`. Regenerate and commit both after endpoint changes; CI rejects drift. Never edit an applied migration.
+
+The build embeds the latest bundled Prisma migration in the API and worker. Their readiness endpoints return 503 if PostgreSQL has a different latest completed migration or an unfinished migration entry. Rolled-back entries are ignored. The normal local API and worker start commands regenerate the expected version from the checkout.
 
 AI remains health-only. Under `backend/ai`, use Python 3.12 / uv 0.11.29, `uv sync --frozen`, then `uv run --frozen pytest -q`. No model/provider is configured.
 
@@ -222,7 +224,11 @@ Use the same POST to reconcile a later bank payout failure. StageLink posts acco
 
 List documents at `GET /api/v1/bookings/:id/documents`, preview a snapshot at `GET /api/v1/documents/:id`, and download the worker-rendered PDF at `GET /api/v1/documents/:id/download`. The worker must be running with access to the private object store. A failed render can be queued again with `POST /api/v1/documents/:id/render-retry`.
 
-Booking participants can see the invoice. The customer can see payment receipts and the provider can see the payout reservation statement. Authorized administrators can access each type. These are sandbox documents. Production issuance needs confirmed issuer details and gateway outcomes.
+Booking participants can see the invoice. The customer can see capture and refund receipts. The provider can see their payout reservation, bank settlement and settlement reversal statements. Authorized administrators can access each type. These are sandbox documents. Production issuance needs confirmed issuer details and gateway outcomes.
+
+A successful sandbox refund creates one receipt for its matching posted journal. This covers Stripe test and PayHere sandbox refunds for cancellations, rental deposit claims and arbitration, including audited PayHere recovery. Existing successful refunds with matching journals are backfilled. The API returns these receipts as `version: 2` receipt snapshots with `disposition: "refunded"`, the exact refunded amount, gateway, original payment order, and refund context.
+
+Stripe test bank settlement and reversal statements come from posted ledger movements, with one document per journal. A later reversal adds a statement that references the original journal and preserves the original statement. Posting attempts without a bank settlement journal produce no statement. Existing posted journals are backfilled by the migration. The API exposes these as settlement snapshots with `version: 2` and a `bankSettlement` object. Deploy the matching API and PDF worker together so both understand the new snapshot version.
 
 ## Verified reviews
 

@@ -18155,9 +18155,7 @@ export interface operations {
                                 /** Format: date-time */
                                 endsAt: string;
                                 agreementDigest: string;
-                            } | {
-                                /** @enum {number} */
-                                version: 1;
+                            } | ({
                                 /** @enum {string} */
                                 kind: "receipt";
                                 /** Format: date-time */
@@ -18169,11 +18167,33 @@ export interface operations {
                                 gateway: "PayHere" | "Stripe";
                                 /** Format: uuid */
                                 orderId: string;
+                                /** @enum {number} */
+                                version: 1;
                                 /** @enum {string} */
                                 disposition: "captured" | "review";
                             } | {
+                                /** @enum {string} */
+                                kind: "receipt";
+                                /** Format: date-time */
+                                issuedAt: string;
+                                /** @enum {string} */
+                                purpose: "advance" | "balance" | "deposit";
+                                amountMinor: number;
+                                /** @enum {string} */
+                                gateway: "PayHere" | "Stripe";
+                                /** Format: uuid */
+                                orderId: string;
                                 /** @enum {number} */
-                                version: 1;
+                                version: 2;
+                                /** @enum {string} */
+                                disposition: "refunded";
+                                /** Format: uuid */
+                                refundExecutionId: string;
+                                /** Format: uuid */
+                                journalId: string;
+                                /** @enum {string} */
+                                refundContext: "cancellation" | "deposit_claim" | "arbitration";
+                            }) | ({
                                 /** @enum {string} */
                                 kind: "settlement";
                                 /** Format: date-time */
@@ -18186,7 +18206,43 @@ export interface operations {
                                 damageClaimId?: string;
                                 /** Format: uuid */
                                 arbitrationId?: string;
-                            };
+                                /** @enum {number} */
+                                version: 1;
+                            } | {
+                                /** @enum {string} */
+                                kind: "settlement";
+                                /** Format: date-time */
+                                issuedAt: string;
+                                grossMinor: number;
+                                platformFeeMinor: number;
+                                netMinor: number;
+                                destinationRevision: number;
+                                /** Format: uuid */
+                                damageClaimId?: string;
+                                /** Format: uuid */
+                                arbitrationId?: string;
+                                /** @enum {number} */
+                                version: 2;
+                                bankSettlement: {
+                                    /** Format: uuid */
+                                    settlementId: string;
+                                    /** Format: uuid */
+                                    journalId: string;
+                                    /** @enum {string} */
+                                    state: "settled";
+                                } | {
+                                    /** Format: uuid */
+                                    settlementId: string;
+                                    /** Format: uuid */
+                                    journalId: string;
+                                    /** @enum {string} */
+                                    state: "reversed";
+                                    /** Format: uuid */
+                                    originalJournalId: string;
+                                    /** @enum {string} */
+                                    reason: "bank_payout_failed" | "transfer_reversed";
+                                };
+                            });
                         }[];
                         /** Format: uuid */
                         nextCursor: string | null;
@@ -18238,9 +18294,7 @@ export interface operations {
                             /** Format: date-time */
                             endsAt: string;
                             agreementDigest: string;
-                        } | {
-                            /** @enum {number} */
-                            version: 1;
+                        } | ({
                             /** @enum {string} */
                             kind: "receipt";
                             /** Format: date-time */
@@ -18252,11 +18306,33 @@ export interface operations {
                             gateway: "PayHere" | "Stripe";
                             /** Format: uuid */
                             orderId: string;
+                            /** @enum {number} */
+                            version: 1;
                             /** @enum {string} */
                             disposition: "captured" | "review";
                         } | {
+                            /** @enum {string} */
+                            kind: "receipt";
+                            /** Format: date-time */
+                            issuedAt: string;
+                            /** @enum {string} */
+                            purpose: "advance" | "balance" | "deposit";
+                            amountMinor: number;
+                            /** @enum {string} */
+                            gateway: "PayHere" | "Stripe";
+                            /** Format: uuid */
+                            orderId: string;
                             /** @enum {number} */
-                            version: 1;
+                            version: 2;
+                            /** @enum {string} */
+                            disposition: "refunded";
+                            /** Format: uuid */
+                            refundExecutionId: string;
+                            /** Format: uuid */
+                            journalId: string;
+                            /** @enum {string} */
+                            refundContext: "cancellation" | "deposit_claim" | "arbitration";
+                        }) | ({
                             /** @enum {string} */
                             kind: "settlement";
                             /** Format: date-time */
@@ -18269,7 +18345,43 @@ export interface operations {
                             damageClaimId?: string;
                             /** Format: uuid */
                             arbitrationId?: string;
-                        };
+                            /** @enum {number} */
+                            version: 1;
+                        } | {
+                            /** @enum {string} */
+                            kind: "settlement";
+                            /** Format: date-time */
+                            issuedAt: string;
+                            grossMinor: number;
+                            platformFeeMinor: number;
+                            netMinor: number;
+                            destinationRevision: number;
+                            /** Format: uuid */
+                            damageClaimId?: string;
+                            /** Format: uuid */
+                            arbitrationId?: string;
+                            /** @enum {number} */
+                            version: 2;
+                            bankSettlement: {
+                                /** Format: uuid */
+                                settlementId: string;
+                                /** Format: uuid */
+                                journalId: string;
+                                /** @enum {string} */
+                                state: "settled";
+                            } | {
+                                /** Format: uuid */
+                                settlementId: string;
+                                /** Format: uuid */
+                                journalId: string;
+                                /** @enum {string} */
+                                state: "reversed";
+                                /** Format: uuid */
+                                originalJournalId: string;
+                                /** @enum {string} */
+                                reason: "bank_payout_failed" | "transfer_reversed";
+                            };
+                        });
                     };
                 };
             };
@@ -18318,9 +18430,7 @@ export interface operations {
                             /** Format: date-time */
                             endsAt: string;
                             agreementDigest: string;
-                        } | {
-                            /** @enum {number} */
-                            version: 1;
+                        } | ({
                             /** @enum {string} */
                             kind: "receipt";
                             /** Format: date-time */
@@ -18332,11 +18442,33 @@ export interface operations {
                             gateway: "PayHere" | "Stripe";
                             /** Format: uuid */
                             orderId: string;
+                            /** @enum {number} */
+                            version: 1;
                             /** @enum {string} */
                             disposition: "captured" | "review";
                         } | {
+                            /** @enum {string} */
+                            kind: "receipt";
+                            /** Format: date-time */
+                            issuedAt: string;
+                            /** @enum {string} */
+                            purpose: "advance" | "balance" | "deposit";
+                            amountMinor: number;
+                            /** @enum {string} */
+                            gateway: "PayHere" | "Stripe";
+                            /** Format: uuid */
+                            orderId: string;
                             /** @enum {number} */
-                            version: 1;
+                            version: 2;
+                            /** @enum {string} */
+                            disposition: "refunded";
+                            /** Format: uuid */
+                            refundExecutionId: string;
+                            /** Format: uuid */
+                            journalId: string;
+                            /** @enum {string} */
+                            refundContext: "cancellation" | "deposit_claim" | "arbitration";
+                        }) | ({
                             /** @enum {string} */
                             kind: "settlement";
                             /** Format: date-time */
@@ -18349,7 +18481,43 @@ export interface operations {
                             damageClaimId?: string;
                             /** Format: uuid */
                             arbitrationId?: string;
-                        };
+                            /** @enum {number} */
+                            version: 1;
+                        } | {
+                            /** @enum {string} */
+                            kind: "settlement";
+                            /** Format: date-time */
+                            issuedAt: string;
+                            grossMinor: number;
+                            platformFeeMinor: number;
+                            netMinor: number;
+                            destinationRevision: number;
+                            /** Format: uuid */
+                            damageClaimId?: string;
+                            /** Format: uuid */
+                            arbitrationId?: string;
+                            /** @enum {number} */
+                            version: 2;
+                            bankSettlement: {
+                                /** Format: uuid */
+                                settlementId: string;
+                                /** Format: uuid */
+                                journalId: string;
+                                /** @enum {string} */
+                                state: "settled";
+                            } | {
+                                /** Format: uuid */
+                                settlementId: string;
+                                /** Format: uuid */
+                                journalId: string;
+                                /** @enum {string} */
+                                state: "reversed";
+                                /** Format: uuid */
+                                originalJournalId: string;
+                                /** @enum {string} */
+                                reason: "bank_payout_failed" | "transfer_reversed";
+                            };
+                        });
                     };
                 };
             };

@@ -1,9 +1,10 @@
+import { MIGRATION } from '../generated/migration-version.js';
 import { PrismaClient } from '../generated/prisma/client.js';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Redis } from 'ioredis';
 import type { Config } from './config.js';
 
-export const MIGRATION = '20261121020000_sms_reminder_operations';
+export { MIGRATION };
 export function createDb(config: Config) {
   return new PrismaClient({ adapter: new PrismaPg({
     connectionString: config.DATABASE_URL, connectionTimeoutMillis: 3000,
@@ -35,16 +36,22 @@ export async function ensureRedis(redis:Redis):Promise<void>{
 
 export async function readiness({ db, redis }: Resources) {
   const checks = await Promise.allSettled([
-    db.$queryRaw<Array<{ migration_name: string }>>`
-      SELECT migration_name FROM _prisma_migrations
-      WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL
-      ORDER BY started_at DESC LIMIT 1`,
+    db.$queryRaw<Array<{ migration_name: string | null; unfinished: boolean }>>`
+      SELECT (
+        SELECT migration_name FROM _prisma_migrations
+        WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL
+        ORDER BY started_at DESC, migration_name DESC LIMIT 1
+      ) AS migration_name, EXISTS (
+        SELECT 1 FROM _prisma_migrations
+        WHERE finished_at IS NULL AND rolled_back_at IS NULL
+      ) AS unfinished`,
     (async () => {
       await ensureRedis(redis);
       if (await redis.ping() !== 'PONG') throw new Error('Redis unavailable');
     })(),
   ]);
-  const postgres = checks[0]?.status === 'fulfilled' && checks[0].value[0]?.migration_name === MIGRATION;
+  const migration = checks[0].status === 'fulfilled' ? checks[0].value[0] : undefined;
+  const postgres = migration?.migration_name === MIGRATION && migration.unfinished === false;
   const redisOk = checks[1]?.status === 'fulfilled';
   return {
     status: postgres && redisOk ? 'ready' as const : 'unavailable' as const,

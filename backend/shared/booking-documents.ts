@@ -12,17 +12,35 @@ const invoice = z.object({
   totalMinor: minor, advanceMinor: minor, depositMinor: minor,
   startsAt: time, endsAt: time, agreementDigest: z.string().regex(/^[a-f0-9]{64}$/),
 });
-const receipt = z.object({
-  version: z.literal(1), kind: z.literal('receipt'), issuedAt: time,
+const receiptFields = {
+  kind: z.literal('receipt'), issuedAt: time,
   purpose: z.enum(['advance', 'balance', 'deposit']), amountMinor: minor,
   gateway: z.enum(['PayHere', 'Stripe']), orderId: z.string().uuid(),
-  disposition: z.enum(['captured', 'review']),
-});
-const settlement = z.object({
-  version: z.literal(1), kind: z.literal('settlement'), issuedAt: time,
+};
+const receipt = z.discriminatedUnion('version', [
+  z.object({ ...receiptFields, version: z.literal(1), disposition: z.enum(['captured', 'review']) }),
+  z.object({
+    ...receiptFields, version: z.literal(2), disposition: z.literal('refunded'), amountMinor: minor.positive(),
+    refundExecutionId: z.uuid(), journalId: z.uuid(), refundContext: z.enum(['cancellation', 'deposit_claim', 'arbitration']),
+  }),
+]);
+const bankSettlementReference = { settlementId: z.uuid(), journalId: z.uuid() };
+const bankSettlement = z.discriminatedUnion('state', [
+  z.object({ ...bankSettlementReference, state: z.literal('settled') }),
+  z.object({
+    ...bankSettlementReference, state: z.literal('reversed'), originalJournalId: z.uuid(),
+    reason: z.enum(['bank_payout_failed', 'transfer_reversed']),
+  }),
+]);
+const settlementFields = {
+  kind: z.literal('settlement'), issuedAt: time,
   grossMinor: minor, platformFeeMinor: minor, netMinor: minor,
   destinationRevision: z.number().int().positive(), damageClaimId: z.uuid().optional(), arbitrationId: z.uuid().optional(),
-});
+};
+const settlement = z.discriminatedUnion('version', [
+  z.object({ ...settlementFields, version: z.literal(1) }),
+  z.object({ ...settlementFields, version: z.literal(2), bankSettlement }),
+]);
 export const documentSnapshot = z.discriminatedUnion('kind', [invoice, receipt, settlement]);
 export async function issueDocument(
   tx: Prisma.TransactionClient, bookingId: string, sourceId: string, snapshot: z.infer<typeof documentSnapshot>,
@@ -37,12 +55,16 @@ export const documentNumber = (kind: BookingDocumentKind, id: string) =>
   ({ invoice: 'INV', receipt: 'RCT', settlement: 'SET' })[kind] + '-' + id.toUpperCase();
 
 const titles = { invoice: 'Booking invoice', receipt: 'Payment receipt', settlement: 'Provider settlement statement' };
+const refundContexts = { cancellation: 'Booking cancellation', deposit_claim: 'Rental deposit claim', arbitration: 'Dispute arbitration' };
 const amount = (minorUnits: number) => 'LKR ' + (minorUnits / 100).toFixed(2);
 
 export function renderBookingDocument(record: Pick<BookingDocument, 'id' | 'kind' | 'bookingId' | 'snapshot'>) {
   const snapshot = documentSnapshot.parse(record.snapshot);
   if (snapshot.kind !== record.kind) throw new Error('Document kind mismatch');
-  const title = titles[snapshot.kind];
+  const bank = snapshot.kind === 'settlement' && snapshot.version === 2 ? snapshot.bankSettlement : undefined;
+  const title = bank
+    ? (bank.state === 'settled' ? 'Bank payout settlement' : 'Bank payout settlement reversal')
+    : snapshot.kind === 'receipt' && snapshot.version === 2 ? 'Refund receipt' : titles[snapshot.kind];
   const number = documentNumber(record.kind, record.id);
   const pdf = new jsPDF({ unit: 'mm', format: 'a4', compress: true });
   pdf.setFileId(record.id.replaceAll('-', ''));
@@ -71,16 +93,35 @@ export function renderBookingDocument(record: Pick<BookingDocument, 'id' | 'kind
         ['Ends (UTC)', snapshot.endsAt], ['Agreement SHA-256', snapshot.agreementDigest]);
       break;
     case 'receipt':
-      rows.push(['Payment', snapshot.purpose], ['Captured amount', amount(snapshot.amountMinor)],
-        ['Gateway', snapshot.gateway], ['Payment order', snapshot.orderId],
-        ['Capture disposition', snapshot.disposition === 'review' ? 'Reconciliation required' : 'Captured in sandbox']);
+      rows.push(['Payment', snapshot.purpose], [snapshot.version === 2 ? 'Refunded amount' : 'Captured amount', amount(snapshot.amountMinor)],
+        ['Gateway', snapshot.gateway], ['Payment order', snapshot.orderId]);
+      if (snapshot.version === 2) {
+        rows.push(['Refund context', refundContexts[snapshot.refundContext]], ['Refund execution', snapshot.refundExecutionId],
+          ['Ledger journal', snapshot.journalId], ['Refund status', 'Posted in the sandbox ledger']);
+      } else {
+        rows.push(['Capture disposition', snapshot.disposition === 'review' ? 'Reconciliation required' : 'Captured in sandbox']);
+      }
       break;
     case 'settlement':
       if (snapshot.damageClaimId) rows.push(['Damage claim', snapshot.damageClaimId]);
       if (snapshot.arbitrationId) rows.push(['Arbitration decision', snapshot.arbitrationId]);
-      rows.push([snapshot.damageClaimId ? 'Reserved deposit deduction' : 'Reserved service funds', amount(snapshot.grossMinor)], ['Platform fee', amount(snapshot.platformFeeMinor)],
-        ['Provider net', amount(snapshot.netMinor)], ['Destination revision', String(snapshot.destinationRevision)],
-        ['Settlement status', 'Funds reserved in sandbox']);
+      const grossLabel = snapshot.damageClaimId
+        ? (bank ? 'Deposit deduction' : 'Reserved deposit deduction')
+        : (bank ? 'Gross service funds' : 'Reserved service funds');
+      rows.push([grossLabel, amount(snapshot.grossMinor)],
+        ['Platform fee', amount(snapshot.platformFeeMinor)], ['Provider net', amount(snapshot.netMinor)],
+        ['Destination revision', String(snapshot.destinationRevision)]);
+      if (bank) {
+        rows.push(['Bank settlement', bank.settlementId], ['Ledger journal', bank.journalId]);
+        if (bank.state === 'settled') {
+          rows.push(['Settlement status', 'Posted from Stripe test bank payout evidence']);
+        } else {
+          rows.push(['Original journal', bank.originalJournalId], ['Settlement status', 'Reversed in the sandbox ledger'],
+            ['Reason', bank.reason === 'bank_payout_failed' ? 'Stripe test bank payout failed' : 'Stripe test transfer reversed']);
+        }
+      } else {
+        rows.push(['Settlement status', 'Funds reserved in sandbox']);
+      }
       break;
   }
   let y = 65;

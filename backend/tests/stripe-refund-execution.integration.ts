@@ -5,7 +5,9 @@ import { SignJWT } from 'jose';
 import { createApp } from '../api/src/app.js';
 import { csrfFor } from '../api/src/auth/security.js';
 import { recordCapture } from '../api/src/payments/capture.js';
+import { documentKey, processBookingDocuments } from '../shared/booking-documents.js';
 import { readConfig } from '../shared/config.js';
+import { MediaStore } from '../shared/media-store.js';
 import { hasJournalSqlState, openAccount, postedBalance, postJournal } from '../shared/payments/journal.js';
 import { resources } from '../shared/resources.js';
 
@@ -120,12 +122,16 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
 
   const deps = resources(config);
   const { app } = await createApp(config, deps);
+  const store = new MediaStore(config);
   const users: string[] = [];
   const bookingIds: string[] = [];
   let refundId: string | undefined;
   try {
     await app.listen(0, '127.0.0.1');
     const base = await app.getUrl() + '/api/v1/';
+    const refundReceipt = (executionId: string) => deps.db.bookingDocument.findFirstOrThrow({
+      where: { kind: 'receipt', snapshot: { path: ['refundExecutionId'], equals: executionId } },
+    });
     async function fixture(role: 'admin' | 'customer' | 'artist' | 'renter', recent = true) {
       const user = await deps.db.authUser.create({ data: {
         roles: [role], email: randomUUID() + '@stagelink.test', emailVerifiedAt: new Date(), displayName: 'Stripe fixture', passwordHash: 'unused',
@@ -231,6 +237,9 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
     } finally { release(); }
     assert.equal((await (await waiting).json()).state, 'pending');
     assert.equal(await postedBalance(deps.db, advance.accountId), 150001n);
+    assert.equal(await deps.db.bookingDocument.count({
+      where: { bookingId: booking.id, kind: 'receipt', snapshot: { path: ['disposition'], equals: 'refunded' } },
+    }), 0);
     const before = await dashboard();
     assert.equal(before.money.refundReservedMinor, '300002');
     assert.equal(before.settled.refundedMinor, '0');
@@ -260,6 +269,26 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
     assert.equal(rows.length, 2);
     assert.ok(rows.every(row => row.actorId === admin.id && row.status === 'succeeded' &&
       row.settlement?.source === 'stripe.test.refund.settle' && row.settlement.reference === row.providerRefundId));
+    const stripeRow = rows.find(row => row.id === settled.id)!;
+    const stripeReceipt = await refundReceipt(stripeRow.id);
+    assert.equal(stripeReceipt.sourceId, stripeRow.settlementId);
+    assert.deepEqual(stripeReceipt.snapshot, {
+      version: 2, kind: 'receipt', issuedAt: stripeRow.settlement!.postedAt!.toISOString(),
+      orderId: advance.id, purpose: 'advance', amountMinor: 150001, gateway: 'Stripe',
+      disposition: 'refunded', refundExecutionId: settled.id, journalId: stripeRow.settlementId, refundContext: 'cancellation',
+    });
+    for (const _ of [0, 1]) await processBookingDocuments(deps.db, store);
+    const receiptPath = base + 'documents/' + stripeReceipt.id;
+    const documents = await (await fetch(base + 'bookings/' + booking.id + '/documents', customer)).json();
+    assert.ok(documents.items.some((item: { id: string }) => item.id === stripeReceipt.id));
+    assert.deepEqual((await (await fetch(receiptPath, customer)).json()).snapshot, stripeReceipt.snapshot);
+    assert.equal((await fetch(receiptPath + '/download', artist)).status, 404);
+    assert.equal((await fetch(receiptPath + '/download', outsider)).status, 404);
+    const pdf = await fetch(receiptPath + '/download', customer);
+    assert.equal(pdf.status, 200);
+    assert.equal(pdf.headers.get('content-type'), 'application/pdf');
+    assert.equal(pdf.headers.get('cache-control'), 'private, no-store');
+    assert.match(Buffer.from(await pdf.arrayBuffer()).toString('latin1'), /^%PDF-/);
     const customerRefund = await (await fetch(base + 'bookings/' + booking.id + '/refund-requests', customer)).json();
     assert.ok(customerRefund.request.items.every((item: { stripeExecutionStatus: string }) => item.stripeExecutionStatus === 'succeeded'));
 
@@ -288,6 +317,13 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
     assert.equal(completedPayHere.paymentId, paymentId);
     assert.equal(completedPayHere.providerRefundId, String(firstProviderRefundId));
     assert.equal(completedPayHere.settlement?.source, 'payhere.sandbox.refund.settle');
+    const payHereReceipt = await refundReceipt(completedPayHere.id);
+    assert.deepEqual(payHereReceipt.snapshot, {
+      version: 2, kind: 'receipt', issuedAt: completedPayHere.settlement!.postedAt!.toISOString(),
+      orderId: balance.id, purpose: 'balance', amountMinor: 150001, gateway: 'PayHere',
+      disposition: 'refunded', refundExecutionId: completedPayHere.id, journalId: completedPayHere.settlementId,
+      refundContext: 'cancellation',
+    });
 
     const renter = await fixture('renter');
     async function createDamageClaim(deductionMinor: number, capturedPaymentId?: string) {
@@ -351,6 +387,7 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
     assert.equal(damageSettlement.state, 'succeeded');
     assert.equal(damageSettlement.claimId, claim.id);
     assert.equal(damageSettlement.amountMinor, damageRefundMinor);
+    assert.equal(((await refundReceipt(damageSettlement.id)).snapshot as { refundContext: string }).refundContext, 'deposit_claim');
     assert.deepEqual(await (await executeDamage()).json(), damageSettlement);
     assert.deepEqual((await (await readDamage()).json()).execution, damageSettlement);
     assert.deepEqual(submissions, ['pi_service', 'pi_deposit', 'pi_damage']);
@@ -501,6 +538,16 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
     assert.equal(arbitrationRows.length, 2);
     assert.deepEqual(arbitrationRows.map(row => row.amountMinor).sort((a, b) => a - b), [50000, 150001]);
     assert.ok(arbitrationRows.every(row => row.settlement?.source === 'stripe.test.refund.settle'));
+    for (const row of arbitrationRows) {
+      const receipt = await refundReceipt(row.id);
+      assert.equal(receipt.sourceId, row.settlementId);
+      assert.deepEqual(receipt.snapshot, {
+        version: 2, kind: 'receipt', issuedAt: row.settlement!.postedAt!.toISOString(),
+        orderId: row.orderId, purpose: row.orderId === first.id ? 'advance' : 'balance',
+        amountMinor: row.amountMinor, gateway: 'Stripe', disposition: 'refunded',
+        refundExecutionId: row.id, journalId: row.settlementId, refundContext: 'arbitration',
+      });
+    }
     assert.equal((await dashboard(arbitrationProvider)).settled.refundedMinor, '200001');
 
     const complete = await arbitration(300002);
@@ -709,6 +756,26 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
     assert.equal(recoveredExecution.providerRefundId, null);
     assert.equal(recoveredExecution.settlementId, recovery.journalId);
     assert.equal(recoveredExecution.settlement?.reference, 'recovery:' + uncertain.id);
+    const recoveredReceipt = await refundReceipt(uncertain.id);
+    assert.equal(recoveredReceipt.sourceId, recovery.journalId);
+    // Rebuild a synthetic receipt using the routine shared by the trigger and historical backfill.
+    await deps.db.$transaction(async tx => {
+      const where = { bookingId: recoveredReceipt.bookingId, kind: 'receipt' as const, sourceId: recovery.journalId };
+      const rebuild = (amountAdjustment: number) => tx.$queryRaw`
+        SELECT record_sandbox_refund_receipt(
+          id, order_id, settlement_id, amount_minor + ${amountAdjustment}::integer, 'payhere', damage_claim_id,
+          arbitration_id, COALESCE(provider_refund_id, 'recovery:' || id::text)
+        )::text FROM payhere_refund_executions WHERE id = ${uncertain.id}::uuid
+      `;
+      await tx.bookingDocument.delete({ where: { id: recoveredReceipt.id } });
+      await rebuild(1);
+      assert.equal(await tx.bookingDocument.count({ where }), 0);
+      await rebuild(0);
+      await rebuild(0);
+      const matches = await tx.bookingDocument.findMany({ where });
+      assert.equal(matches.length, 1);
+      assert.deepEqual(matches[0]!.snapshot, recoveredReceipt.snapshot);
+    });
     assert.equal(await reserveBalance(uncertainPayHere.decision.id, 'customer'), 0n);
     assert.equal(await deps.db.payHereRefundRecovery.count({ where: { executionId: uncertain.id } }), 1);
     await assert.rejects(deps.db.$executeRaw`
@@ -823,6 +890,10 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
         await deps.db.payHereEvent.deleteMany({ where: { attempt: { order: { bookingId } } } });
         await deps.db.payHereAttempt.deleteMany({ where: { order: { bookingId } } });
         await deps.db.stripeAttempt.deleteMany({ where: { order: { bookingId } } });
+        const rendered = await deps.db.bookingDocument.findMany({
+          where: { bookingId, renderId: { not: null } }, select: { id: true, renderId: true },
+        });
+        await Promise.all(rendered.map(row => store.remove(documentKey(row.id, row.renderId!))));
         await deps.db.bookingDocument.deleteMany({ where: { bookingId } });
         await deps.db.bookingAgreement.deleteMany({ where: { bookingId } });
         await deps.db.bookingQuotation.deleteMany({ where: { bookingId } });
@@ -833,6 +904,6 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
       }
       await deps.db.verificationCase.deleteMany({ where: { providerId: { in: users } } });
       await deps.db.authUser.deleteMany({ where: { id: { in: users } } });
-    } finally { await app.close(); }
+    } finally { store.close(); await app.close(); }
   }
 });

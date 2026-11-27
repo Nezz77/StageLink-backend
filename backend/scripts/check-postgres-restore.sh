@@ -72,6 +72,17 @@ FROM checks ORDER BY relname, conname
 SELECT 'index', tablename, indexname, indexdef
 FROM pg_indexes WHERE schemaname = 'public' ORDER BY tablename, indexname;
 
+SELECT 'trigger', tbl.relname, trg.tgname, trg.tgenabled, md5(pg_get_triggerdef(trg.oid))
+FROM pg_trigger AS trg
+JOIN pg_class AS tbl ON tbl.oid = trg.tgrelid
+JOIN pg_namespace AS ns ON ns.oid = tbl.relnamespace
+WHERE ns.nspname = 'public' AND NOT trg.tgisinternal ORDER BY tbl.relname, trg.tgname;
+
+SELECT 'routine', p.proname, pg_get_function_identity_arguments(p.oid), md5(pg_get_functiondef(p.oid))
+FROM pg_proc AS p
+JOIN pg_namespace AS ns ON ns.oid = p.pronamespace
+WHERE ns.nspname = 'public' AND p.prokind IN ('f', 'p') ORDER BY p.proname, 3;
+
 COMMIT;
 SQL
 }
@@ -95,8 +106,8 @@ if ! cmp -s "$workdir/source.snapshot" "$workdir/restore.snapshot"; then
   { diff -u "$workdir/source.snapshot" "$workdir/restore.snapshot" || true; } |
     awk -F '|' '
       /^[-+](table:|sequence:)/ { print substr($1, 2) }
-      /^[-+](constraint|index)\|/ { print substr($1, 2) ":" $2 "." $3 }
+      /^[-+](constraint|index|trigger|routine)\|/ { print substr($1, 2) ":" $2 "." $3 }
     ' | sort -u >&2
   exit 1
 fi
-printf '%s\n' 'PostgreSQL restore matched table contents, sequences, constraints and indexes.'
+printf '%s\n' 'PostgreSQL restore matched table contents, sequences, constraints, indexes, triggers and routines.'

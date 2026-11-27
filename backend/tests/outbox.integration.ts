@@ -6,7 +6,7 @@ import { once } from 'node:events';
 import { Queue } from 'bullmq';
 import { Redis } from 'ioredis';
 import { readConfig } from '../shared/config.js';
-import { resources, closeResources, readiness } from '../shared/resources.js';
+import { resources, closeResources, MIGRATION, readiness } from '../shared/resources.js';
 import { consume, dispatchBatch, insertPing, QUEUE } from '../shared/outbox.js';
 
 const config = readConfig();
@@ -18,6 +18,39 @@ async function until(check: () => Promise<boolean>, timeout = 15000) {
   while (Date.now() < end) { if (await check()) return; await new Promise(r => setTimeout(r, 100)); }
   throw new Error('Timed out waiting for integration condition');
 }
+test('database readiness requires the built schema and blocks an unfinished migration until rollback', async () => {
+  const deps = resources(config);
+  const failedId = randomUUID();
+  const newerId = randomUUID();
+  const migration = '29991231235959_readiness_fixture';
+  const checksum = '0'.repeat(64);
+  const ready = { status: 'ready', dependencies: { postgres: 'up', redis: 'up' }, schemaVersion: MIGRATION };
+  const unavailable = { status: 'unavailable', dependencies: { postgres: 'down', redis: 'up' }, schemaVersion: null };
+  try {
+    assert.deepEqual(await readiness(deps), ready);
+    await deps.db.$executeRaw`
+      INSERT INTO _prisma_migrations (id, checksum, migration_name, logs)
+      VALUES (${failedId}, ${checksum}, ${migration}, 'Synthetic migration failure')
+    `;
+    assert.deepEqual(await readiness(deps), unavailable);
+
+    await deps.db.$executeRaw`
+      UPDATE _prisma_migrations SET rolled_back_at = clock_timestamp() WHERE id = ${failedId}
+    `;
+    assert.deepEqual(await readiness(deps), ready);
+
+    await deps.db.$executeRaw`
+      INSERT INTO _prisma_migrations (id, checksum, migration_name, finished_at)
+      VALUES (${newerId}, ${checksum}, ${migration}, clock_timestamp())
+    `;
+    assert.deepEqual(await readiness(deps), unavailable);
+  } finally {
+    try {
+      await deps.db.$executeRaw`DELETE FROM _prisma_migrations WHERE id IN (${failedId}, ${newerId})`;
+    } finally { await closeResources(deps); }
+  }
+});
+
 test('migrations, transactional outbox, recovery, duplicate delivery and actual worker restart', { timeout: 90000 }, async () => {
   const deps = resources(config);
   const connection = new Redis(config.REDIS_URL, { maxRetriesPerRequest: 1 });

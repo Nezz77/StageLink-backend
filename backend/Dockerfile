@@ -5,6 +5,7 @@ COPY backend/package.json backend/package-lock.json ./
 RUN npm ci
 COPY backend/prisma ./prisma
 COPY backend/prisma.config.ts ./
+COPY backend/scripts/generate-migration-version.mjs ./scripts/
 RUN npm run db:generate
 COPY backend .
 RUN npm run build

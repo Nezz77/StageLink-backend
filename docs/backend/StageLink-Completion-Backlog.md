@@ -75,6 +75,8 @@ Checked boxes mark completed repository work. Hosted checks and remaining client
 - [x] P12 Stripe test journal and fee settlement for confirmed automatic LKR bank payouts, with compensating entries when the payout fails or the transfer reverses.
 - [ ] P12 Manual bank payout execution and investigation of attempts without conclusive Stripe evidence.
 - [x] P13 Sandbox invoice, per-capture receipt and payout reservation statement with private server-rendered PDFs.
+- [x] P13 Private sandbox statements for posted Stripe test bank settlements and reversals, including backfill from historical journals.
+- [x] P13 Private customer PDF receipts for posted Stripe test and PayHere sandbox refunds, including recovered and historical refunds.
 - [x] P13 Verified customer reviews, moderated event photos and public rating aggregates.
 - [x] P14 Serialized equipment allocation, private dispatch and return reports, correction history, comparison and stock clearance.
 - [x] P14 Damage claims, customer responses and admin-reviewed reservation of collected deposits.
@@ -136,8 +138,9 @@ Checked boxes mark completed repository work. Hosted checks and remaining client
 - [x] P18 Administrator and provider analytics from booking records and posted sandbox journals.
 - [x] P18 Stripe test and PayHere sandbox refund settlements in administrator and provider analytics, with daily totals.
 - [x] P18 Net Stripe test bank payout and platform fee analytics by UTC day and period, scoped by role and inclusive of posted reversals.
-- [x] P18 PostgreSQL test backup and restore drill compares data, sequences, constraints and indexes in CI.
+- [x] P18 PostgreSQL test backup and restore drill compares data, sequences, constraints, indexes, triggers and routines in CI.
 - [ ] P18 Live financial totals for supported workflows and release verification for security, accessibility, backup and rollback.
+- [x] P18 API and worker readiness use the build's migration version and reject unfinished migrations or a different database version.
 
 ## Verification and client integration
 
