@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { captureRecommendationEvaluation } from '../scripts/capture-recommendation-evaluation.js';
 import { evaluateRecommendations } from '../scripts/evaluate-recommendations.js';
 
 const id = (value: number) => '00000000-0000-4000-8000-' + String(value).padStart(12, '0');
@@ -66,4 +67,64 @@ test('quality regressions are reported without marking the paired data incomplet
   assert.deepEqual(report.mean.weighted, report.mean.semantic);
   assert.throws(() => evaluate(pair, pair));
   assert.throws(() => evaluate({ ...pair, judgments: [{ gigId: id(1), relevance: 0 }] }));
+});
+
+const captureCase = {
+  key: pair.key, briefId: pair.weighted.briefId, briefRevision: pair.weighted.briefRevision, genres: ['Jazz'],
+  weightedRequestKey: id(20), semanticRequestKey: id(21), judgments: pair.judgments,
+};
+const captureSettings = {
+  origin: 'https://api.staging.test', webOrigin: 'https://web.staging.test',
+  session: { accessToken: 'staging.session.fixture', csrfToken: 'B'.repeat(43) },
+  plan: { version: 1, expectedModel, cases: [captureCase] },
+};
+
+test('staging capture pairs both commands and rereads the resulting snapshots', async () => {
+  const postPath = '/api/v1/event-posts/' + captureCase.briefId + '/recommendations';
+  const requests: { path: string; body?: unknown }[] = [];
+  const report = await captureRecommendationEvaluation(captureSettings, async (url, init) => {
+    const target = new URL(String(url));
+    assert.equal(target.origin, captureSettings.origin);
+    assert.equal(init?.redirect, 'error');
+    const headers = new Headers(init?.headers);
+    assert.equal(headers.get('authorization'), 'Bearer ' + captureSettings.session.accessToken);
+    const body = init?.body ? JSON.parse(String(init.body)) : undefined;
+    requests.push({ path: target.pathname, ...(body && { body }) });
+    if (body) {
+      assert.equal(headers.get('origin'), captureSettings.webOrigin);
+      assert.equal(headers.get('x-csrf-token'), captureSettings.session.csrfToken);
+      assert.equal(init?.method, 'POST');
+      return Response.json(body.useSemantic ? pair.semantic : pair.weighted);
+    }
+    assert.equal(headers.has('x-csrf-token'), false);
+    return Response.json(target.pathname.endsWith(pair.weighted.id) ? pair.weighted : {
+      ...pair.semantic, items: [{ ...item(3), currentVersion: false }],
+    });
+  });
+  const input = { expectedRevision: captureCase.briefRevision, genres: captureCase.genres };
+  assert.deepEqual(requests, [
+    { path: postPath, body: { ...input, requestKey: captureCase.weightedRequestKey, useSemantic: false } },
+    { path: postPath, body: { ...input, requestKey: captureCase.semanticRequestKey, useSemantic: true } },
+    { path: '/api/v1/recommendations/' + pair.weighted.id },
+    { path: '/api/v1/recommendations/' + pair.semantic.id },
+  ]);
+  assert.ok(report.captured);
+  assert.equal(report.evaluation.complete, false);
+  assert.deepEqual(report.evaluation.cases, [{ key: pair.key, status: 'excluded', reason: 'listing_revision_changed' }]);
+  assert.doesNotMatch(JSON.stringify(report), /00000000-0000-4000|staging\.session\.fixture/);
+});
+
+test('staging capture validates unique request keys and stops on mismatched brief evidence', async () => {
+  await assert.rejects(captureRecommendationEvaluation({
+    ...captureSettings,
+    plan: { ...captureSettings.plan, cases: [{ ...captureCase, semanticRequestKey: captureCase.weightedRequestKey }] },
+  }, async () => assert.fail('Invalid capture plan must fail before sending requests')));
+
+  let calls = 0;
+  const report = await captureRecommendationEvaluation(captureSettings, async () => {
+    calls++;
+    return Response.json({ ...pair.weighted, briefId: id(99) });
+  });
+  assert.equal(calls, 1);
+  assert.deepEqual(report, { captured: false, failedCase: pair.key, stage: 'create_weighted', httpStatus: 200 });
 });

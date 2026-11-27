@@ -2030,7 +2030,7 @@
       "ui_coverage_ids": [
         "UI-047"
       ],
-      "remaining": "Weighted ranking, versioned gig embeddings, opt-in semantic reranking, recommendation provenance and a repeatable synthetic evaluation are implemented. Run a live embedding smoke test and representative ranking evaluation, then connect the opt-in frontend/Figma workflow."
+      "remaining": "Weighted ranking, versioned gig embeddings, opt-in semantic reranking, recommendation provenance and a paired staging capture-and-score command are implemented. Run a live embedding smoke test and representative ranking evaluation, then connect the opt-in frontend/Figma workflow."
     },
     {
       "id": "BE-058",

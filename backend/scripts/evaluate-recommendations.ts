@@ -6,7 +6,7 @@ import { briefEmbeddingInput, semanticWeight } from '../api/src/ai/semantic-rank
 const uuid = z.uuid().transform(value => value.toLowerCase());
 const revision = z.number().int().positive().max(2_147_483_647);
 const item = z.object({ gigId: uuid, version: revision, currentVersion: z.boolean() });
-const run = z.object({
+export const recommendationRun = z.object({
   id: uuid, briefId: uuid, briefRevision: revision, weightsRevision: revision,
   method: z.enum(['weighted_catalog_v1', 'semantic_hybrid_v1']),
   semantic: z.object({
@@ -14,15 +14,17 @@ const run = z.object({
   }).optional(),
   items: z.array(item).max(3).refine(items => new Set(items.map(row => row.gigId)).size === items.length),
 });
+export const caseKey = z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}$/);
+export const judgments = z.array(z.object({ gigId: uuid, relevance: z.number().int().min(0).max(3) }).strict()).min(1).max(500)
+  .refine(rows => new Set(rows.map(row => row.gigId)).size === rows.length && rows.some(row => row.relevance > 0));
+export const evaluationModel = z.enum(['text-embedding-3-small', 'text-embedding-3-large']);
 const scenario = z.object({
-  key: z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}$/),
-  judgments: z.array(z.object({ gigId: uuid, relevance: z.number().int().min(0).max(3) }).strict()).min(1).max(500)
-    .refine(rows => new Set(rows.map(row => row.gigId)).size === rows.length && rows.some(row => row.relevance > 0)),
-  weighted: run.extend({ method: z.literal('weighted_catalog_v1') }),
-  semantic: run,
+  key: caseKey, judgments,
+  weighted: recommendationRun.extend({ method: z.literal('weighted_catalog_v1') }),
+  semantic: recommendationRun,
 }).strict();
 const manifest = z.object({
-  version: z.literal(1), expectedModel: z.enum(['text-embedding-3-small', 'text-embedding-3-large']),
+  version: z.literal(1), expectedModel: evaluationModel,
   cases: z.array(scenario).min(1).max(500).refine(cases => new Set(cases.map(row => row.key)).size === cases.length),
 }).strict();
 
