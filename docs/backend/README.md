@@ -79,6 +79,8 @@ Generated contracts are `contracts/openapi.json` → `packages/contracts/src/api
 
 The build embeds the latest bundled Prisma migration in the API and worker. Their readiness endpoints return 503 if PostgreSQL has a different latest completed migration or an unfinished migration entry. Rolled-back entries are ignored. The normal local API and worker start commands regenerate the expected version from the checkout.
 
+The worker checks its bundled migration version before beginning a background scan or handling an outbox job. An unavailable database, a schema mismatch, or an unfinished migration defers work. Already queued jobs retry after a delay without using a delivery attempt and resume once the matching schema is available. Stop the deployed workers before applying or restoring migrations so work already in flight can finish.
+
 AI remains health-only. Under `backend/ai`, use Python 3.12 / uv 0.11.29, `uv sync --frozen`, then `uv run --frozen pytest -q`. No model/provider is configured.
 
 ## Controlled administrator creation

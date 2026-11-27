@@ -34,9 +34,9 @@ export async function ensureRedis(redis:Redis):Promise<void>{
   connecting.set(redis,pending);try{await pending;}finally{if(connecting.get(redis)===pending)connecting.delete(redis);}
 }
 
-export async function readiness({ db, redis }: Resources) {
-  const checks = await Promise.allSettled([
-    db.$queryRaw<Array<{ migration_name: string | null; unfinished: boolean }>>`
+export async function databaseMatchesBuild(db: Resources['db']) {
+  try {
+    const [migration] = await db.$queryRaw<Array<{ migration_name: string | null; unfinished: boolean }>>`
       SELECT (
         SELECT migration_name FROM _prisma_migrations
         WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL
@@ -44,15 +44,18 @@ export async function readiness({ db, redis }: Resources) {
       ) AS migration_name, EXISTS (
         SELECT 1 FROM _prisma_migrations
         WHERE finished_at IS NULL AND rolled_back_at IS NULL
-      ) AS unfinished`,
-    (async () => {
-      await ensureRedis(redis);
-      if (await redis.ping() !== 'PONG') throw new Error('Redis unavailable');
-    })(),
+      ) AS unfinished`;
+    return migration?.migration_name === MIGRATION && migration.unfinished === false;
+  } catch {
+    return false;
+  }
+}
+
+export async function readiness({ db, redis }: Resources) {
+  const [postgres, redisOk] = await Promise.all([
+    databaseMatchesBuild(db),
+    ensureRedis(redis).then(() => redis.ping()).then(reply => reply === 'PONG').catch(() => false),
   ]);
-  const migration = checks[0].status === 'fulfilled' ? checks[0].value[0] : undefined;
-  const postgres = migration?.migration_name === MIGRATION && migration.unfinished === false;
-  const redisOk = checks[1]?.status === 'fulfilled';
   return {
     status: postgres && redisOk ? 'ready' as const : 'unavailable' as const,
     dependencies: { postgres: postgres ? 'up' : 'down', redis: redisOk ? 'up' : 'down' },

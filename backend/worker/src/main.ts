@@ -1,8 +1,8 @@
 import { createServer } from 'node:http';
-import { Queue, Worker } from 'bullmq';
+import { DelayedError, Queue, Worker } from 'bullmq';
 import { Redis } from 'ioredis';
 import { readConfig } from '../../shared/config.js';
-import { resources, closeResources, readiness } from '../../shared/resources.js';
+import { closeResources, databaseMatchesBuild, readiness, resources } from '../../shared/resources.js';
 import { consume, dispatchBatch, QUEUE } from '../../shared/outbox.js';
 import { publishNotificationChange } from '../../shared/notification-signals.js';
 import { createMailer, deliverAuthMail } from '../../shared/auth-mail.js';
@@ -21,16 +21,35 @@ async function main() {
   const deps = resources(config);
   const mailer = createMailer(config);
   const mediaStore = new MediaStore(config);
-  let mediaRunning=false, mediaStopping=false;
-  async function mediaScan(){if(mediaRunning||mediaStopping)return;mediaRunning=true;try{await processMediaBatch(deps,mediaStore);await cleanupMediaBatch(deps,mediaStore);await processBookingDocuments(deps.db,mediaStore);}catch{log('media.scan_failed',{code:'MEDIA_RETRY'});}finally{mediaRunning=false;}}
-  const mediaTimer=setInterval(()=>void mediaScan(),1000);
+  let schemaCheck: Promise<boolean> | undefined;
+  function schemaReady() {
+    return schemaCheck ??= databaseMatchesBuild(deps.db).finally(() => { schemaCheck = undefined; });
+  }
+  let mediaRunning = false, mediaStopping = false;
+  async function mediaScan() {
+    if (mediaRunning || mediaStopping) return;
+    mediaRunning = true;
+    try {
+      if (!await schemaReady() || mediaStopping) return;
+      await processMediaBatch(deps, mediaStore);
+      await cleanupMediaBatch(deps, mediaStore);
+      await processBookingDocuments(deps.db, mediaStore);
+    } catch {
+      log('media.scan_failed', { code: 'MEDIA_RETRY' });
+    } finally { mediaRunning = false; }
+  }
+  const mediaTimer = setInterval(() => void mediaScan(), 1000);
   const publisher = new Redis(config.REDIS_URL, { maxRetriesPerRequest: 1, enableOfflineQueue: false, connectTimeout: 1000, commandTimeout: 2000 });
   const subscriber = new Redis(config.REDIS_URL, { maxRetriesPerRequest: null, connectTimeout: 1000 });
   for (const connection of [publisher, subscriber]) connection.on('error', () => {});
   const queue = new Queue(QUEUE, { connection: publisher, defaultJobOptions: {
     attempts: 5, backoff: { type: 'exponential', delay: 500 }, removeOnComplete: true, removeOnFail: true,
   } });
-  const worker = new Worker(QUEUE, async job => {
+  const worker = new Worker(QUEUE, async (job, token) => {
+    if (!await schemaReady()) {
+      await job.moveToDelayed(Date.now() + 2000, token);
+      throw new DelayedError();
+    }
     const recipients = await consume(deps.db, String(job.data.eventId));
     await publishNotificationChange(publisher, recipients);
   }, { connection: subscriber, concurrency: 4 });
@@ -45,6 +64,7 @@ async function main() {
     if (running || stopping) return;
     running = true;
     try {
+      if (!await schemaReady() || stopping) return;
       await dispatchBatch(deps.db, queue);
       await deliverAuthMail(deps, config, mailer);
       lastScan = Date.now();
@@ -56,6 +76,7 @@ async function main() {
     if (stopping || remindersRunning) return;
     remindersRunning = true;
     try {
+      if (!await schemaReady() || stopping) return;
       await processBookingReminders(deps.db, config, mailer);
       await processSmsVerifications(deps.db, config);
       await processBookingSmsReminders(deps.db, config);
@@ -67,7 +88,11 @@ async function main() {
   async function scanCampaigns() {
     if (stopping || campaignsRunning) return;
     campaignsRunning = true;
-    try { await processPromotionalEmail(deps.db, config, mailer); await processPromotionalSms(deps.db, config); }
+    try {
+      if (!await schemaReady() || stopping) return;
+      await processPromotionalEmail(deps.db, config, mailer);
+      await processPromotionalSms(deps.db, config);
+    }
     catch { log('campaign.scan_failed', { code: 'CAMPAIGN_PROCESSING_UNAVAILABLE' }); }
     finally { campaignsRunning = false; }
   }
