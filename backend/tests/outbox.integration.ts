@@ -66,12 +66,13 @@ test('migrations, transactional outbox, recovery, duplicate delivery and actual 
     }
     worker = undefined;
   }
-  async function startWorker() {
+  const healthUrl = `http://127.0.0.1:${process.env.WORKER_HEALTH_PORT ?? '14001'}`;
+  async function startWorker(healthPath = 'ready') {
     worker = spawn(process.execPath, ['dist/worker/src/main.js'], {
       env: { ...process.env, WORKER_HEALTH_PORT: process.env.WORKER_HEALTH_PORT ?? '14001' }, stdio: 'ignore',
     });
     await until(async () => {
-      try { return (await fetch(`http://127.0.0.1:${process.env.WORKER_HEALTH_PORT ?? '14001'}/health/ready`)).status === 200; }
+      try { return (await fetch(`${healthUrl}/health/${healthPath}`)).status === 200; }
       catch { return false; }
     });
   }
@@ -163,6 +164,31 @@ test('migrations, transactional outbox, recovery, duplicate delivery and actual 
     const rejected = await deps.db.outboxEvent.findUniqueOrThrow({ where: { id: invalid.id } });
     assert.ok(rejected.deadLetteredAt); assert.equal(rejected.processedAt, null);
     assert.equal(await deps.db.foundationReceipt.count({ where: { eventId: invalid.id } }), 0);
+
+    const blockedSchema = randomUUID();
+    const redisJob = await deps.db.$transaction(insertPing); ids.push(redisJob.id);
+    const scheduled = await deps.db.$transaction(insertPing); ids.push(scheduled.id);
+    const guardedIds = [redisJob.id, scheduled.id];
+    try {
+      await deps.db.$executeRaw`
+        INSERT INTO _prisma_migrations (id, checksum, migration_name, logs)
+        VALUES (${blockedSchema}, ${'0'.repeat(64)}, '29991231235959_worker_fixture', 'Synthetic worker migration failure')
+      `;
+      await queue.add('deliver', { eventId: redisJob.id }, { jobId: redisJob.id, attempts: 1 });
+      await startWorker('live');
+      await until(async () => {
+        const queued = await queue.getJob(redisJob.id);
+        return Boolean(queued && queued.attemptsStarted >= 2 && await queued.getState() === 'delayed');
+      });
+      assert.equal((await fetch(healthUrl + '/health/ready')).status, 503);
+      assert.equal((await queue.getJob(redisJob.id))?.attemptsMade, 0);
+      assert.equal(await queue.getJob(scheduled.id), undefined);
+      assert.equal(await deps.db.foundationReceipt.count({ where: { eventId: { in: guardedIds } } }), 0);
+    } finally {
+      await deps.db.$executeRaw`DELETE FROM _prisma_migrations WHERE id = ${blockedSchema}`;
+    }
+    await until(async () => (await deps.db.foundationReceipt.count({ where: { eventId: { in: guardedIds } } })) === 2);
+    await until(async () => (await fetch(healthUrl + '/health/ready')).status === 200);
   } finally {
     await stopWorker();
     await app?.close();
