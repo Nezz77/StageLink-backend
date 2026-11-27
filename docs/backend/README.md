@@ -230,6 +230,16 @@ A verified administrator with a recent sign-in can send `{bankPayoutId}` to `POS
 
 Use the same POST to reconcile a later bank payout failure. StageLink posts accounting entries that compensate the original settlement, restores the fee reserve, and preserves both journal entries. Reconciliation of a Stripe transfer reversal also compensates any active bank settlement for that transfer. `GET /api/v1/admin/payouts/:id/stripe-transfer/bank-settlements` shows the most recent 20 records and their review reasons. Manual bank payout initiation and hosted verification remain open.
 
+### Manual sandbox payout reconciliation
+
+Set `MANUAL_SANDBOX_PAYOUT_RECONCILIATION=true` to exercise the manual workflow with fictional payout references. This posts sandbox ledger records for ordinary booking service payouts. Live bank payouts remain disabled.
+
+A verified administrator with a recent sign-in sends `{testReference, amountMinor, destinationRevision, reason}` to `POST /api/v1/admin/payouts/:id/manual-sandbox-settlement` using the standard origin and CSRF headers. Use a unique reference beginning with `SBX-`. The amount is the exact net payout in minor LKR units. StageLink checks the reviewed destination, booking eligibility and full original reserve. An identical retry using the same administrator returns the saved record.
+
+A different verified administrator submits `{decision, reason}` to `POST /api/v1/admin/payouts/:id/manual-sandbox-settlement/review`. A `confirm` decision rechecks eligibility and posts the provider net and platform fee once. A `flag` decision preserves the full reserve for review. A prior Stripe attempt prevents recording a manual payout. A manual record prevents Stripe transfer submission and payout destination repair for the same reservation.
+
+Administrators can read the saved record using `GET /api/v1/admin/payouts/:id/manual-sandbox-settlement`. Providers see the manual settlement status beside the reservation in their payout and earnings views. Posted journal entries appear in sandbox analytics.
+
 ## Booking documents
 
 List documents at `GET /api/v1/bookings/:id/documents`, preview a snapshot at `GET /api/v1/documents/:id`, and download the worker-rendered PDF at `GET /api/v1/documents/:id/download`. The worker must be running with access to the private object store. A failed render can be queued again with `POST /api/v1/documents/:id/render-retry`.

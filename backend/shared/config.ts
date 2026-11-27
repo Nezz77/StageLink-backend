@@ -50,6 +50,7 @@ const schema = z.object({
   AI_PREVIEW_DAILY_LIMIT: z.coerce.number().int().min(1).max(200).default(20),
   WORKER_HEALTH_PORT: z.coerce.number().int().min(1).max(65535).default(4001),
   STRIPE_TEST_PAYOUT_TRANSFERS: z.enum(['true', 'false']).default('false'),
+  MANUAL_SANDBOX_PAYOUT_RECONCILIATION: z.enum(['true', 'false']).default('false'),
   STRIPE_TEST_REFUND_EXECUTION: z.enum(['true', 'false']).default('false'),
   STRIPE_TEST_SECRET_KEY: optionalSetting(z.string().regex(/^sk_test_[A-Za-z0-9_]{1,250}$/)),
   STRIPE_TEST_WEBHOOK_SECRET: optionalSetting(z.string().regex(/^whsec_[A-Za-z0-9_]{1,250}$/)),

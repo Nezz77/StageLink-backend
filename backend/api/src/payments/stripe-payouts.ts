@@ -17,6 +17,7 @@ import { parse, schema, uuid } from './orders.js';
 import { approvedStripeArbitration, approvedStripeDeduction, assertPayoutProvider, payoutBlocked, payoutReservationAccount, stripePayoutCapture, stripePayoutCaptureInclude } from './payout-eligibility.js';
 import { reconcileBankSettlement } from './stripe-bank-payout-settlement.js';
 import { recordConfirmedStripeTransfer } from './stripe-transfer-settlement.js';
+import { assertNoManualSandboxPayout } from './manual-sandbox-payouts.js';
 
 const command = z.object({
   reconcileOnly: z.boolean().optional(), retryOfTransferId: uuid.optional(),
@@ -57,6 +58,7 @@ const investigationView = z.object({
 });
 
 const payoutInclude = {
+  manualSandboxPayout: { select: { id: true } },
   stripeTransfers: { include: { destination: true }, orderBy: { attempt: 'desc' }, take: 2 },
   booking: { select: { customerId: true, providerId: true, targetKind: true } },
 } satisfies Prisma.PayoutOrderInclude;
@@ -402,6 +404,7 @@ export function makeStripePayoutTransfersController(auth: AuthService) {
       const id = parse(uuid, rawId);
       const source = await loadPayout(db, id);
       requireOperator(actor, source);
+      assertNoManualSandboxPayout(source);
       const { existing: prior } = transferTarget(source, retryOfTransferId);
       if (prior && returnWithoutClaim(prior, input)) return present(prior);
       if (!prior && reconcileOnly) throw new PublicError(409, 'STRIPE_TRANSFER_NOT_STARTED', 'Start the transfer before reconciling it.');
@@ -428,6 +431,7 @@ export function makeStripePayoutTransfersController(auth: AuthService) {
 
       const claim = await db.$transaction(async tx => {
         const { payout, operator } = await lockPayout(tx, source, actor);
+        assertNoManualSandboxPayout(payout);
         const { existing, retryOf } = transferTarget(payout, retryOfTransferId);
         if (existing && (returnWithoutClaim(existing, input) || (reconcileOnly && existing.id !== prior?.id))) {
           return { response: present(existing) };

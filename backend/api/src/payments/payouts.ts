@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Param, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Get, Header, HttpCode, Param, Post, Query, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { randomUUID } from 'node:crypto';
 import type { Request } from 'express';
@@ -13,6 +13,10 @@ import { ProfileService } from '../profiles/service.js';
 import { parse, schema, uuid } from './orders.js';
 import { approvedStripeArbitration, approvedStripeDeduction, assertPayoutProvider, payoutBlocked, payoutFund, payoutReservationAccount, payoutReservationSource, providerVerifiedForPayout } from './payout-eligibility.js';
 import { findReservedFunds } from './refund-reservations.js';
+import {
+  assertNoManualSandboxPayout, manualSandboxRecord, manualSandboxReview, manualSandboxState, manualSandboxStatus,
+  manualSandboxView, presentManualSandbox, reviewManualSandboxPayout,
+} from './manual-sandbox-payouts.js';
 
 const timestamp = z.iso.datetime();
 const minor = z.number().int().min(0).max(maxMinor);
@@ -37,6 +41,7 @@ const payout = z.object({
   grossMinor: minor, platformFeeMinor: minor, netMinor: minor, currency: z.literal('LKR'),
   status: z.enum(['reserved', 'review_required']),
   stripeTransferStatus: z.enum(['uncertain', 'transferred', 'review_required', 'rejected']).nullable(),
+  manualSandboxPayoutStatus: manualSandboxStatus.nullable(),
 });
 const deductionPayout = payout.extend({ damageClaimId: uuid });
 const arbitrationPayout = payout.extend({ arbitrationId: uuid });
@@ -73,7 +78,10 @@ const overviewInclude = {
     },
   },
   paymentOrders: { orderBy: { purpose: 'asc' }, select: { id: true, purpose: true, amountMinor: true, status: true } },
-  payoutOrders: { include: { stripeTransfers: { orderBy: { attempt: 'desc' }, take: 1, select: { status: true } } } },
+  payoutOrders: { include: {
+    stripeTransfers: { orderBy: { attempt: 'desc' }, take: 1, select: { status: true } },
+    manualSandboxPayout: { select: { journalId: true, reviewedAt: true } },
+  } },
 } satisfies Prisma.BookingInclude;
 
 function presentHold(row: BookingPayoutHold) {
@@ -96,10 +104,12 @@ function presentPayout(row: PayoutOrder, booking: BookingFinance) {
     booking.provider.disabledAt || !booking.provider.emailVerifiedAt ||
     !providerVerifiedForPayout(booking.targetKind, booking.provider.roles, booking.provider.verificationCases);
   const { id, bookingId, providerId, destinationRevision, grossMinor, platformFeeMinor, netMinor, createdAt } = row;
+  const saved = booking.payoutOrders.find(order => order.id === id);
   return {
     id, bookingId, providerId, destinationRevision, grossMinor, platformFeeMinor, netMinor,
     createdAt: createdAt.toISOString(), currency: 'LKR' as const, status: needsReview ? 'review_required' : 'reserved',
-    stripeTransferStatus: booking.payoutOrders.find(order => order.id === id)?.stripeTransfers[0]?.status ?? null,
+    stripeTransferStatus: saved?.stripeTransfers[0]?.status ?? null,
+    manualSandboxPayoutStatus: saved?.manualSandboxPayout ? manualSandboxState(saved.manualSandboxPayout) : null,
   };
 }
 
@@ -133,6 +143,21 @@ async function payoutAmounts(tx: Prisma.TransactionClient, booking: Booking, rev
     (report.balanceMinor > 0 ? balance?.status !== 'paid' || balance.amountMinor !== report.balanceMinor : Boolean(balance))) notEligible();
   const grossMinor = report.advanceMinor + report.balanceMinor;
   return { destinationRevision, grossMinor, platformFeeMinor: report.platformFeeMinor, netMinor: grossMinor - report.platformFeeMinor };
+}
+
+async function sandboxPayoutReserve(
+  tx: Prisma.TransactionClient, booking: Booking, order: PayoutOrder, amountMinor: number, destinationRevision: number,
+) {
+  if (order.damageClaimId || order.arbitrationId || order.providerId !== booking.providerId ||
+    order.netMinor !== amountMinor || order.destinationRevision !== destinationRevision) notEligible();
+  if (await tx.stripePayoutTransfer.count({ where: { payoutId: order.id } })) {
+    throw new PublicError(409, 'PAYOUT_TRANSFER_STARTED', 'This payout is tied to a Stripe transfer attempt.');
+  }
+  const amounts = await payoutAmounts(tx, booking, destinationRevision);
+  const account = await payoutReservationAccount(tx, order);
+  if (amounts.grossMinor !== order.grossMinor || amounts.platformFeeMinor !== order.platformFeeMinor ||
+    amounts.netMinor !== amountMinor || !account || await postedBalance(tx, account) !== BigInt(order.grossMinor)) notEligible();
+  return account;
 }
 
 async function deductionAmounts(tx: Prisma.TransactionClient, booking: Booking, claimId: string, revision: number) {
@@ -183,7 +208,7 @@ async function reservePayout(
   return currentPayout(tx, order);
 }
 
-type PayoutKey = { bookingId: string } | { damageClaimId: string } | { arbitrationId: string };
+type PayoutKey = { bookingId: string } | { damageClaimId: string } | { arbitrationId: string } | { payoutId: string };
 
 export function makePayoutsController(auth: AuthService) {
   const db = auth.deps.db;
@@ -200,8 +225,12 @@ export function makePayoutsController(auth: AuthService) {
     if (actor.session.activeRole !== 'admin') throw new PublicError(403, 'ROLE_FORBIDDEN', 'Administrator access is required.');
     profiles.checkCsrf(actor, req.get('X-CSRF-Token'));
     const original = await db.booking.findFirst({
-      where: 'bookingId' in key ? { id: key.bookingId } : 'damageClaimId' in key
-        ? { damageClaim: { id: key.damageClaimId } } : { dispute: { decision: { id: key.arbitrationId } } },
+      where: {
+        id: 'bookingId' in key ? key.bookingId : undefined,
+        payoutOrders: 'payoutId' in key ? { some: { id: key.payoutId } } : undefined,
+        damageClaim: 'damageClaimId' in key ? { id: key.damageClaimId } : undefined,
+        dispute: 'arbitrationId' in key ? { decision: { id: key.arbitrationId } } : undefined,
+      },
       select: { id: true, providerId: true },
     });
     if (!original) throw new PublicError(404, 'BOOKING_NOT_FOUND', 'This booking is unavailable.');
@@ -220,6 +249,18 @@ export function makePayoutsController(auth: AuthService) {
         throw new PublicError(403, 'SELF_REVIEW_FORBIDDEN', 'Another administrator must manage payouts for this booking.');
       }
       return work(tx, booking, current.user.id);
+    });
+  }
+
+  function manualWrite<T>(
+    req: Request, payoutId: string,
+    work: (tx: Prisma.TransactionClient, booking: Booking, actorId: string) => Promise<T>,
+  ) {
+    return adminWrite(req, { payoutId }, (tx, booking, actorId) => {
+      if (auth.config.MANUAL_SANDBOX_PAYOUT_RECONCILIATION !== 'true') {
+        throw new PublicError(503, 'MANUAL_SANDBOX_PAYOUT_DISABLED', 'Manual sandbox payout reconciliation is disabled.');
+      }
+      return work(tx, booking, actorId);
     });
   }
 
@@ -407,6 +448,70 @@ export function makePayoutsController(auth: AuthService) {
       return repairPayout(req, { bookingId: parse(uuid, id) }, parse(repairInput, raw));
     }
 
+    @Get('admin/payouts/:id/manual-sandbox-settlement')
+    @Header('Cache-Control', 'no-store')
+    @ApiParam({ name: 'id', format: 'uuid' })
+    @ApiOkResponse({ schema: schema(z.object({ settlement: manualSandboxView.nullable() })) })
+    async manualSandboxSettlement(@Req() req: Request, @Param('id') id: string) {
+      const actor = await identity(req);
+      if (actor.session.activeRole !== 'admin') throw new PublicError(403, 'ROLE_FORBIDDEN', 'Administrator access is required.');
+      profiles.verified(actor);
+      const order = await db.payoutOrder.findUnique({
+        where: { id: parse(uuid, id) }, select: { manualSandboxPayout: true },
+      });
+      if (!order) throw new PublicError(404, 'PAYOUT_NOT_FOUND', 'This payout reservation is unavailable.');
+      return { settlement: order.manualSandboxPayout ? presentManualSandbox(order.manualSandboxPayout) : null };
+    }
+
+    @Post('admin/payouts/:id/manual-sandbox-settlement')
+    @HttpCode(200)
+    @ApiParam({ name: 'id', format: 'uuid' })
+    @ApiBody({ schema: schema(manualSandboxRecord) })
+    @ApiOkResponse({ schema: schema(manualSandboxView) })
+    recordManualSandboxSettlement(@Req() req: Request, @Param('id') id: string, @Body() raw: unknown) {
+      const payoutId = parse(uuid, id);
+      const { testReference, amountMinor, destinationRevision, reason } = parse(manualSandboxRecord, raw);
+      return manualWrite(req, payoutId, async (tx, booking, actorId) => {
+        const order = await tx.payoutOrder.findUniqueOrThrow({
+          where: { id: payoutId }, include: { manualSandboxPayout: true },
+        });
+        const prior = order.manualSandboxPayout;
+        if (prior) {
+          if (prior.recordedBy === actorId && prior.testReference === testReference && prior.amountMinor === amountMinor &&
+            prior.destinationRevision === destinationRevision && prior.recordReason === reason) {
+            return presentManualSandbox(prior);
+          }
+          throw new PublicError(409, 'MANUAL_SANDBOX_PAYOUT_STARTED', 'A manual sandbox record already exists for this payout.');
+        }
+        await sandboxPayoutReserve(tx, booking, order, amountMinor, destinationRevision);
+        const inserted = await tx.manualSandboxPayout.createMany({
+          data: { payoutId, amountMinor, destinationRevision, testReference, recordedBy: actorId, recordReason: reason },
+          skipDuplicates: true,
+        });
+        if (!inserted.count) {
+          throw new PublicError(409, 'MANUAL_PAYOUT_REFERENCE_REUSED', 'This test reference has already been recorded.');
+        }
+        return presentManualSandbox(await tx.manualSandboxPayout.findUniqueOrThrow({ where: { payoutId } }));
+      });
+    }
+
+    @Post('admin/payouts/:id/manual-sandbox-settlement/review')
+    @HttpCode(200)
+    @ApiParam({ name: 'id', format: 'uuid' })
+    @ApiBody({ schema: schema(manualSandboxReview) })
+    @ApiOkResponse({ schema: schema(manualSandboxView) })
+    reviewManualSandboxSettlement(@Req() req: Request, @Param('id') id: string, @Body() raw: unknown) {
+      const payoutId = parse(uuid, id);
+      const input = parse(manualSandboxReview, raw);
+      return manualWrite(req, payoutId, async (tx, booking, actorId) => {
+        const order = await tx.payoutOrder.findUniqueOrThrow({ where: { id: payoutId }, include: { manualSandboxPayout: true } });
+        const record = order.manualSandboxPayout;
+        if (!record) throw new PublicError(404, 'MANUAL_PAYOUT_NOT_FOUND', 'This manual sandbox record is unavailable.');
+        return reviewManualSandboxPayout(tx, order, record, actorId, input, () =>
+          sandboxPayoutReserve(tx, booking, order, record.amountMinor, record.destinationRevision));
+      });
+    }
+
     @Post('admin/damage-claims/:id/payout-destination-repairs')
     @HttpCode(200)
     @ApiParam({ name: 'id', format: 'uuid' })
@@ -432,7 +537,10 @@ export function makePayoutsController(auth: AuthService) {
     return adminWrite(req, key, async (tx, booking, actorId) => {
       const order = await tx.payoutOrder.findFirst({
         where: { bookingId: booking.id, damageClaimId, arbitrationId },
-        include: { stripeTransfers: { where: { retryAuthorizedAt: null }, select: { id: true }, take: 1 } },
+        include: {
+          stripeTransfers: { where: { retryAuthorizedAt: null }, select: { id: true }, take: 1 },
+          manualSandboxPayout: { select: { id: true } },
+        },
       });
       if (!order) throw new PublicError(404, 'PAYOUT_NOT_FOUND', 'This payout reservation is unavailable.');
       const prior = await tx.payoutDestinationRepair.findUnique({
@@ -448,6 +556,7 @@ export function makePayoutsController(auth: AuthService) {
       if (order.destinationRevision !== input.expectedDestinationRevision) {
         throw new PublicError(409, 'PAYOUT_DESTINATION_CHANGED', 'Reload the payout reservation and review its current destination.');
       }
+      assertNoManualSandboxPayout(order);
       if (order.stripeTransfers.length) {
         throw new PublicError(409, 'PAYOUT_TRANSFER_STARTED', 'This payout is tied to a transfer attempt. Review it from the Stripe transfer endpoint.');
       }

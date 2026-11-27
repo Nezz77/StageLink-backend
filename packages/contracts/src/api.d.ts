@@ -3461,6 +3461,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/payouts/{id}/manual-sandbox-settlement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["PayoutsController_manualSandboxSettlement"];
+        put?: never;
+        post: operations["PayoutsController_recordManualSandboxSettlement"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payouts/{id}/manual-sandbox-settlement/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["PayoutsController_reviewManualSandboxSettlement"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/damage-claims/{id}/payout-destination-repairs": {
         parameters: {
             query?: never;
@@ -20166,6 +20198,7 @@ export interface operations {
                         adminExecution: {
                             stripeTestRefundsEnabled: boolean;
                             stripeTestTransfersEnabled: boolean;
+                            manualSandboxPayoutReconciliationEnabled: boolean;
                             payhereFullSandboxRefundsEnabled: boolean;
                             /** @enum {boolean} */
                             payherePartialSandboxRefundsEnabled: false;
@@ -20366,6 +20399,8 @@ export interface operations {
                                 status: "reserved" | "review_required";
                                 /** @enum {string|null} */
                                 stripeTransferStatus: "uncertain" | "transferred" | "review_required" | "rejected" | null;
+                                /** @enum {string|null} */
+                                manualSandboxPayoutStatus: "awaiting_review" | "settled" | "review_required" | null;
                             } | null;
                             deductionPayout: {
                                 /** Format: uuid */
@@ -20386,6 +20421,8 @@ export interface operations {
                                 status: "reserved" | "review_required";
                                 /** @enum {string|null} */
                                 stripeTransferStatus: "uncertain" | "transferred" | "review_required" | "rejected" | null;
+                                /** @enum {string|null} */
+                                manualSandboxPayoutStatus: "awaiting_review" | "settled" | "review_required" | null;
                                 /** Format: uuid */
                                 damageClaimId: string;
                             } | null;
@@ -20408,6 +20445,8 @@ export interface operations {
                                 status: "reserved" | "review_required";
                                 /** @enum {string|null} */
                                 stripeTransferStatus: "uncertain" | "transferred" | "review_required" | "rejected" | null;
+                                /** @enum {string|null} */
+                                manualSandboxPayoutStatus: "awaiting_review" | "settled" | "review_required" | null;
                                 /** Format: uuid */
                                 arbitrationId: string;
                             } | null;
@@ -20477,6 +20516,8 @@ export interface operations {
                                 status: "reserved" | "review_required";
                                 /** @enum {string|null} */
                                 stripeTransferStatus: "uncertain" | "transferred" | "review_required" | "rejected" | null;
+                                /** @enum {string|null} */
+                                manualSandboxPayoutStatus: "awaiting_review" | "settled" | "review_required" | null;
                             } | null;
                             deductionPayout: {
                                 /** Format: uuid */
@@ -20497,6 +20538,8 @@ export interface operations {
                                 status: "reserved" | "review_required";
                                 /** @enum {string|null} */
                                 stripeTransferStatus: "uncertain" | "transferred" | "review_required" | "rejected" | null;
+                                /** @enum {string|null} */
+                                manualSandboxPayoutStatus: "awaiting_review" | "settled" | "review_required" | null;
                                 /** Format: uuid */
                                 damageClaimId: string;
                             } | null;
@@ -20519,6 +20562,8 @@ export interface operations {
                                 status: "reserved" | "review_required";
                                 /** @enum {string|null} */
                                 stripeTransferStatus: "uncertain" | "transferred" | "review_required" | "rejected" | null;
+                                /** @enum {string|null} */
+                                manualSandboxPayoutStatus: "awaiting_review" | "settled" | "review_required" | null;
                                 /** Format: uuid */
                                 arbitrationId: string;
                             } | null;
@@ -20567,6 +20612,8 @@ export interface operations {
                         status: "reserved" | "review_required";
                         /** @enum {string|null} */
                         stripeTransferStatus: "uncertain" | "transferred" | "review_required" | "rejected" | null;
+                        /** @enum {string|null} */
+                        manualSandboxPayoutStatus: "awaiting_review" | "settled" | "review_required" | null;
                     };
                 };
             };
@@ -20650,6 +20697,8 @@ export interface operations {
                         status: "reserved" | "review_required";
                         /** @enum {string|null} */
                         stripeTransferStatus: "uncertain" | "transferred" | "review_required" | "rejected" | null;
+                        /** @enum {string|null} */
+                        manualSandboxPayoutStatus: "awaiting_review" | "settled" | "review_required" | null;
                     };
                 };
             };
@@ -20696,6 +20745,8 @@ export interface operations {
                         status: "reserved" | "review_required";
                         /** @enum {string|null} */
                         stripeTransferStatus: "uncertain" | "transferred" | "review_required" | "rejected" | null;
+                        /** @enum {string|null} */
+                        manualSandboxPayoutStatus: "awaiting_review" | "settled" | "review_required" | null;
                         /** Format: uuid */
                         damageClaimId: string;
                     };
@@ -20744,6 +20795,8 @@ export interface operations {
                         status: "reserved" | "review_required";
                         /** @enum {string|null} */
                         stripeTransferStatus: "uncertain" | "transferred" | "review_required" | "rejected" | null;
+                        /** @enum {string|null} */
+                        manualSandboxPayoutStatus: "awaiting_review" | "settled" | "review_required" | null;
                         /** Format: uuid */
                         arbitrationId: string;
                     };
@@ -20791,6 +20844,166 @@ export interface operations {
                         reason: string;
                         /** Format: date-time */
                         createdAt: string;
+                    };
+                };
+            };
+        };
+    };
+    PayoutsController_manualSandboxSettlement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        settlement: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            payoutId: string;
+                            testReference: string;
+                            amountMinor: number;
+                            destinationRevision: number;
+                            /** @enum {string} */
+                            environment: "sandbox";
+                            /** @enum {string} */
+                            currency: "LKR";
+                            /** @enum {string} */
+                            state: "awaiting_review" | "settled" | "review_required";
+                            /** Format: uuid */
+                            recordedBy: string;
+                            recordReason: string;
+                            /** Format: date-time */
+                            createdAt: string;
+                            /** Format: uuid */
+                            reviewedBy: string | null;
+                            reviewReason: string | null;
+                            /** Format: date-time */
+                            reviewedAt: string | null;
+                            /** Format: uuid */
+                            journalId: string | null;
+                        } | null;
+                    };
+                };
+            };
+        };
+    };
+    PayoutsController_recordManualSandboxSettlement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    testReference: string;
+                    amountMinor: number;
+                    destinationRevision: number;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uuid */
+                        payoutId: string;
+                        testReference: string;
+                        amountMinor: number;
+                        destinationRevision: number;
+                        /** @enum {string} */
+                        environment: "sandbox";
+                        /** @enum {string} */
+                        currency: "LKR";
+                        /** @enum {string} */
+                        state: "awaiting_review" | "settled" | "review_required";
+                        /** Format: uuid */
+                        recordedBy: string;
+                        recordReason: string;
+                        /** Format: date-time */
+                        createdAt: string;
+                        /** Format: uuid */
+                        reviewedBy: string | null;
+                        reviewReason: string | null;
+                        /** Format: date-time */
+                        reviewedAt: string | null;
+                        /** Format: uuid */
+                        journalId: string | null;
+                    };
+                };
+            };
+        };
+    };
+    PayoutsController_reviewManualSandboxSettlement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    decision: "confirm" | "flag";
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uuid */
+                        payoutId: string;
+                        testReference: string;
+                        amountMinor: number;
+                        destinationRevision: number;
+                        /** @enum {string} */
+                        environment: "sandbox";
+                        /** @enum {string} */
+                        currency: "LKR";
+                        /** @enum {string} */
+                        state: "awaiting_review" | "settled" | "review_required";
+                        /** Format: uuid */
+                        recordedBy: string;
+                        recordReason: string;
+                        /** Format: date-time */
+                        createdAt: string;
+                        /** Format: uuid */
+                        reviewedBy: string | null;
+                        reviewReason: string | null;
+                        /** Format: date-time */
+                        reviewedAt: string | null;
+                        /** Format: uuid */
+                        journalId: string | null;
                     };
                 };
             };
