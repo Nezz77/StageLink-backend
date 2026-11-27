@@ -52,7 +52,7 @@ test('equipment coverage follows both cursors and reports exact-model gaps from 
   assert.deepEqual(report.listings.map(row => row.status), ['covered', 'needs_source', 'retired', 'listing_changed', 'needs_review', 'needs_source']);
   assert.equal(report.reviewedOutsideCatalog, 1);
   assert.deepEqual(report.referenceGaps, [
-    { manufacturer: 'Yamaha', model: 'DXR15', status: 'needs_source', listings: 2, inBundle: false },
+    { manufacturer: 'Yamaha', model: 'DXR15', status: 'needs_source', listings: 2, inBundle: true },
     { manufacturer: 'Shure', model: 'SM57', status: 'retired', listings: 1, inBundle: true },
   ]);
   assert.doesNotMatch(JSON.stringify(report), /synthetic.coverage.signature/);

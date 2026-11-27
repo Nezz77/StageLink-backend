@@ -135,7 +135,7 @@ test('equipment lookup retains approved sources, matches exact models and hides 
     }
     const preview = await request(admin, bundlePath);
     assert.equal(preview.status, 200);
-    assert.equal(preview.data.entries.length, 12);
+    assert.equal(preview.data.entries.length, allModels.length);
     assert.ok(preview.data.entries.every((entry: { state: string }) => entry.state === 'new'));
     assert.equal(preview.data.digest, equipmentReferenceBundleDigest);
 
@@ -173,15 +173,21 @@ test('equipment lookup retains approved sources, matches exact models and hides 
       assert.equal(result.data.suggestion.source.url, entry.url);
       assert.equal('packageInclusions' in result.data.suggestion.specs, false);
     }
-    const unreviewedVariant = await request(renter, search, { requestKey: randomUUID(), manufacturer: 'Yamaha', model: 'DXR15' });
-    assert.equal(unreviewedVariant.data.suggestion.match, 'unknown', 'A mkII source must never auto-fill the original model');
-    await request(admin, `${catalog}/${imported[0].id}/retire`, { reason: 'Keep this reference withdrawn on future imports.' });
+    const original = await request(renter, search, { requestKey: randomUUID(), manufacturer: 'Yamaha', model: 'DXR15' });
+    const mkII = await request(renter, search, { requestKey: randomUUID(), manufacturer: 'Yamaha', model: 'DXR15mkII' });
+    assert.equal(original.data.suggestion.specs.specSpl, '133');
+    assert.equal(mkII.data.suggestion.specs.specSpl, '134');
+    assert.notEqual(original.data.suggestion.source.id, mkII.data.suggestion.source.id);
+    const unreviewedVariant = await request(renter, search, { requestKey: randomUUID(), manufacturer: 'Yamaha', model: 'DXS15mkII' });
+    assert.equal(unreviewedVariant.data.suggestion.match, 'unknown', 'An original source must never auto-fill the mkII subwoofer');
+    await request(admin, `${catalog}/${mkII.data.suggestion.source.id}/retire`, { reason: 'Keep this reference withdrawn on future imports.' });
     assert.equal((await request(admin, importPath, bundleCommand)).status, 409);
     const subset = await request(admin, importPath, { ...bundleCommand, models: ['Intimidator Spot 160 ILS'] });
     assert.equal(subset.status, 200, 'A retired unselected source cannot block reviewed unrelated selections');
     assert.equal(subset.data.items.length, 1);
     assert.equal(subset.data.unchanged, 1);
     assert.equal((await request(renter, search, { requestKey: randomUUID(), model: 'DXR15mkII' })).data.suggestion.match, 'unknown');
+    assert.equal((await request(renter, search, { requestKey: randomUUID(), model: 'DXR15' })).data.suggestion.match, 'matched');
 
     const ownerId = users[1]!;
     const details = {

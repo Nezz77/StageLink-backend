@@ -5397,7 +5397,7 @@
                   },
                   "models": {
                     "minItems": 1,
-                    "maxItems": 12,
+                    "maxItems": 18,
                     "type": "array",
                     "items": {
                       "type": "string",
@@ -5406,6 +5406,12 @@
                         "DXR12mkII",
                         "DXR10mkII",
                         "DXR8mkII",
+                        "DXR15",
+                        "DXR12",
+                        "DXR10",
+                        "DXR8",
+                        "DXS15",
+                        "DXS12",
                         "Intimidator Spot 160 ILS",
                         "Intimidator Spot 160",
                         "SM58",
