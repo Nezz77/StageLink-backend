@@ -92,6 +92,7 @@ Checked boxes mark completed repository work. Hosted checks and remaining client
 - [x] P14 Separate Stripe test payout reservations, transfers, bank settlement and reversal accounting for approved rental deductions.
 - [ ] P13 Production document issuance.
 - [ ] P14 Hosted rental deposit refund and Stripe deduction payout verification, PayHere partial refund support and evidence, and PayHere deduction settlement.
+- [x] P14 Dedicated PayHere sandbox probe for a partial refund request and sanitized payment status evidence.
 - [x] P15 AI service status, revisioned matching weights and persisted usage queries.
 - [x] P15 Prompt drafts, placeholder validation, preview, published history and rollback.
 - [x] P15 Opt-in OpenAI and Gemini administrator previews, with bounded fallback and persisted usage per attempt.

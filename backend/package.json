@@ -30,6 +30,7 @@
     "contracts": "npm run build && node dist/scripts/openapi.js && openapi-typescript ../contracts/openapi.json -o ../packages/contracts/src/api.d.ts",
     "communications:check": "node dist/scripts/communications-smoke.js",
     "payments:smoke": "node dist/scripts/payment-smoke.js",
+    "payhere:partial-refund-probe": "node dist/scripts/payhere-partial-refund-probe.js",
     "ai:smoke": "node dist/scripts/ai-model-smoke.js",
     "smtp:smoke": "node dist/scripts/smtp-smoke.js",
     "sms:smoke": "node dist/scripts/sms-delivery-smoke.js",

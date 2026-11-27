@@ -182,6 +182,12 @@ For a resolved rental deposit claim with a zero deduction, use `POST /api/v1/adm
 
 Partial deposit refunds need hosted confirmation of both provider support and evidence of the exact refunded amount. PayHere’s Refund API shows an amount parameter, while its refund guide describes full refunds and its Retrieval API reports payment status. [PayHere Refund API](https://support.payhere.lk/api-%26-mobile-sdk/refund-api) · [PayHere Refund Process](https://support.payhere.lk/refund-process) · [PayHere Retrieval API](https://support.payhere.lk/api-%26-mobile-sdk/retrieval-api)
 
+### Collect PayHere partial-refund sandbox evidence
+
+Create a dedicated test card capture in the PayHere sandbox. Set the sandbox Retrieval API credentials in `PAYHERE_SANDBOX_RETRIEVAL_APP_ID` and `PAYHERE_SANDBOX_RETRIEVAL_APP_SECRET`. Set `STAGELINK_PROBE_PAYHERE_ORDER_ID` and `STAGELINK_PROBE_PAYHERE_PAYMENT_ID` from the test payment, and use `STAGELINK_PROBE_PAYHERE_CAPTURE_MINOR` and `STAGELINK_PROBE_PAYHERE_REFUND_MINOR` for the original and intended refund amounts in LKR minor units.
+
+After building, run `npm run --silent payhere:partial-refund-probe` from `backend/` to record the initial payment state. Run it once with `-- --submit` to send the exact partial amount. Record the returned sandbox refund number and run without flags again after PayHere processes the refund. If the submission result is uncertain, inspect the merchant record before any further submission. Compare the exact refunded amount and refund number in the merchant record against the intended amount. The probe reports the payment-level status and names of refund-related fields. A pending submission or a payment-level status alone leaves exact partial settlement unverified.
+
 ## Payout reservations
 
 Providers can read `GET /api/v1/me/earnings`. Administrators can read `GET /api/v1/admin/payments` and submit `{expectedRevision, held, reason}` to `POST /api/v1/admin/bookings/:id/holds`. Use hold revision `0` for a booking without a prior hold.

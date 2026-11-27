@@ -123,7 +123,7 @@ export function makePayHereSandboxClient(appId: string | undefined, appSecret: s
     return response.json();
   }
 
-  async function observe(attempt: { id: string; amountMinor: number }): Promise<Observation> {
+  async function inspect(attempt: { id: string; amountMinor: number }): Promise<Observation & { refundFields?: string[] }> {
     try {
       const url = new URL(sandbox + 'payment/search');
       url.searchParams.set('order_id', attempt.id);
@@ -136,24 +136,35 @@ export function makePayHereSandboxClient(appId: string | undefined, appSecret: s
       }
       if (!payload.data?.length) return { status: 'unavailable' };
       if (payload.data.length > 1) return { status: 'multiple_payments' };
-      const payment = payHerePayment.safeParse(payload.data[0]);
+      const record = payload.data[0];
+      const payment = payHerePayment.safeParse(record);
       if (!payment.success || payment.data.order_id !== attempt.id) return { status: 'mismatch' };
       const [units, cents = ''] = payment.data.amount.split('.');
       if (Number(units) * 100 + Number(cents.padEnd(2, '0')) !== attempt.amountMinor) return { status: 'mismatch' };
       return {
         status: payHereStatus[payment.data.status], paymentReference: payment.data.payment_id,
         ...(payHereCard.safeParse(payment.data.payment_method).success ? { payHereCardPayment: true } : {}),
+        refundFields: Object.keys(record as object)
+          .filter(key => /^[a-z][a-z0-9_]{0,47}$/i.test(key) && /refund/i.test(key)).sort().slice(0, 20),
       };
     } catch {
       return { status: 'unavailable' };
     }
   }
 
-  async function refund(paymentId: string, executionId: string) {
+  async function observe(attempt: { id: string; amountMinor: number }): Promise<Observation> {
+    const { refundFields: _, ...observation } = await inspect(attempt);
+    return observation;
+  }
+
+  async function refund(paymentId: string, executionId: string, amountMinor?: number) {
     try {
+      const amount = amountMinor === undefined ? undefined : z.number().int().positive().max(2_147_483_647).parse(amountMinor);
       const response = z.object({ status: z.number().int(), data: payHereReference.nullable() }).parse(
         await merchant(sandbox + 'payment/refund', JSON.stringify({
-          payment_id: payHereReference.parse(paymentId), description: 'StageLink booking refund ' + executionId,
+          payment_id: payHereReference.parse(paymentId),
+          description: (amount === undefined ? 'StageLink booking refund ' : 'StageLink sandbox partial refund probe ') + executionId,
+          ...(amount === undefined ? {} : { amount: (amount / 100).toFixed(2) }),
         })),
       );
       if (response.status === 1 && response.data) return { status: 'pending' as const, providerRefundId: response.data };
@@ -164,5 +175,5 @@ export function makePayHereSandboxClient(appId: string | undefined, appSecret: s
     return { status: 'uncertain' as const, providerRefundId: null };
   }
 
-  return { observe, refund };
+  return { inspect, observe, refund };
 }
