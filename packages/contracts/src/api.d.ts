@@ -3749,6 +3749,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/payouts/{id}/stripe-transfer/attempts/{attemptId}/investigation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["StripePayoutTransfersController_investigate"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/payouts/{id}/stripe-transfer/retry-authorizations": {
         parameters: {
             query?: never;
@@ -21869,6 +21885,86 @@ export interface operations {
                             /** Format: date-time */
                             updatedAt: string;
                         }[];
+                    };
+                };
+            };
+        };
+    };
+    StripePayoutTransfersController_investigate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                attemptId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        transfer: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            payoutId: string;
+                            /** Format: uuid */
+                            destinationLinkId: string;
+                            amountMinor: number;
+                            /** @enum {string} */
+                            currency: "LKR";
+                            attempt: number;
+                            retryAuthorization: {
+                                /** Format: uuid */
+                                transferId: string;
+                                /** Format: uuid */
+                                payoutId: string;
+                                /** Format: uuid */
+                                actorId: string;
+                                reason: string;
+                                /** Format: date-time */
+                                createdAt: string;
+                            } | null;
+                            reversedMinor: number;
+                            /** @enum {string} */
+                            state: "processing" | "uncertain" | "transferred" | "review_required" | "rejected";
+                            rejection: {
+                                /** @enum {string} */
+                                code: "balance_insufficient";
+                                requestId: string;
+                            } | null;
+                            providerTransferId: string | null;
+                            /** Format: date-time */
+                            createdAt: string;
+                            /** Format: date-time */
+                            updatedAt: string;
+                        };
+                        latestAttempt: boolean;
+                        /** Format: date-time */
+                        leaseExpiresAt: string | null;
+                        /** Format: uuid */
+                        transferJournalId: string | null;
+                        originalGrossReserveMinor: number;
+                        postedReserveMinor: string | null;
+                        payoutBlocked: boolean;
+                        reconciliationConfigured: boolean;
+                        events: {
+                            id: string;
+                            type: string;
+                            observedReversedMinor: number;
+                            /** Format: date-time */
+                            createdAt: string;
+                            /** Format: date-time */
+                            receivedAt: string;
+                        }[];
+                        hasOlderEvents: boolean;
+                        /** Format: date-time */
+                        checkedAt: string;
                     };
                 };
             };

@@ -206,6 +206,10 @@ A first Stripe submission that returns an authenticated `balance_insufficient` r
 
 An independent verified administrator can send `{transferId, reason}` to `POST /api/v1/admin/payouts/:id/stripe-transfer/retry-authorizations` after a confirmed rejection or full reversal with the original gross reserve intact. StageLink records the approval and retains the prior attempt and journals. Repeating the same approval returns the saved decision. Use `GET /api/v1/admin/payouts/:id/stripe-transfer/attempts` for the most recent 20 attempts and their retry approvals.
 
+Use `GET /api/v1/admin/payouts/:id/stripe-transfer/attempts/:attemptId/investigation` as a verified administrator to review a specific attempt. One database snapshot shows the attempt status and lease, recorded journal ID, original gross reserve, current posted reserve, booking payout block, and the 20 most recently received signed Stripe events for that attempt. The reserve balance is a decimal string in minor LKR units and is null when the reservation account cannot be verified for the attempt. Historical attempts share the current payout reserve balance. `latestAttempt` identifies the attempt targeted by reconciliation.
+
+For an uncertain latest attempt, check the investigation record before using the existing `{ "reconcileOnly": true }` transfer command. The investigation endpoint reads stored evidence and makes zero Stripe calls. An empty event list and intact reserve leave the Stripe outcome uncertain. A new attempt still requires a confirmed rejection or a reconciled full reversal and recorded retry approval.
+
 To begin a new attempt, send `{retryOfTransferId}` to the transfer endpoint using the approved transfer's ID. Use the same body to retry an uncertain response for that new attempt. A new attempt uses a new Stripe idempotency key and rechecks the current destination, captures, holds and reserve. An empty body returns the latest state after retry approval. Partial reversals and unresolved submissions remain held for review. Hosted LKR verification and bank payout execution remain open.
 
 #### Stripe test bank payout confirmation

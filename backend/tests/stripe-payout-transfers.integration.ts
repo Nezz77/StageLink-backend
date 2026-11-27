@@ -53,6 +53,7 @@ async function checkPayoutReconciliation(
   let bankPayoutStatus = 'paid';
   let transfer: Record<string, unknown> | null = null;
   let submissions = 0;
+  let gatewayRequests = 0;
   const idempotencyKeys = new Set<string>();
   let sent!: () => void;
   let release!: () => void;
@@ -62,6 +63,7 @@ async function checkPayoutReconciliation(
   t.mock.method(globalThis, 'fetch', async (input: string | URL | Request, init?: RequestInit) => {
     const url = new URL(input instanceof Request ? input.url : input);
     if (url.hostname !== 'api.stripe.com') return localFetch(input, init);
+    gatewayRequests++;
     assert.equal(new Headers(init?.headers).get('Authorization'), 'Bearer sk_test_transfer');
     if (['/v1/payouts/po_fixture', '/v1/payouts/po_replacement', '/v1/balance_transactions'].includes(url.pathname)) {
       assert.equal(init?.method, 'GET');
@@ -464,6 +466,7 @@ async function checkPayoutReconciliation(
       return;
     }
     const path = base + 'admin/payouts/' + payoutId + '/stripe-transfer';
+    const investigationPath = (attemptId: string) => path + '/attempts/' + attemptId + '/investigation';
     const bankPath = path + '/bank-payout?bankPayoutId=po_fixture';
     const settlementPath = path + '/bank-settlements';
     const settleBank = (bankPayoutId = 'po_fixture', actor = admin) => fetch(settlementPath, {
@@ -559,7 +562,14 @@ async function checkPayoutReconciliation(
     const first = submit();
     await Promise.race([sending, first.then(async value => assert.fail(await value.clone().text()))]);
     try {
-      assert.equal((await (await submit()).json()).state, 'processing');
+      const pending = await (await submit()).json();
+      assert.equal(pending.state, 'processing');
+      if (useWebhooks) {
+        const snapshot = await (await fetch(investigationPath(pending.id), admin)).json();
+        assert.equal(snapshot.transfer.state, 'processing');
+        assert.ok(Date.parse(snapshot.leaseExpiresAt) > Date.parse(snapshot.checkedAt));
+        assert.equal(snapshot.payoutBlocked, false);
+      }
       assert.equal(await postedBalance(deps.db, reserved.account.id), 100000n);
       const expectedDestinationRevision = initialReversedMinor || rejectFirst || useWebhooks ? 1 : 2;
       const claimedRepair = { ...repairInput, requestKey: randomUUID(), expectedDestinationRevision, destinationRevision: expectedDestinationRevision + 1 };
@@ -606,6 +616,14 @@ async function checkPayoutReconciliation(
       assert.equal(await postedBalance(deps.db, reserved.account.id), 100000n);
       const receipts = await deps.db.stripePayoutTransferEvent.findMany({ where: { transferId: firstOutcome.id } });
       assert.deepEqual(receipts.map(row => row.observedReversedMinor).sort((a, b) => a - b), [0, 1000, 95000]);
+      const requestsBefore = gatewayRequests;
+      const snapshot = await (await fetch(investigationPath(firstOutcome.id), admin)).json();
+      assert.deepEqual(snapshot.transfer, firstOutcome);
+      assert.ok(snapshot.transferJournalId);
+      assert.equal(snapshot.postedReserveMinor, '100000');
+      assert.equal(snapshot.hasOlderEvents, false);
+      assert.deepEqual(snapshot.events.map((event: { id: string }) => event.id).sort(), receipts.map(row => row.id).sort());
+      assert.equal(gatewayRequests, requestsBefore);
       const postings = await deps.db.journalEntry.findMany({
         where: { accountId: reserved.account.id, transaction: { source: { in: ['stripe.test.payout.transfer', 'stripe.test.payout.transfer_reversal'] } } },
         orderBy: { amountMinor: 'asc' },
@@ -641,10 +659,33 @@ async function checkPayoutReconciliation(
       assert.equal((await (await submit(admin, retryCommand)).json()).id, latest.id);
       const history = await (await fetch(path + '/attempts', admin)).json();
       assert.deepEqual(history.attempts, [latest, { ...firstOutcome, retryAuthorization: decision }]);
+      const oldAttempt = await (await fetch(investigationPath(firstOutcome.id), admin)).json();
+      assert.equal(oldAttempt.latestAttempt, false);
+      assert.equal(oldAttempt.transfer.id, firstOutcome.id);
       assert.equal(submissions, 2);
       assert.equal(idempotencyKeys.size, 2);
       assert.equal(await postedBalance(deps.db, reserved.account.id), 5000n);
       return;
+    }
+    if (!initialReversedMinor) {
+      assert.equal(firstOutcome.state, 'uncertain');
+      const investigation = investigationPath(firstOutcome.id);
+      const requestsBefore = gatewayRequests;
+      assert.equal((await fetch(investigation, provider)).status, 403);
+      assert.equal((await fetch(investigationPath(randomUUID()), admin)).status, 404);
+      const response = await fetch(investigation, admin);
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get('cache-control'), 'no-store');
+      const snapshot = await response.json();
+      assert.deepEqual(snapshot, {
+        transfer: firstOutcome, latestAttempt: true, leaseExpiresAt: null, transferJournalId: null,
+        originalGrossReserveMinor: 100000, postedReserveMinor: '100000',
+        payoutBlocked: true, reconciliationConfigured: true, events: [], hasOlderEvents: false,
+        checkedAt: snapshot.checkedAt,
+      });
+      assert.ok(Number.isFinite(Date.parse(snapshot.checkedAt)));
+      assert.equal(gatewayRequests, requestsBefore);
+      assert.equal(await postedBalance(deps.db, reserved.account.id), 100000n);
     }
     const uncertain = firstOutcome;
     assert.equal(uncertain.state, 'uncertain');
