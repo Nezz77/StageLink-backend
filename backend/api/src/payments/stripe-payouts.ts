@@ -58,7 +58,7 @@ const investigationView = z.object({
 });
 
 const payoutInclude = {
-  manualSandboxPayout: { select: { id: true } },
+  manualSandboxPayouts: { select: { id: true }, take: 1 },
   stripeTransfers: { include: { destination: true }, orderBy: { attempt: 'desc' }, take: 2 },
   booking: { select: { customerId: true, providerId: true, targetKind: true } },
 } satisfies Prisma.PayoutOrderInclude;

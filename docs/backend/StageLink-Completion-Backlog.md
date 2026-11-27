@@ -76,6 +76,7 @@ Checked boxes mark completed repository work. Hosted checks and remaining client
 - [x] P12 Verified-admin investigation of uncertain Stripe test transfer attempts using stored webhook and ledger evidence.
 - [x] P12 Read-only staging checks for audited PayHere full refund recovery and matching Stripe test bank payout settlement evidence.
 - [x] P12 Manual sandbox payout recording, independent review and ledger settlement with Stripe route exclusion.
+- [x] P12 Versioned corrections for flagged sandbox payout references with independent review and preserved audit history.
 - [ ] P12 Manual bank payout execution.
 - [x] P13 Sandbox invoice, per-capture receipt and payout reservation statement with private server-rendered PDFs.
 - [x] P13 Private sandbox statements for posted Stripe test bank settlements and reversals, including backfill from historical journals.

@@ -14,8 +14,9 @@ import { parse, schema, uuid } from './orders.js';
 import { approvedStripeArbitration, approvedStripeDeduction, assertPayoutProvider, payoutBlocked, payoutFund, payoutReservationAccount, payoutReservationSource, providerVerifiedForPayout } from './payout-eligibility.js';
 import { findReservedFunds } from './refund-reservations.js';
 import {
-  assertNoManualSandboxPayout, manualSandboxRecord, manualSandboxReview, manualSandboxState, manualSandboxStatus,
-  manualSandboxView, presentManualSandbox, reviewManualSandboxPayout,
+  assertNoManualSandboxPayout, createManualEvidence, latestManualSandboxPayout, manualSandboxCorrection, manualSandboxRecord,
+  manualSandboxReview, manualSandboxState, manualSandboxStatus, manualSandboxView, matchesManualEvidence,
+  presentManualSandbox, reviewManualSandboxPayout,
 } from './manual-sandbox-payouts.js';
 
 const timestamp = z.iso.datetime();
@@ -60,6 +61,8 @@ const earnings = z.object({
 });
 const page = z.object({ items: z.array(overview), nextCursor: uuid.nullable() });
 const pageSize = 30;
+const manualHistorySize = 20;
+const manualHistoryCursor = z.string().regex(/^[1-9][0-9]{0,9}$/).transform(Number).pipe(revision);
 
 const activeHold = { orderBy: { revision: 'desc' }, take: 1 } satisfies Prisma.Booking$payoutHoldsArgs;
 const serviceOrders = { purpose: { in: ['advance', 'balance'] } } satisfies Prisma.PaymentOrderWhereInput;
@@ -80,7 +83,7 @@ const overviewInclude = {
   paymentOrders: { orderBy: { purpose: 'asc' }, select: { id: true, purpose: true, amountMinor: true, status: true } },
   payoutOrders: { include: {
     stripeTransfers: { orderBy: { attempt: 'desc' }, take: 1, select: { status: true } },
-    manualSandboxPayout: { select: { journalId: true, reviewedAt: true } },
+    manualSandboxPayouts: { ...latestManualSandboxPayout, select: { journalId: true, reviewedAt: true } },
   } },
 } satisfies Prisma.BookingInclude;
 
@@ -105,11 +108,12 @@ function presentPayout(row: PayoutOrder, booking: BookingFinance) {
     !providerVerifiedForPayout(booking.targetKind, booking.provider.roles, booking.provider.verificationCases);
   const { id, bookingId, providerId, destinationRevision, grossMinor, platformFeeMinor, netMinor, createdAt } = row;
   const saved = booking.payoutOrders.find(order => order.id === id);
+  const manual = saved?.manualSandboxPayouts[0];
   return {
     id, bookingId, providerId, destinationRevision, grossMinor, platformFeeMinor, netMinor,
     createdAt: createdAt.toISOString(), currency: 'LKR' as const, status: needsReview ? 'review_required' : 'reserved',
     stripeTransferStatus: saved?.stripeTransfers[0]?.status ?? null,
-    manualSandboxPayoutStatus: saved?.manualSandboxPayout ? manualSandboxState(saved.manualSandboxPayout) : null,
+    manualSandboxPayoutStatus: manual ? manualSandboxState(manual) : null,
   };
 }
 
@@ -262,6 +266,20 @@ export function makePayoutsController(auth: AuthService) {
       }
       return work(tx, booking, actorId);
     });
+  }
+
+  async function readManualEvidence(req: Request, payoutId: string, take: number, before?: number) {
+    const actor = await identity(req);
+    if (actor.session.activeRole !== 'admin') throw new PublicError(403, 'ROLE_FORBIDDEN', 'Administrator access is required.');
+    profiles.verified(actor);
+    const order = await db.payoutOrder.findUnique({
+      where: { id: payoutId },
+      select: { manualSandboxPayouts: {
+        orderBy: { revision: 'desc' }, take, where: before === undefined ? undefined : { revision: { lt: before } },
+      } },
+    });
+    if (!order) throw new PublicError(404, 'PAYOUT_NOT_FOUND', 'This payout reservation is unavailable.');
+    return order.manualSandboxPayouts;
   }
 
   async function list(req: Request, before: string | undefined, admin: boolean) {
@@ -453,14 +471,20 @@ export function makePayoutsController(auth: AuthService) {
     @ApiParam({ name: 'id', format: 'uuid' })
     @ApiOkResponse({ schema: schema(z.object({ settlement: manualSandboxView.nullable() })) })
     async manualSandboxSettlement(@Req() req: Request, @Param('id') id: string) {
-      const actor = await identity(req);
-      if (actor.session.activeRole !== 'admin') throw new PublicError(403, 'ROLE_FORBIDDEN', 'Administrator access is required.');
-      profiles.verified(actor);
-      const order = await db.payoutOrder.findUnique({
-        where: { id: parse(uuid, id) }, select: { manualSandboxPayout: true },
-      });
-      if (!order) throw new PublicError(404, 'PAYOUT_NOT_FOUND', 'This payout reservation is unavailable.');
-      return { settlement: order.manualSandboxPayout ? presentManualSandbox(order.manualSandboxPayout) : null };
+      const [latest] = await readManualEvidence(req, parse(uuid, id), 1);
+      return { settlement: latest ? presentManualSandbox(latest) : null };
+    }
+
+    @Get('admin/payouts/:id/manual-sandbox-settlement/history')
+    @Header('Cache-Control', 'no-store')
+    @ApiParam({ name: 'id', format: 'uuid' })
+    @ApiQuery({ name: 'beforeRevision', type: Number, required: false })
+    @ApiOkResponse({ schema: schema(z.object({ items: z.array(manualSandboxView), nextBeforeRevision: revision.nullable() })) })
+    async manualSandboxHistory(@Req() req: Request, @Param('id') id: string, @Query('beforeRevision') cursor?: string) {
+      const before = cursor === undefined ? undefined : parse(manualHistoryCursor, cursor);
+      const rows = await readManualEvidence(req, parse(uuid, id), manualHistorySize + 1, before);
+      const items = rows.slice(0, manualHistorySize).map(presentManualSandbox);
+      return { items, nextBeforeRevision: rows.length > manualHistorySize ? items.at(-1)!.revision : null };
     }
 
     @Post('admin/payouts/:id/manual-sandbox-settlement')
@@ -470,28 +494,47 @@ export function makePayoutsController(auth: AuthService) {
     @ApiOkResponse({ schema: schema(manualSandboxView) })
     recordManualSandboxSettlement(@Req() req: Request, @Param('id') id: string, @Body() raw: unknown) {
       const payoutId = parse(uuid, id);
-      const { testReference, amountMinor, destinationRevision, reason } = parse(manualSandboxRecord, raw);
+      const input = parse(manualSandboxRecord, raw);
       return manualWrite(req, payoutId, async (tx, booking, actorId) => {
-        const order = await tx.payoutOrder.findUniqueOrThrow({
-          where: { id: payoutId }, include: { manualSandboxPayout: true },
-        });
-        const prior = order.manualSandboxPayout;
+        const order = await tx.payoutOrder.findUniqueOrThrow({ where: { id: payoutId } });
+        const prior = await tx.manualSandboxPayout.findUnique({ where: { payoutId_revision: { payoutId, revision: 1 } } });
         if (prior) {
-          if (prior.recordedBy === actorId && prior.testReference === testReference && prior.amountMinor === amountMinor &&
-            prior.destinationRevision === destinationRevision && prior.recordReason === reason) {
+          if (matchesManualEvidence(prior, actorId, input) && prior.amountMinor === input.amountMinor &&
+            prior.destinationRevision === input.destinationRevision) {
             return presentManualSandbox(prior);
           }
           throw new PublicError(409, 'MANUAL_SANDBOX_PAYOUT_STARTED', 'A manual sandbox record already exists for this payout.');
         }
-        await sandboxPayoutReserve(tx, booking, order, amountMinor, destinationRevision);
-        const inserted = await tx.manualSandboxPayout.createMany({
-          data: { payoutId, amountMinor, destinationRevision, testReference, recordedBy: actorId, recordReason: reason },
-          skipDuplicates: true,
+        await sandboxPayoutReserve(tx, booking, order, input.amountMinor, input.destinationRevision);
+        return createManualEvidence(tx, order, 1, actorId, input);
+      });
+    }
+
+    @Post('admin/payouts/:id/manual-sandbox-settlement/corrections')
+    @HttpCode(200)
+    @ApiParam({ name: 'id', format: 'uuid' })
+    @ApiBody({ schema: schema(manualSandboxCorrection) })
+    @ApiOkResponse({ schema: schema(manualSandboxView) })
+    correctManualSandboxSettlement(@Req() req: Request, @Param('id') id: string, @Body() raw: unknown) {
+      const payoutId = parse(uuid, id);
+      const input = parse(manualSandboxCorrection, raw);
+      const next = input.expectedRevision + 1;
+      return manualWrite(req, payoutId, async (tx, booking, actorId) => {
+        const order = await tx.payoutOrder.findUniqueOrThrow({
+          where: { id: payoutId }, include: { manualSandboxPayouts: latestManualSandboxPayout },
         });
-        if (!inserted.count) {
-          throw new PublicError(409, 'MANUAL_PAYOUT_REFERENCE_REUSED', 'This test reference has already been recorded.');
+        const [latest] = order.manualSandboxPayouts;
+        if (!latest) throw new PublicError(404, 'MANUAL_PAYOUT_NOT_FOUND', 'This manual sandbox record is unavailable.');
+        if (latest.revision !== input.expectedRevision) {
+          const prior = await tx.manualSandboxPayout.findUnique({ where: { payoutId_revision: { payoutId, revision: next } } });
+          if (prior && matchesManualEvidence(prior, actorId, input)) return presentManualSandbox(prior);
+          throw new PublicError(409, 'MANUAL_PAYOUT_REVISION_CHANGED', 'Reload the current manual sandbox payout revision.');
         }
-        return presentManualSandbox(await tx.manualSandboxPayout.findUniqueOrThrow({ where: { payoutId } }));
+        if (manualSandboxState(latest) !== 'review_required') {
+          throw new PublicError(409, 'MANUAL_PAYOUT_NOT_FLAGGED', 'Only a flagged sandbox payout revision can be corrected.');
+        }
+        await sandboxPayoutReserve(tx, booking, order, latest.amountMinor, latest.destinationRevision);
+        return createManualEvidence(tx, order, next, actorId, input);
       });
     }
 
@@ -504,9 +547,18 @@ export function makePayoutsController(auth: AuthService) {
       const payoutId = parse(uuid, id);
       const input = parse(manualSandboxReview, raw);
       return manualWrite(req, payoutId, async (tx, booking, actorId) => {
-        const order = await tx.payoutOrder.findUniqueOrThrow({ where: { id: payoutId }, include: { manualSandboxPayout: true } });
-        const record = order.manualSandboxPayout;
-        if (!record) throw new PublicError(404, 'MANUAL_PAYOUT_NOT_FOUND', 'This manual sandbox record is unavailable.');
+        const order = await tx.payoutOrder.findUniqueOrThrow({
+          where: { id: payoutId }, include: { manualSandboxPayouts: latestManualSandboxPayout },
+        });
+        const [latest] = order.manualSandboxPayouts;
+        if (!latest) throw new PublicError(404, 'MANUAL_PAYOUT_NOT_FOUND', 'This manual sandbox record is unavailable.');
+        const expectedRevision = input.expectedRevision ?? 1;
+        const record = latest.revision === expectedRevision ? latest : await tx.manualSandboxPayout.findUnique({
+          where: { payoutId_revision: { payoutId, revision: expectedRevision } },
+        });
+        if (!record || (record !== latest && !record.reviewedAt)) {
+          throw new PublicError(409, 'MANUAL_PAYOUT_REVISION_CHANGED', 'Reload the current manual sandbox payout revision.');
+        }
         return reviewManualSandboxPayout(tx, order, record, actorId, input, () =>
           sandboxPayoutReserve(tx, booking, order, record.amountMinor, record.destinationRevision));
       });
@@ -539,7 +591,7 @@ export function makePayoutsController(auth: AuthService) {
         where: { bookingId: booking.id, damageClaimId, arbitrationId },
         include: {
           stripeTransfers: { where: { retryAuthorizedAt: null }, select: { id: true }, take: 1 },
-          manualSandboxPayout: { select: { id: true } },
+          manualSandboxPayouts: { select: { id: true }, take: 1 },
         },
       });
       if (!order) throw new PublicError(404, 'PAYOUT_NOT_FOUND', 'This payout reservation is unavailable.');

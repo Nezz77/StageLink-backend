@@ -36,7 +36,7 @@ test('a provider-only arbitration payout settles without a customer refund execu
   checkPayoutReconciliation(t, { arbitrationAward: true, awardRefundMinor: 0 }));
 test('independent manual sandbox confirmation settles the original reserve once', t =>
   checkPayoutReconciliation(t, { manualDecision: 'confirm' }));
-test('flagging a manual sandbox payout retains the reserve and keeps the Stripe route blocked', t =>
+test('a flagged manual sandbox payout preserves its evidence and settles only its corrected revision', t =>
   checkPayoutReconciliation(t, { manualDecision: 'flag' }));
 
 async function checkPayoutReconciliation(
@@ -496,6 +496,7 @@ async function checkPayoutReconciliation(
       const [report, replay] = await Promise.all(reports.map(result => result.json()));
       assert.deepEqual(report, replay);
       assert.equal(report.recordedBy, admin.id);
+      assert.equal(report.revision, 1);
       assert.equal(report.state, 'awaiting_review');
       assert.equal(await postedBalance(deps.db, reserved.account.id), 100000n);
       assert.equal((await (await recordManual(admin, { ...manualInput, reason: 'Changed the original recording reason.' })).json()).code,
@@ -513,7 +514,7 @@ async function checkPayoutReconciliation(
       assert.equal((await repair.json()).code, 'MANUAL_SANDBOX_PAYOUT_STARTED');
 
       const reviewInput = { decision: manualDecision, reason: 'Independently reviewed the fictional sandbox payout.' };
-      const review = (actor = reviewer, input = reviewInput) => fetch(manualPath + '/review', {
+      const review = (actor = reviewer, input: typeof reviewInput & { expectedRevision?: number } = reviewInput) => fetch(manualPath + '/review', {
         method: 'POST', headers: actor.headers, body: JSON.stringify(input),
       });
       assert.equal((await (await review(admin)).json()).code, 'MANUAL_PAYOUT_INDEPENDENT_REVIEW_REQUIRED');
@@ -564,6 +565,57 @@ async function checkPayoutReconciliation(
       const analytics = await (await fetch(base + `me/analytics?from=${from}&to=${to}&environment=sandbox`, provider)).json();
       assert.equal(analytics.settled.paidOutMinor, settled ? '95000' : '0');
       assert.equal(analytics.settled.feeRevenueMinor, settled ? '5000' : '0');
+      const correctionInput = {
+        expectedRevision: 1, testReference: 'SBX-' + randomUUID().toUpperCase(),
+        reason: 'Replace the flagged fictional reference after checking the evidence.',
+      };
+      const correct = (input = correctionInput, actor = admin) => fetch(manualPath + '/corrections', {
+        method: 'POST', headers: actor.headers, body: JSON.stringify(input),
+      });
+      if (settled) {
+        assert.equal((await (await correct()).json()).code, 'MANUAL_PAYOUT_NOT_FLAGGED');
+        return;
+      }
+      assert.equal((await correct(correctionInput, provider)).status, 403);
+      assert.equal((await (await correct({ ...correctionInput, testReference: manualInput.testReference })).json()).code,
+        'MANUAL_PAYOUT_REFERENCE_REUSED');
+      const corrections = await Promise.all([correct(), correct()]);
+      assert.ok(corrections.every(result => result.status === 200));
+      const [correction, repeatedCorrection] = await Promise.all(corrections.map(result => result.json()));
+      assert.deepEqual(repeatedCorrection, correction);
+      assert.equal(correction.revision, 2);
+      assert.equal(correction.state, 'awaiting_review');
+      assert.equal(await postedBalance(deps.db, reserved.account.id), 100000n);
+      assert.deepEqual((await (await fetch(manualPath, admin)).json()).settlement, correction);
+      assert.deepEqual(await (await review()).json(), decision, 'the original flag review can be replayed');
+      assert.equal((await (await review(reviewer, { ...reviewInput, decision: 'confirm' })).json()).code,
+        'MANUAL_PAYOUT_REVIEW_RECORDED');
+      assert.equal((await (await review(reviewer, { ...reviewInput, decision: 'confirm', expectedRevision: 3 })).json()).code,
+        'MANUAL_PAYOUT_REVISION_CHANGED');
+      assert.equal((await (await submitStripe()).json()).code, 'MANUAL_SANDBOX_PAYOUT_STARTED');
+      const confirmation = { decision: 'confirm' as const, reason: reviewInput.reason, expectedRevision: 2 };
+      assert.equal((await (await review(admin, confirmation)).json()).code, 'MANUAL_PAYOUT_INDEPENDENT_REVIEW_REQUIRED');
+      const confirmations = await Promise.all([review(reviewer, confirmation), review(reviewer, confirmation)]);
+      assert.ok(confirmations.every(result => result.status === 200));
+      const [confirmed, repeatedConfirmation] = await Promise.all(confirmations.map(result => result.json()));
+      assert.deepEqual(repeatedConfirmation, confirmed);
+      assert.equal(confirmed.revision, 2);
+      assert.equal(confirmed.state, 'settled');
+      assert.equal(await postedBalance(deps.db, reserved.account.id), 0n);
+      assert.equal(await deps.db.journalTransaction.count({
+        where: { source: 'payout.sandbox.manual.settle', reference: { in: [report.id, correction.id] } },
+      }), 1);
+      assert.deepEqual(await (await recordManual()).json(), decision, 'the initial recording still returns revision one');
+      const historyPath = manualPath + '/history';
+      assert.equal((await fetch(historyPath, provider)).status, 403);
+      assert.deepEqual(await (await fetch(historyPath, admin)).json(), { items: [confirmed, decision], nextBeforeRevision: null });
+      assert.deepEqual(await (await fetch(historyPath + '?beforeRevision=2', admin)).json(), {
+        items: [decision], nextBeforeRevision: null,
+      });
+      const latestStatus = await (await fetch(base + 'payouts/' + payoutId, provider)).json();
+      assert.equal(latestStatus.manualSandboxPayoutStatus, 'settled');
+      assert.ok(!JSON.stringify(latestStatus).includes(correctionInput.testReference));
+      assert.equal(gatewayRequests, before);
       return;
     }
     const investigationPath = (attemptId: string) => path + '/attempts/' + attemptId + '/investigation';

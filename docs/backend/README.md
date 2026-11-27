@@ -236,9 +236,11 @@ Set `MANUAL_SANDBOX_PAYOUT_RECONCILIATION=true` to exercise the manual workflow 
 
 A verified administrator with a recent sign-in sends `{testReference, amountMinor, destinationRevision, reason}` to `POST /api/v1/admin/payouts/:id/manual-sandbox-settlement` using the standard origin and CSRF headers. Use a unique reference beginning with `SBX-`. The amount is the exact net payout in minor LKR units. StageLink checks the reviewed destination, booking eligibility and full original reserve. An identical retry using the same administrator returns the saved record.
 
-A different verified administrator submits `{decision, reason}` to `POST /api/v1/admin/payouts/:id/manual-sandbox-settlement/review`. A `confirm` decision rechecks eligibility and posts the provider net and platform fee once. A `flag` decision preserves the full reserve for review. A prior Stripe attempt prevents recording a manual payout. A manual record prevents Stripe transfer submission and payout destination repair for the same reservation.
+A different verified administrator submits `{decision, reason, expectedRevision}` to `POST /api/v1/admin/payouts/:id/manual-sandbox-settlement/review`. Older clients can omit `expectedRevision` to review revision 1. A `confirm` decision rechecks eligibility and posts the provider net and platform fee once. A `flag` decision preserves the full reserve for review. A prior Stripe attempt prevents recording a manual payout. A manual record prevents Stripe transfer submission and payout destination repair for the same reservation.
 
-Administrators can read the saved record using `GET /api/v1/admin/payouts/:id/manual-sandbox-settlement`. Providers see the manual settlement status beside the reservation in their payout and earnings views. Posted journal entries appear in sandbox analytics.
+For a flagged revision, submit `{expectedRevision, testReference, reason}` to `POST /api/v1/admin/payouts/:id/manual-sandbox-settlement/corrections`. StageLink rechecks the reserve and approved destination, then records the unused test reference as a new revision. The old reference and review stay in the audit history. A different administrator from the correction author must review the new revision. An identical retry returns the saved correction.
+
+Administrators can read the current revision using `GET /api/v1/admin/payouts/:id/manual-sandbox-settlement` and page through older records using `GET /api/v1/admin/payouts/:id/manual-sandbox-settlement/history?beforeRevision=<cursor>`. History starts at the newest revision when the cursor is omitted. Providers see the latest manual settlement status beside the reservation in their payout and earnings views. Posted journal entries appear in sandbox analytics.
 
 ## Booking documents
 

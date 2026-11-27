@@ -52578,6 +52578,12 @@
                           "format": "uuid",
                           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                         },
+                        "revision": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "exclusiveMinimum": true,
+                          "maximum": 2147483647
+                        },
                         "testReference": {
                           "type": "string",
                           "pattern": "^SBX-[A-Z0-9][A-Z0-9-]{3,75}$"
@@ -52653,6 +52659,7 @@
                       "required": [
                         "id",
                         "payoutId",
+                        "revision",
                         "testReference",
                         "amountMinor",
                         "destinationRevision",
@@ -52759,6 +52766,12 @@
                       "format": "uuid",
                       "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                     },
+                    "revision": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "exclusiveMinimum": true,
+                      "maximum": 2147483647
+                    },
                     "testReference": {
                       "type": "string",
                       "pattern": "^SBX-[A-Z0-9][A-Z0-9-]{3,75}$"
@@ -52834,6 +52847,355 @@
                   "required": [
                     "id",
                     "payoutId",
+                    "revision",
+                    "testReference",
+                    "amountMinor",
+                    "destinationRevision",
+                    "environment",
+                    "currency",
+                    "state",
+                    "recordedBy",
+                    "recordReason",
+                    "createdAt",
+                    "reviewedBy",
+                    "reviewReason",
+                    "reviewedAt",
+                    "journalId"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Provider earnings and payout reservations"
+        ]
+      }
+    },
+    "/api/v1/admin/payouts/{id}/manual-sandbox-settlement/history": {
+      "get": {
+        "operationId": "PayoutsController_manualSandboxHistory",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "beforeRevision",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "payoutId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "revision": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "exclusiveMinimum": true,
+                            "maximum": 2147483647
+                          },
+                          "testReference": {
+                            "type": "string",
+                            "pattern": "^SBX-[A-Z0-9][A-Z0-9-]{3,75}$"
+                          },
+                          "amountMinor": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "exclusiveMinimum": true,
+                            "maximum": 2147483647
+                          },
+                          "destinationRevision": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "exclusiveMinimum": true,
+                            "maximum": 2147483647
+                          },
+                          "environment": {
+                            "type": "string",
+                            "enum": [
+                              "sandbox"
+                            ]
+                          },
+                          "currency": {
+                            "type": "string",
+                            "enum": [
+                              "LKR"
+                            ]
+                          },
+                          "state": {
+                            "type": "string",
+                            "enum": [
+                              "awaiting_review",
+                              "settled",
+                              "review_required"
+                            ]
+                          },
+                          "recordedBy": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "recordReason": {
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                          },
+                          "reviewedBy": {
+                            "nullable": true,
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "reviewReason": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "reviewedAt": {
+                            "nullable": true,
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                          },
+                          "journalId": {
+                            "nullable": true,
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "payoutId",
+                          "revision",
+                          "testReference",
+                          "amountMinor",
+                          "destinationRevision",
+                          "environment",
+                          "currency",
+                          "state",
+                          "recordedBy",
+                          "recordReason",
+                          "createdAt",
+                          "reviewedBy",
+                          "reviewReason",
+                          "reviewedAt",
+                          "journalId"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "nextBeforeRevision": {
+                      "nullable": true,
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 2147483647
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "nextBeforeRevision"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "Provider earnings and payout reservations"
+        ]
+      }
+    },
+    "/api/v1/admin/payouts/{id}/manual-sandbox-settlement/corrections": {
+      "post": {
+        "operationId": "PayoutsController_correctManualSandboxSettlement",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "expectedRevision": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "exclusiveMinimum": true,
+                    "maximum": 2147483646
+                  },
+                  "testReference": {
+                    "type": "string",
+                    "pattern": "^SBX-[A-Z0-9][A-Z0-9-]{3,75}$"
+                  },
+                  "reason": {
+                    "type": "string",
+                    "minLength": 10,
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "expectedRevision",
+                  "testReference",
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "payoutId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "revision": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "exclusiveMinimum": true,
+                      "maximum": 2147483647
+                    },
+                    "testReference": {
+                      "type": "string",
+                      "pattern": "^SBX-[A-Z0-9][A-Z0-9-]{3,75}$"
+                    },
+                    "amountMinor": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "exclusiveMinimum": true,
+                      "maximum": 2147483647
+                    },
+                    "destinationRevision": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "exclusiveMinimum": true,
+                      "maximum": 2147483647
+                    },
+                    "environment": {
+                      "type": "string",
+                      "enum": [
+                        "sandbox"
+                      ]
+                    },
+                    "currency": {
+                      "type": "string",
+                      "enum": [
+                        "LKR"
+                      ]
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "awaiting_review",
+                        "settled",
+                        "review_required"
+                      ]
+                    },
+                    "recordedBy": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "recordReason": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    },
+                    "reviewedBy": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "reviewReason": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "reviewedAt": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                    },
+                    "journalId": {
+                      "nullable": true,
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "payoutId",
+                    "revision",
                     "testReference",
                     "amountMinor",
                     "destinationRevision",
@@ -52896,6 +53258,12 @@
                     "type": "string",
                     "minLength": 10,
                     "maxLength": 500
+                  },
+                  "expectedRevision": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "exclusiveMinimum": true,
+                    "maximum": 2147483647
                   }
                 },
                 "required": [
@@ -52924,6 +53292,12 @@
                       "type": "string",
                       "format": "uuid",
                       "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "revision": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "exclusiveMinimum": true,
+                      "maximum": 2147483647
                     },
                     "testReference": {
                       "type": "string",
@@ -53000,6 +53374,7 @@
                   "required": [
                     "id",
                     "payoutId",
+                    "revision",
                     "testReference",
                     "amountMinor",
                     "destinationRevision",

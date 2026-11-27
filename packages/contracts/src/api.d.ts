@@ -3477,6 +3477,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/payouts/{id}/manual-sandbox-settlement/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["PayoutsController_manualSandboxHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payouts/{id}/manual-sandbox-settlement/corrections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["PayoutsController_correctManualSandboxSettlement"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/payouts/{id}/manual-sandbox-settlement/review": {
         parameters: {
             query?: never;
@@ -20871,6 +20903,7 @@ export interface operations {
                             id: string;
                             /** Format: uuid */
                             payoutId: string;
+                            revision: number;
                             testReference: string;
                             amountMinor: number;
                             destinationRevision: number;
@@ -20928,6 +20961,116 @@ export interface operations {
                         id: string;
                         /** Format: uuid */
                         payoutId: string;
+                        revision: number;
+                        testReference: string;
+                        amountMinor: number;
+                        destinationRevision: number;
+                        /** @enum {string} */
+                        environment: "sandbox";
+                        /** @enum {string} */
+                        currency: "LKR";
+                        /** @enum {string} */
+                        state: "awaiting_review" | "settled" | "review_required";
+                        /** Format: uuid */
+                        recordedBy: string;
+                        recordReason: string;
+                        /** Format: date-time */
+                        createdAt: string;
+                        /** Format: uuid */
+                        reviewedBy: string | null;
+                        reviewReason: string | null;
+                        /** Format: date-time */
+                        reviewedAt: string | null;
+                        /** Format: uuid */
+                        journalId: string | null;
+                    };
+                };
+            };
+        };
+    };
+    PayoutsController_manualSandboxHistory: {
+        parameters: {
+            query?: {
+                beforeRevision?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            payoutId: string;
+                            revision: number;
+                            testReference: string;
+                            amountMinor: number;
+                            destinationRevision: number;
+                            /** @enum {string} */
+                            environment: "sandbox";
+                            /** @enum {string} */
+                            currency: "LKR";
+                            /** @enum {string} */
+                            state: "awaiting_review" | "settled" | "review_required";
+                            /** Format: uuid */
+                            recordedBy: string;
+                            recordReason: string;
+                            /** Format: date-time */
+                            createdAt: string;
+                            /** Format: uuid */
+                            reviewedBy: string | null;
+                            reviewReason: string | null;
+                            /** Format: date-time */
+                            reviewedAt: string | null;
+                            /** Format: uuid */
+                            journalId: string | null;
+                        }[];
+                        nextBeforeRevision: number | null;
+                    };
+                };
+            };
+        };
+    };
+    PayoutsController_correctManualSandboxSettlement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    expectedRevision: number;
+                    testReference: string;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: uuid */
+                        payoutId: string;
+                        revision: number;
                         testReference: string;
                         amountMinor: number;
                         destinationRevision: number;
@@ -20969,6 +21112,7 @@ export interface operations {
                     /** @enum {string} */
                     decision: "confirm" | "flag";
                     reason: string;
+                    expectedRevision?: number;
                 };
             };
         };
@@ -20983,6 +21127,7 @@ export interface operations {
                         id: string;
                         /** Format: uuid */
                         payoutId: string;
+                        revision: number;
                         testReference: string;
                         amountMinor: number;
                         destinationRevision: number;

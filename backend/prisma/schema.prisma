@@ -1175,7 +1175,7 @@ model PayoutOrder {
   reservation JournalTransaction @relation(fields: [reservationId], references: [id], onDelete: Restrict)
   stripeTransfers StripePayoutTransfer[]
   destinationRepairs PayoutDestinationRepair[]
-  manualSandboxPayout ManualSandboxPayout?
+  manualSandboxPayouts ManualSandboxPayout[]
   @@index([bookingId])
   @@index([providerId])
   @@map("payout_orders")
@@ -1199,7 +1199,8 @@ model PayoutDestinationRepair {
 
 model ManualSandboxPayout {
   id String @id @default(uuid()) @db.Uuid
-  payoutId String @unique @map("payout_id") @db.Uuid
+  payoutId String @map("payout_id") @db.Uuid
+  revision Int @default(1)
   testReference String @unique @map("test_reference") @db.VarChar(80)
   amountMinor Int @map("amount_minor")
   destinationRevision Int @map("destination_revision")
@@ -1214,6 +1215,7 @@ model ManualSandboxPayout {
   recorder AuthUser @relation("ManualSandboxPayoutRecorder", fields: [recordedBy], references: [id], onDelete: Restrict)
   reviewer AuthUser? @relation("ManualSandboxPayoutReviewer", fields: [reviewedBy], references: [id], onDelete: Restrict)
   journal JournalTransaction? @relation(fields: [journalId], references: [id], onDelete: Restrict)
+  @@unique([payoutId, revision])
   @@map("manual_sandbox_payouts")
 }
 

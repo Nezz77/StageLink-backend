@@ -14,14 +14,20 @@ export const manualSandboxStatus = z.enum(['awaiting_review', 'settled', 'review
 export const manualSandboxRecord = z.object({
   testReference, amountMinor: positive, destinationRevision: positive, reason,
 }).strict();
-export const manualSandboxReview = z.object({ decision: z.enum(['confirm', 'flag']), reason }).strict();
+export const manualSandboxCorrection = z.object({ expectedRevision: positive.max(maxMinor - 1), testReference, reason }).strict();
+export const manualSandboxReview = z.object({
+  decision: z.enum(['confirm', 'flag']), reason, expectedRevision: positive.optional(),
+}).strict();
 export const manualSandboxView = z.object({
-  id: uuid, payoutId: uuid, testReference, amountMinor: positive, destinationRevision: positive,
+  id: uuid, payoutId: uuid, revision: positive, testReference, amountMinor: positive, destinationRevision: positive,
   environment: z.literal('sandbox'), currency: z.literal('LKR'), state: manualSandboxStatus,
   recordedBy: uuid, recordReason: z.string(), createdAt: z.iso.datetime(),
   reviewedBy: uuid.nullable(), reviewReason: z.string().nullable(), reviewedAt: z.iso.datetime().nullable(),
   journalId: uuid.nullable(),
 });
+export const latestManualSandboxPayout = {
+  orderBy: { revision: 'desc' }, take: 1,
+} satisfies Prisma.PayoutOrder$manualSandboxPayoutsArgs;
 
 export function manualSandboxState(row: Pick<ManualSandboxPayout, 'journalId' | 'reviewedAt'>): z.infer<typeof manualSandboxStatus> {
   return row.journalId ? 'settled' : row.reviewedAt ? 'review_required' : 'awaiting_review';
@@ -34,10 +40,35 @@ export function presentManualSandbox(row: ManualSandboxPayout) {
   };
 }
 
-export function assertNoManualSandboxPayout(row: { manualSandboxPayout: { id: string } | null }) {
-  if (row.manualSandboxPayout) {
+export function assertNoManualSandboxPayout(row: { manualSandboxPayouts: { id: string }[] }) {
+  if (row.manualSandboxPayouts.length) {
     throw new PublicError(409, 'MANUAL_SANDBOX_PAYOUT_STARTED', 'This reservation is assigned to manual sandbox reconciliation.');
   }
+}
+
+export function matchesManualEvidence(
+  row: ManualSandboxPayout, actorId: string, input: { testReference: string; reason: string },
+) {
+  return row.recordedBy === actorId && row.testReference === input.testReference && row.recordReason === input.reason;
+}
+
+export async function createManualEvidence(
+  tx: Prisma.TransactionClient, payout: PayoutOrder, revision: number, actorId: string,
+  input: { testReference: string; reason: string },
+) {
+  const payoutId = payout.id;
+  const inserted = await tx.manualSandboxPayout.createMany({
+    data: {
+      payoutId, revision, amountMinor: payout.netMinor, destinationRevision: payout.destinationRevision,
+      testReference: input.testReference, recordedBy: actorId, recordReason: input.reason,
+    },
+    skipDuplicates: true,
+  });
+  if (!inserted.count) {
+    throw new PublicError(409, 'MANUAL_PAYOUT_REFERENCE_REUSED', 'This test reference has already been recorded.');
+  }
+  const row = await tx.manualSandboxPayout.findUniqueOrThrow({ where: { payoutId_revision: { payoutId, revision } } });
+  return presentManualSandbox(row);
 }
 
 export async function reviewManualSandboxPayout(
