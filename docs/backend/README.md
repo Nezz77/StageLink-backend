@@ -75,6 +75,12 @@ docker compose -f infra/compose.test.yml exec -T postgres bash -s < backend/scri
 
 The drill covers PostgreSQL data and schema in the test environment. Hosted backup verification also needs an isolated restore of the hosted database, private media objects and access to the matching encryption keys. [PostgreSQL backup documentation](https://www.postgresql.org/docs/17/backup-dump.html)
 
+### Check readiness after deployment or rollback
+
+Run the check from the built backend release you expect to be serving. Set `STAGELINK_RELEASE_API_ORIGIN` and `STAGELINK_RELEASE_WORKER_ORIGIN` to the two service origins. Use the worker’s internal address. From the backend package, run `npm run --silent release:check`.
+
+The check requires both readiness endpoints to report PostgreSQL and Redis available, the worker dispatcher to be active, and both schema versions to match the migration bundled with this build. After a rollback, run it from the restored release after starting the API and worker against the matching database schema. The check exits nonzero when either service fails and makes no changes to the database.
+
 Generated contracts are `contracts/openapi.json` → `packages/contracts/src/api.d.ts`. Regenerate and commit both after endpoint changes; CI rejects drift. Never edit an applied migration.
 
 The build embeds the latest bundled Prisma migration in the API and worker. Their readiness endpoints return 503 if PostgreSQL has a different latest completed migration or an unfinished migration entry. Rolled-back entries are ignored. The normal local API and worker start commands regenerate the expected version from the checkout.

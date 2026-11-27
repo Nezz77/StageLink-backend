@@ -39,6 +39,7 @@
     "recommendations:evaluate": "node dist/scripts/evaluate-recommendations.js",
     "verification:smoke": "node dist/scripts/verification-pdf-smoke.js",
     "payout-statements:smoke": "node dist/scripts/payout-statement-smoke.js",
+    "release:check": "node dist/scripts/release-readiness-check.js",
     "outbox:ping": "node dist/scripts/ping.js",
     "admin:create": "node dist/scripts/bootstrap-admin.js"
   },
