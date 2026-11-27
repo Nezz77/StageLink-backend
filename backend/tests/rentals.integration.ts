@@ -5,10 +5,12 @@ import sharp from 'sharp';
 import { createApp } from '../api/src/app.js';
 import { hashPassword } from '../api/src/auth/security.js';
 import { readConfig } from '../shared/config.js';
+import { databaseNow } from '../shared/database-clock.js';
 import { resources } from '../shared/resources.js';
 import { MediaStore, derivativeKey, originalKey } from '../shared/media-store.js';
 import { documentKey, processBookingDocuments } from '../shared/booking-documents.js';
 import { processMediaBatch } from '../shared/media-processing.js';
+import { serverClock } from './fixtures/server-clock.js';
 
 const merchantId = '1210000';
 const merchantSecret = 'sandbox-fixture-secret';
@@ -312,8 +314,13 @@ test('renter owns revisions and public browse only shows approved published equi
       startsAt: '2090-03-01T09:00:00Z', endsAt: '2090-03-03T09:00:00Z',
     };
     const bookingRequest = { ...bookingFields, requestKey: randomUUID(), inquiryId: opened[0]?.data.id };
-    const booked = await call('bookings', bookingRequest, customer);
+    const fastClock = 5 * 60000;
+    const beforeHold = await databaseNow(deps.db);
+    const booked = await serverClock(fastClock, () => call('bookings', bookingRequest, customer));
     assert.equal(booked.status, 200);
+    const initialDeadline = Date.parse(booked.data.holdExpiresAt);
+    assert.ok(initialDeadline >= beforeHold.getTime() + 15 * 60000);
+    assert.ok(initialDeadline <= (await databaseNow(deps.db)).getTime() + 15 * 60000);
     assert.equal(booked.data.snapshot.subtotalMinor, 500000);
     assert.equal(booked.data.snapshot.depositMinor, 0);
     assert.equal((await call('bookings', bookingRequest, customer)).data.id, booked.data.id);
@@ -329,7 +336,28 @@ test('renter owns revisions and public browse only shows approved published equi
     });
     const availabilityPath = 'listings/' + bundleDraft.data.id + '/availability?' + availabilityQuery;
     assert.deepEqual((await call(availabilityPath)).data, { available: false });
-    await deps.db.booking.update({ where: { id: booked.data.id }, data: { holdExpiresAt: new Date(Date.now() - 1000) } });
+    const shortDeadline = new Date((await databaseNow(deps.db)).getTime() + 60000);
+    await deps.db.booking.update({ where: { id: booked.data.id }, data: { holdExpiresAt: shortDeadline } });
+    await serverClock(fastClock, async () => {
+      const current = await call('bookings/' + booked.data.id, undefined, customer);
+      assert.equal(current.data.state, 'held');
+      assert.deepEqual((await call(availabilityPath)).data, { available: false });
+      assert.equal((await call('bookings', bundleRequest, secondCustomer)).data.code, 'RESERVATION_UNAVAILABLE');
+    });
+    const expiredDeadline = new Date((await databaseNow(deps.db)).getTime() - 1000);
+    await deps.db.booking.update({ where: { id: booked.data.id }, data: { holdExpiresAt: expiredDeadline } });
+    await serverClock(-fastClock, async () => {
+      assert.deepEqual((await call(availabilityPath)).data, { available: true });
+    });
+    const beforeRenewal = await databaseNow(deps.db);
+    const renewed = await serverClock(fastClock, () => call('bookings/' + booked.data.id + '/reservation-renewals', {
+      expectedHoldExpiresAt: expiredDeadline.toISOString(),
+    }, customer));
+    assert.equal(renewed.status, 200);
+    const renewedDeadline = Date.parse(renewed.data.holdExpiresAt);
+    assert.ok(renewedDeadline >= beforeRenewal.getTime() + 15 * 60000);
+    assert.ok(renewedDeadline <= (await databaseNow(deps.db)).getTime() + 15 * 60000);
+    await deps.db.booking.update({ where: { id: booked.data.id }, data: { holdExpiresAt: expiredDeadline } });
     assert.deepEqual((await call(availabilityPath)).data, { available: true });
     const competing = await Promise.all([
       call('bookings', bundleRequest, secondCustomer),
@@ -343,7 +371,8 @@ test('renter owns revisions and public browse only shows approved published equi
     const decisions = 'bookings/' + winner.id + '/provider-decisions';
     const accept = { revision: 1, decision: 'accepted' };
     assert.equal((await call(decisions, accept, other)).status, 404);
-    const decided = await Promise.all([call(decisions, accept, renter), call(decisions, accept, renter)]);
+    await deps.db.booking.update({ where: { id: winner.id }, data: { holdExpiresAt: shortDeadline } });
+    const decided = await serverClock(fastClock, () => Promise.all([call(decisions, accept, renter), call(decisions, accept, renter)]));
     assert.deepEqual(decided.map(result => result.status).sort(), [200, 409]);
     assert.equal(decided.find(result => result.status === 200)?.data.state, 'accepted');
     const calendar = await call('me/calendar?' + new URLSearchParams({ from: bookingFields.startsAt, to: bookingFields.endsAt }), undefined, renter);
@@ -355,9 +384,15 @@ test('renter owns revisions and public browse only shows approved published equi
     const quoteTerms = 'Two units for the agreed dates.';
     const offer = { revision: 2, terms: quoteTerms, lines: [{ description: 'Equipment hire', quantity: 2, unitPriceMinor: 200000 }] };
     assert.equal((await call(quotations, offer, winnerCustomer)).status, 403);
-    const proposed = await call(quotations, offer, renter);
+    await deps.db.booking.update({ where: { id: winner.id }, data: { holdExpiresAt: shortDeadline } });
+    const proposed = await serverClock(fastClock, () => call(quotations, offer, renter));
     assert.equal(proposed.status, 200);
     assert.equal(proposed.data.quotation.totalMinor, 400000);
+    await serverClock(fastClock, async () => {
+      const history = await call(quotations, undefined, winnerCustomer);
+      assert.equal(history.status, 200);
+      assert.equal(history.data.items[0].status, 'pending');
+    });
     const firstDecision = 'quotations/' + proposed.data.quotation.id + '/decisions';
     assert.equal((await call(firstDecision, { revision: 3, decision: 'accepted' }, renter)).status, 403);
     const countered = await call(quotations, { ...offer, revision: 3, lines: [{ ...offer.lines[0], unitPriceMinor: 175000 }] }, winnerCustomer);
@@ -365,10 +400,10 @@ test('renter owns revisions and public browse only shows approved published equi
     assert.equal((await call(firstDecision, { revision: 4, decision: 'accepted' }, winnerCustomer)).status, 409);
     const counterDecision = 'quotations/' + countered.data.quotation.id + '/decisions';
     assert.equal((await call(counterDecision, { revision: 4, decision: 'accepted' }, other)).status, 404);
-    const acceptances = await Promise.all([
+    const acceptances = await serverClock(fastClock, () => Promise.all([
       call(counterDecision, { revision: 4, decision: 'accepted' }, renter),
       call(counterDecision, { revision: 4, decision: 'accepted' }, renter),
-    ]);
+    ]));
     assert.deepEqual(acceptances.map(item => item.status).sort(), [200, 409]);
     const agreed = acceptances.find(item => item.status === 200)!.data;
     const agreement = await call('bookings/' + winner.id + '/agreement', undefined, winnerCustomer);
@@ -620,7 +655,7 @@ test('renter owns revisions and public browse only shows approved published equi
       },
     });
     assert.deepEqual((await call(availabilityPath)).data, { available: false });
-    const rejected = await call('bookings/' + booked.data.id + '/provider-decisions', { revision: 1, decision: 'rejected' }, renter);
+    const rejected = await call('bookings/' + booked.data.id + '/provider-decisions', { revision: renewed.data.revision, decision: 'rejected' }, renter);
     assert.equal(rejected.status, 200);
     assert.equal(rejected.data.state, 'rejected');
     const staleBundle = await call('me/rentals', bundle, renter);
