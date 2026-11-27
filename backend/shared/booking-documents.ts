@@ -12,12 +12,18 @@ const invoice = z.object({
   totalMinor: minor, advanceMinor: minor, depositMinor: minor,
   startsAt: time, endsAt: time, agreementDigest: z.string().regex(/^[a-f0-9]{64}$/),
 });
-const receipt = z.object({
-  version: z.literal(1), kind: z.literal('receipt'), issuedAt: time,
+const receiptFields = {
+  kind: z.literal('receipt'), issuedAt: time,
   purpose: z.enum(['advance', 'balance', 'deposit']), amountMinor: minor,
   gateway: z.enum(['PayHere', 'Stripe']), orderId: z.string().uuid(),
-  disposition: z.enum(['captured', 'review']),
-});
+};
+const receipt = z.discriminatedUnion('version', [
+  z.object({ ...receiptFields, version: z.literal(1), disposition: z.enum(['captured', 'review']) }),
+  z.object({
+    ...receiptFields, version: z.literal(2), disposition: z.literal('refunded'), amountMinor: minor.positive(),
+    refundExecutionId: z.uuid(), journalId: z.uuid(), refundContext: z.enum(['cancellation', 'deposit_claim', 'arbitration']),
+  }),
+]);
 const bankSettlementReference = { settlementId: z.uuid(), journalId: z.uuid() };
 const bankSettlement = z.discriminatedUnion('state', [
   z.object({ ...bankSettlementReference, state: z.literal('settled') }),
@@ -49,6 +55,7 @@ export const documentNumber = (kind: BookingDocumentKind, id: string) =>
   ({ invoice: 'INV', receipt: 'RCT', settlement: 'SET' })[kind] + '-' + id.toUpperCase();
 
 const titles = { invoice: 'Booking invoice', receipt: 'Payment receipt', settlement: 'Provider settlement statement' };
+const refundContexts = { cancellation: 'Booking cancellation', deposit_claim: 'Rental deposit claim', arbitration: 'Dispute arbitration' };
 const amount = (minorUnits: number) => 'LKR ' + (minorUnits / 100).toFixed(2);
 
 export function renderBookingDocument(record: Pick<BookingDocument, 'id' | 'kind' | 'bookingId' | 'snapshot'>) {
@@ -57,7 +64,7 @@ export function renderBookingDocument(record: Pick<BookingDocument, 'id' | 'kind
   const bank = snapshot.kind === 'settlement' && snapshot.version === 2 ? snapshot.bankSettlement : undefined;
   const title = bank
     ? (bank.state === 'settled' ? 'Bank payout settlement' : 'Bank payout settlement reversal')
-    : titles[snapshot.kind];
+    : snapshot.kind === 'receipt' && snapshot.version === 2 ? 'Refund receipt' : titles[snapshot.kind];
   const number = documentNumber(record.kind, record.id);
   const pdf = new jsPDF({ unit: 'mm', format: 'a4', compress: true });
   pdf.setFileId(record.id.replaceAll('-', ''));
@@ -86,9 +93,14 @@ export function renderBookingDocument(record: Pick<BookingDocument, 'id' | 'kind
         ['Ends (UTC)', snapshot.endsAt], ['Agreement SHA-256', snapshot.agreementDigest]);
       break;
     case 'receipt':
-      rows.push(['Payment', snapshot.purpose], ['Captured amount', amount(snapshot.amountMinor)],
-        ['Gateway', snapshot.gateway], ['Payment order', snapshot.orderId],
-        ['Capture disposition', snapshot.disposition === 'review' ? 'Reconciliation required' : 'Captured in sandbox']);
+      rows.push(['Payment', snapshot.purpose], [snapshot.version === 2 ? 'Refunded amount' : 'Captured amount', amount(snapshot.amountMinor)],
+        ['Gateway', snapshot.gateway], ['Payment order', snapshot.orderId]);
+      if (snapshot.version === 2) {
+        rows.push(['Refund context', refundContexts[snapshot.refundContext]], ['Refund execution', snapshot.refundExecutionId],
+          ['Ledger journal', snapshot.journalId], ['Refund status', 'Posted in the sandbox ledger']);
+      } else {
+        rows.push(['Capture disposition', snapshot.disposition === 'review' ? 'Reconciliation required' : 'Captured in sandbox']);
+      }
       break;
     case 'settlement':
       if (snapshot.damageClaimId) rows.push(['Damage claim', snapshot.damageClaimId]);

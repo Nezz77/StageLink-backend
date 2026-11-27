@@ -13,6 +13,8 @@ test('server renders each sandbox booking document from its stable snapshot', ()
     { ...common, kind: 'invoice', totalMinor: 35_011, advanceMinor: 17_506, depositMinor: 0,
       startsAt: issuedAt, endsAt: '2026-11-13T19:00:00.000Z', agreementDigest: '0'.repeat(64) },
     { ...common, kind: 'receipt', purpose: 'advance', amountMinor: 17_506, gateway: 'Stripe', orderId: id, disposition: 'review' },
+    { version: 2, issuedAt, kind: 'receipt', purpose: 'deposit', amountMinor: 15_000, gateway: 'PayHere',
+      orderId: id, disposition: 'refunded', refundContext: 'deposit_claim', refundExecutionId: id, journalId: reference.journalId },
     { ...common, ...allocation, kind: 'settlement' },
     { version: 2, issuedAt, ...allocation, kind: 'settlement', bankSettlement: { ...reference, state: 'settled' } },
     { version: 2, issuedAt, ...allocation, kind: 'settlement', bankSettlement: {
@@ -28,5 +30,6 @@ test('server renders each sandbox booking document from its stable snapshot', ()
   }
   assert.equal(documentNumber('receipt', id), 'RCT-' + id.toUpperCase());
   assert.throws(() => renderBookingDocument({ id, bookingId, kind: 'receipt', snapshot: snapshots[0] }), /kind mismatch/);
-  assert.throws(() => renderBookingDocument({ id, bookingId, kind: 'settlement', snapshot: { ...snapshots[2], version: 2 } }));
+  assert.throws(() => renderBookingDocument({ id, bookingId, kind: 'settlement', snapshot: { ...snapshots[3], version: 2 } }));
+  assert.throws(() => renderBookingDocument({ id, bookingId, kind: 'receipt', snapshot: { ...snapshots[2], amountMinor: 0 } }));
 });
