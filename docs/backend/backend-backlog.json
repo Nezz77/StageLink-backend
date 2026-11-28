@@ -502,7 +502,7 @@
       "ui_coverage_ids": [
         "UI-002"
       ],
-      "remaining": "Verified rating filter and PostgreSQL integration."
+      "remaining": "Connect frontend catalog cards and filters to the PostgreSQL-backed rating summaries and verify the browse flows end to end."
     },
     {
       "id": "BE-013",

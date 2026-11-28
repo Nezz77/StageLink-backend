@@ -9,7 +9,7 @@ import { ProfileService } from '../profiles/service.js';
 import { providerPublic } from '../profiles/schemas.js';
 import { rentalSpecs as specs } from './equipment-specs.js';
 import { depositPolicy } from './deposit-policy.js';
-import { ApiCatalogQuery, searchPublished } from './search.js';
+import { ApiCatalogQuery, ratingSummary, searchPublished } from './search.js';
 
 const uuid = z.string().uuid();
 const revision = z.number().int().positive().max(2_147_483_647);
@@ -50,7 +50,7 @@ const publicListing = listing.omit({ stockQuantity: true }).extend({
   storefront: z.object({ displayName: z.string(), city: z.string() }),
 });
 export const rentalSummary = publicListing.omit({ description: true, specs: true, bundleItems: true, depositPolicy: true });
-const publicPage = z.object({ items: z.array(publicListing), nextCursor: uuid.nullable() });
+const publicPage = z.object({ items: z.array(publicListing.extend({ ratingSummary })), nextCursor: uuid.nullable() });
 const schema = (value: z.ZodType) => z.toJSONSchema(value, { target: 'openapi-3.0' }) as SchemaObject;
 
 const publishedProfile = { kind: 'renter', approvedRevision: { not: null }, approvedSnapshot: { not: Prisma.DbNull } } as const;
@@ -304,12 +304,12 @@ export function makeRentalControllers(auth: AuthService) {
     @ApiOkResponse({ schema: schema(publicPage) })
     async list(@Query() query: unknown) {
       return db.$transaction(async tx => {
-        const { ids, nextCursor } = await searchPublished(tx, 'rental', query);
+        const { ratings, nextCursor } = await searchPublished(tx, 'rental', query);
         const records = await tx.rentalListing.findMany({
-          where: { ...publicRentalFilter, id: { in: ids } },
+          where: { ...publicRentalFilter, id: { in: [...ratings.keys()] } },
           include: publicRentalInclude, orderBy: { id: 'asc' },
         });
-        return { items: records.map(presentPublicRental), nextCursor };
+        return { items: records.map(record => ({ ...presentPublicRental(record), ratingSummary: ratings.get(record.id)! })), nextCursor };
       }, { isolationLevel: 'RepeatableRead' });
     }
   }

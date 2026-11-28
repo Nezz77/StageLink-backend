@@ -14380,6 +14380,10 @@ export interface operations {
                                 /** @enum {string} */
                                 category: "Vocalist" | "Band" | "DJ" | "Dancer" | "Instrumentalist";
                             };
+                            ratingSummary: {
+                                average: number | null;
+                                count: number;
+                            };
                         }[];
                         /** Format: uuid */
                         nextCursor: string | null;
@@ -15040,6 +15044,10 @@ export interface operations {
                             storefront: {
                                 displayName: string;
                                 city: string;
+                            };
+                            ratingSummary: {
+                                average: number | null;
+                                count: number;
                             };
                         }[];
                         /** Format: uuid */

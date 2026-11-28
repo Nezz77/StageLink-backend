@@ -33,6 +33,11 @@ const rentalQuery = base.extend({
   kind: z.enum(['equipment', 'venue', 'bundle']).optional(),
 }).refine(hasCompleteRadius);
 
+export const ratingSummary = z.object({
+  average: z.number().min(1).max(5).nullable(),
+  count: z.number().int().nonnegative(),
+});
+
 export function ApiCatalogQuery(type: 'gig' | 'rental') {
   const common = ['cursor', 'q', 'city', 'maxPriceMinor', 'minRating', 'lat', 'lng', 'radiusKm'];
   const fields = type === 'gig' ? [...common, 'genre', 'category'] : [...common, 'category', 'kind'];
@@ -64,10 +69,7 @@ export async function searchPublished(tx: Prisma.TransactionClient, type: 'gig' 
   if (filters.cursor !== undefined) clauses.push(Prisma.sql`l.id > ${filters.cursor}::uuid`);
   if (filters.maxPriceMinor !== undefined) clauses.push(Prisma.sql`${rate} <= ${filters.maxPriceMinor}`);
   if (filters.minRating !== undefined) {
-    clauses.push(Prisma.sql`(
-      SELECT avg(r.rating) FROM booking_reviews r
-      WHERE r.target_kind = ${type}::"SavedItemKind" AND r.target_id = l.id AND r.status = 'published'
-    ) >= ${filters.minRating}::numeric`);
+    clauses.push(Prisma.sql`reviews.average >= ${filters.minRating}::numeric`);
   }
   if (filters.city !== undefined) clauses.push(Prisma.sql`lower(p.approved_snapshot->>'city') = lower(${filters.city})`);
   if (filters.q !== undefined) {
@@ -93,16 +95,22 @@ export async function searchPublished(tx: Prisma.TransactionClient, type: 'gig' 
         power(sin(radians(p.approved_longitude::double precision - ${filters.lng}::double precision) / 2), 2)
       ))) <= ${filters.radiusKm}`);
   }
-  const rows = await tx.$queryRaw<{ id: string }[]>`
-    SELECT l.id FROM ${listing} l
+  const rows = await tx.$queryRaw<({ id: string } & z.infer<typeof ratingSummary>)[]>`
+    SELECT l.id, reviews.average::double precision AS average, reviews.count
+    FROM ${listing} l
     JOIN ${version} v ON ${key} = l.id AND v.version = l.published_version
     JOIN auth_users u ON u.id = l.owner_id
     JOIN provider_profiles p ON p.user_id = u.id AND p.kind = ${role}::"AuthRole"
+    CROSS JOIN LATERAL (
+      SELECT avg(r.rating) AS average, count(*)::int AS count
+      FROM booking_reviews r
+      WHERE r.target_kind = ${type}::"SavedItemKind" AND r.target_id = l.id AND r.status = 'published'
+    ) reviews
     WHERE ${Prisma.join(clauses, ' AND ')}
     ORDER BY l.id LIMIT ${pageSize + 1}
   `;
   return {
-    ids: rows.slice(0, pageSize).map(row => row.id),
+    ratings: new Map(rows.slice(0, pageSize).map(({ id, average, count }) => [id, { average, count }])),
     nextCursor: rows.length > pageSize ? rows[pageSize - 1]!.id : null,
   };
 }
