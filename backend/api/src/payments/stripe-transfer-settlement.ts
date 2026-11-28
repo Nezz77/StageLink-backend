@@ -1,4 +1,5 @@
 import type { PayoutOrder, Prisma, StripePayoutTransfer } from '../../../generated/prisma/client.js';
+import { databaseNow } from '../../../shared/database-clock.js';
 import { openAccount, postJournal } from '../../../shared/payments/journal.js';
 import type { ConfirmedStripeTransfer } from '../../../shared/payments/stripe-transfers.js';
 import { payoutFund } from './payout-eligibility.js';
@@ -41,7 +42,7 @@ export async function recordConfirmedStripeTransfer(
     where: { id: current.id }, data: {
       status: observed.reversedMinor > 0 ? 'review_required' : 'transferred',
       journalId, reversedMinor: observed.reversedMinor, providerTransferId: observed.id,
-      leaseId: null, leaseUntil: null, updatedAt: new Date(),
+      leaseId: null, leaseUntil: null, updatedAt: await databaseNow(tx),
     },
   });
 }
