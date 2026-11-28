@@ -8,9 +8,11 @@ import { recordCapture } from '../api/src/payments/capture.js';
 import { payoutStatementSmokeConfig, runPayoutStatementSmoke } from '../scripts/payout-statement-smoke.js';
 import { documentKey, issueDocument, processBookingDocuments } from '../shared/booking-documents.js';
 import { readConfig } from '../shared/config.js';
+import { databaseNow } from '../shared/database-clock.js';
 import { MediaStore } from '../shared/media-store.js';
 import { openAccount, postedBalance, postJournal } from '../shared/payments/journal.js';
 import { resources } from '../shared/resources.js';
+import { serverClock } from './fixtures/server-clock.js';
 
 const testConfig = readConfig({
   ...process.env,
@@ -29,6 +31,8 @@ test('a definitive Stripe test balance rejection preserves the reserve for an au
   checkPayoutReconciliation(t, { rejectFirst: true }));
 test('signed Stripe transfer events reconcile a lost response and ignore duplicate or stale reversals', t =>
   checkPayoutReconciliation(t, { useWebhooks: true }));
+test('Stripe transfer leases and replay cutoffs agree across API clocks', t =>
+  checkPayoutReconciliation(t, { expireReplay: true }));
 test('an approved rental deduction has a separate reserve, transfer and bank settlement', t =>
   checkPayoutReconciliation(t, { damageDeduction: true }));
 test('a Stripe test arbitration payout settles its provider and fee allocations and compensates a reversal', t =>
@@ -42,8 +46,10 @@ test('a corrected sandbox payout preserves the audit and reverses its settlement
 
 async function checkPayoutReconciliation(
   t: TestContext,
-  { initialReversedMinor = 0, rejectFirst = false, useWebhooks = false, damageDeduction = false, arbitrationAward = false, awardRefundMinor = 50000, manualDecision }:
-    { initialReversedMinor?: number; rejectFirst?: boolean; useWebhooks?: boolean; damageDeduction?: boolean; arbitrationAward?: boolean; awardRefundMinor?: number; manualDecision?: 'confirm' | 'flag' } = {},
+  { initialReversedMinor = 0, rejectFirst = false, useWebhooks = false, damageDeduction = false, arbitrationAward = false,
+    awardRefundMinor = 50000, manualDecision, expireReplay = false }:
+    { initialReversedMinor?: number; rejectFirst?: boolean; useWebhooks?: boolean; damageDeduction?: boolean; arbitrationAward?: boolean;
+      awardRefundMinor?: number; manualDecision?: 'confirm' | 'flag'; expireReplay?: boolean } = {},
 ) {
   const config = {
     ...testConfig, AUTH_RATE_PREFIX: 'stripe-transfer-test-' + randomUUID(),
@@ -60,6 +66,7 @@ async function checkPayoutReconciliation(
   let reversedMinor = 0;
   let bankPayoutStatus = 'paid';
   let transfer: Record<string, unknown> | null = null;
+  let transferVisible = true;
   let submissions = 0;
   let gatewayRequests = 0;
   const idempotencyKeys = new Set<string>();
@@ -164,7 +171,7 @@ async function checkPayoutReconciliation(
     if (url.pathname === '/v1/transfers') {
       assert.equal(url.searchParams.get('transfer_group'), transfer?.transfer_group);
       assert.equal(url.searchParams.get('destination'), stripeId);
-      return Response.json({ object: 'list', has_more: false, data: transfer ? [observedTransfer] : [] });
+      return Response.json({ object: 'list', has_more: false, data: transfer && transferVisible ? [observedTransfer] : [] });
     }
     assert.equal(url.pathname, '/v1/transfers/' + transfer?.id);
     return Response.json(observedTransfer);
@@ -189,7 +196,7 @@ async function checkPayoutReconciliation(
         userId: user.id, activeRole: role, expiresAt: new Date(Date.now() + 600_000),
       } });
       const token = await new SignJWT({ sid: session.id }).setProtectedHeader({ alg: 'HS256', typ: 'JWT' }).setSubject(user.id)
-        .setIssuer('stagelink-api').setAudience('stagelink-web').setIssuedAt().setExpirationTime('10m')
+        .setIssuer('stagelink-api').setAudience('stagelink-web').setIssuedAt(Math.floor(Date.now() / 1000) - 180).setExpirationTime('10m')
         .sign(Buffer.from(config.AUTH_JWT_SECRET, 'hex'));
       return { id: user.id, headers: {
         Authorization: 'Bearer ' + token, Origin: config.WEB_ORIGIN, 'Content-Type': 'application/json',
@@ -835,7 +842,7 @@ async function checkPayoutReconciliation(
     });
     let activeLinkId = link.id;
     let holdRevision = 1;
-    if (!initialReversedMinor && !rejectFirst && !useWebhooks) {
+    if (!initialReversedMinor && !rejectFirst && !useWebhooks && !expireReplay) {
       assert.equal((await (await recordManual()).json()).code, 'MANUAL_SANDBOX_PAYOUT_DISABLED');
       const pending = { ...dest, revision: 2, status: 'pending' };
       await deps.db.payoutDestinationVersion.create({ data: pending });
@@ -900,6 +907,15 @@ async function checkPayoutReconciliation(
     try {
       const pending = await (await submit()).json();
       assert.equal(pending.state, 'processing');
+      if (expireReplay) {
+        const requestsBefore = gatewayRequests;
+        await serverClock(120_000, async () => {
+          assert.deepEqual((await (await fetch(path, admin)).json()).transfer, pending);
+          assert.deepEqual((await (await fetch(path + '/attempts', admin)).json()).attempts, [pending]);
+          assert.deepEqual(await (await submit()).json(), pending);
+          assert.equal(gatewayRequests, requestsBefore);
+        });
+      }
       if (useWebhooks) {
         assert.equal((await (await recordManual()).json()).code, 'PAYOUT_TRANSFER_STARTED');
         const snapshot = await (await fetch(investigationPath(pending.id), admin)).json();
@@ -908,12 +924,14 @@ async function checkPayoutReconciliation(
         assert.equal(snapshot.payoutBlocked, false);
       }
       assert.equal(await postedBalance(deps.db, reserved.account.id), 100000n);
-      const expectedDestinationRevision = initialReversedMinor || rejectFirst || useWebhooks ? 1 : 2;
+      const expectedDestinationRevision = initialReversedMinor || rejectFirst || useWebhooks || expireReplay ? 1 : 2;
       const claimedRepair = { ...repairInput, requestKey: randomUUID(), expectedDestinationRevision, destinationRevision: expectedDestinationRevision + 1 };
       assert.equal((await (await repair(claimedRepair)).json()).code, 'PAYOUT_TRANSFER_STARTED');
-      await deps.db.bookingPayoutHold.create({ data: {
-        bookingId: booking.id, revision: holdRevision, held: true, reason: 'Manual review hold fixture', actorId: admin.id, createdAt: now,
-      } });
+      if (!expireReplay) {
+        await deps.db.bookingPayoutHold.create({ data: {
+          bookingId: booking.id, revision: holdRevision, held: true, reason: 'Manual review hold fixture', actorId: admin.id, createdAt: now,
+        } });
+      }
       if (useWebhooks) {
         const partial = webhookEvent('transfer.reversed', 1000);
         assert.equal((await notify(partial, false)).status, 401);
@@ -946,6 +964,30 @@ async function checkPayoutReconciliation(
       }
     } finally { release(); }
     const firstOutcome = await (await first).json();
+    if (expireReplay) {
+      assert.equal(firstOutcome.state, 'uncertain');
+      const moment = await databaseNow(deps.db);
+      await deps.db.stripePayoutTransfer.update({
+        where: { id: firstOutcome.id }, data: { createdAt: new Date(moment.getTime() - 23 * 3600_000 - 30_000) },
+      });
+      transferVisible = false;
+      await serverClock(-120_000, async () => {
+        const retry = await submit();
+        assert.equal(retry.status, 200);
+        const result = await retry.json();
+        assert.equal(result.id, firstOutcome.id);
+        assert.equal(result.state, 'uncertain');
+        assert.equal(submissions, 1);
+        assert.equal(await postedBalance(deps.db, reserved.account.id), 100000n);
+      });
+      transferVisible = true;
+      const reconciled = await (await submit(admin, { reconcileOnly: true })).json();
+      assert.equal(reconciled.id, firstOutcome.id);
+      assert.equal(reconciled.state, 'transferred');
+      assert.equal(submissions, 1);
+      assert.equal(await postedBalance(deps.db, reserved.account.id), 5000n);
+      return;
+    }
     if (useWebhooks) {
       assert.equal(firstOutcome.state, 'review_required');
       assert.equal(firstOutcome.reversedMinor, 95000);

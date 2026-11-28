@@ -71,7 +71,7 @@ function presentAuthorization(row: StripePayoutTransfer) {
   };
 }
 
-function present(row: StripePayoutTransfer, now = new Date()) {
+function present(row: StripePayoutTransfer, now: Date) {
   const { id, payoutId, destinationLinkId, amountMinor, attempt, reversedMinor, status, providerTransferId, createdAt, updatedAt } = row;
   return {
     id, payoutId, destinationLinkId, amountMinor, attempt, retryAuthorization: presentAuthorization(row),
@@ -110,8 +110,8 @@ function transferTarget(payout: Payout, retryOfTransferId?: string) {
   throw new PublicError(409, 'STRIPE_RETRY_NOT_AUTHORIZED', 'Review the latest transfer attempt before retrying.');
 }
 
-function returnWithoutClaim(row: StripePayoutTransfer, input: z.infer<typeof command>) {
-  return row.status === 'rejected' || row.retryAuthorizedAt !== null || (row.leaseUntil !== null && row.leaseUntil > new Date()) ||
+function returnWithoutClaim(row: StripePayoutTransfer, input: z.infer<typeof command>, now: Date) {
+  return row.status === 'rejected' || row.retryAuthorizedAt !== null || (row.leaseUntil !== null && row.leaseUntil > now) ||
     (!input.reconcileOnly && (row.status !== 'uncertain' || (row.attempt > 1 && !input.retryOfTransferId)));
 }
 
@@ -241,7 +241,7 @@ export function makeStripePayoutTransfersController(auth: AuthService) {
       await admin(req);
       const payout = await loadPayout(db, parse(uuid, rawId));
       const latest = payout.stripeTransfers[0];
-      return { transfer: latest ? present(latest) : null };
+      return { transfer: latest ? present(latest, await databaseNow(db)) : null };
     }
 
     @Get('bank-payout')
@@ -306,7 +306,8 @@ export function makeStripePayoutTransfersController(auth: AuthService) {
       const attempts = await db.stripePayoutTransfer.findMany({
         where: { payoutId: payout.id }, orderBy: { attempt: 'desc' }, take: 20,
       });
-      return { attempts: attempts.map(attempt => present(attempt)) };
+      const now = await databaseNow(db);
+      return { attempts: attempts.map(attempt => present(attempt, now)) };
     }
 
     @Get('attempts/:attemptId/investigation')
@@ -373,10 +374,11 @@ export function makeStripePayoutTransfersController(auth: AuthService) {
           }
           return previous;
         }
+        const now = await databaseNow(tx);
         const reversed = attempt.status === 'review_required' && attempt.reversedMinor === attempt.amountMinor && attempt.journalId;
         if (payout.stripeTransfers[0]?.id !== attempt.id || (attempt.status !== 'rejected' && !reversed) ||
           attempt.amountMinor !== payout.netMinor ||
-          (attempt.leaseUntil && attempt.leaseUntil > new Date())) {
+          (attempt.leaseUntil && attempt.leaseUntil > now)) {
           throw new PublicError(409, 'STRIPE_RETRY_NOT_ELIGIBLE', 'Confirm a transfer rejection or reconcile a full reversal before authorizing a new transfer.');
         }
         const account = await payoutReservationAccount(tx, payout);
@@ -385,7 +387,7 @@ export function makeStripePayoutTransfersController(auth: AuthService) {
         }
         const updated = await tx.stripePayoutTransfer.update({
           where: { id: attempt.id },
-          data: { retryAuthorizedBy: operator.user.id, retryAuthorizedAt: new Date(), retryReason: reason, leaseId: null, leaseUntil: null },
+          data: { retryAuthorizedBy: operator.user.id, retryAuthorizedAt: now, retryReason: reason, leaseId: null, leaseUntil: null },
         });
         return presentAuthorization(updated)!;
       });
@@ -406,7 +408,10 @@ export function makeStripePayoutTransfersController(auth: AuthService) {
       requireOperator(actor, source);
       assertNoManualSandboxPayout(source);
       const { existing: prior } = transferTarget(source, retryOfTransferId);
-      if (prior && returnWithoutClaim(prior, input)) return present(prior);
+      if (prior) {
+        const now = await databaseNow(db);
+        if (returnWithoutClaim(prior, input, now)) return present(prior, now);
+      }
       if (!prior && reconcileOnly) throw new PublicError(409, 'STRIPE_TRANSFER_NOT_STARTED', 'Start the transfer before reconciling it.');
       const key = config.STRIPE_TEST_SECRET_KEY;
       const enabled = config.STRIPE_TEST_PAYOUT_TRANSFERS === 'true';
@@ -433,8 +438,11 @@ export function makeStripePayoutTransfersController(auth: AuthService) {
         const { payout, operator } = await lockPayout(tx, source, actor);
         assertNoManualSandboxPayout(payout);
         const { existing, retryOf } = transferTarget(payout, retryOfTransferId);
-        if (existing && (returnWithoutClaim(existing, input) || (reconcileOnly && existing.id !== prior?.id))) {
-          return { response: present(existing) };
+        if (existing) {
+          const now = await databaseNow(tx);
+          if (returnWithoutClaim(existing, input, now) || (reconcileOnly && existing.id !== prior?.id)) {
+            return { response: present(existing, now) };
+          }
         }
         if (existing && existing.destinationLinkId !== destination.id) throw notEligible();
 
@@ -450,13 +458,13 @@ export function makeStripePayoutTransfersController(auth: AuthService) {
         const allowSubmission = Boolean(reserved && (!existing || reserved === existing.reservedAccountId));
         if (!existing && !reserved) throw notEligible();
 
-        const now = new Date();
+        const now = await databaseNow(tx);
         const lease = { leaseId: randomUUID(), leaseUntil: new Date(now.getTime() + 30_000), updatedAt: now };
         const record = existing
           ? await tx.stripePayoutTransfer.update({ where: { id: existing.id }, data: lease })
           : await tx.stripePayoutTransfer.create({ data: {
             payoutId: id, attempt: (retryOf?.attempt ?? 0) + 1, destinationLinkId: destination.id, actorId: operator.user.id,
-            reservedAccountId: reserved!, amountMinor: payout.netMinor, ...lease,
+            reservedAccountId: reserved!, amountMinor: payout.netMinor, createdAt: now, ...lease,
           } });
         return { record, leaseId: lease.leaseId, submission: allowSubmission ? existing ? 'retry' as const : 'first' as const : false as const };
       });
@@ -464,27 +472,28 @@ export function makeStripePayoutTransfersController(auth: AuthService) {
 
       const result = await processStripePayoutTransfer(key, {
         ...claim.record, stripeAccountId: destination.stripeAccountId,
-      }, claim.submission);
+      }, claim.submission, () => databaseNow(db));
       return db.$transaction(async tx => {
         await lockBooking(tx, source.bookingId);
         const current = await tx.stripePayoutTransfer.findUniqueOrThrow({ where: { id: claim.record.id } });
-        if (current.leaseId !== claim.leaseId) return present(current);
+        const now = await databaseNow(tx);
+        if (current.leaseId !== claim.leaseId) return present(current, now);
 
         if (result && 'rejection' in result) {
           return present(await tx.stripePayoutTransfer.update({
             where: { id: current.id }, data: {
               status: 'rejected', rejectionCode: result.rejection.code, rejectionRequestId: result.rejection.requestId,
-              leaseId: null, leaseUntil: null, updatedAt: new Date(),
+              leaseId: null, leaseUntil: null, updatedAt: now,
             },
-          }));
+          }), now);
         }
         const settled = result ? await recordConfirmedStripeTransfer(tx, source, current, result) : current;
-        if (!settled.leaseId) return present(settled);
+        if (!settled.leaseId) return present(settled, now);
         return present(await tx.stripePayoutTransfer.update({
           where: { id: current.id }, data: {
-            leaseId: null, leaseUntil: null, updatedAt: new Date(),
+            leaseId: null, leaseUntil: null, updatedAt: now,
           },
-        }));
+        }), now);
       });
     }
   }

@@ -102,7 +102,8 @@ export async function retrieveStripePayoutTransferPayment(key: string, expected:
 }
 
 export async function processStripePayoutTransfer(
-  key: string, expected: Transfer & { createdAt: Date }, submission: 'first' | 'retry' | false, send = fetch,
+  key: string, expected: Transfer & { createdAt: Date; leaseUntil: Date | null },
+  submission: 'first' | 'retry' | false, readClock: () => Promise<Date>, send = fetch,
 ) {
   const group = 'stagelink_payout_' + expected.id;
   try {
@@ -115,7 +116,10 @@ export async function processStripePayoutTransfer(
       if (data.has_more || data.data.length > 1) return null;
       if (data.data.length === 1) return matchStripePayoutTransfer(data.data[0], expected);
     }
-    if (!submission || Date.now() - expected.createdAt.getTime() >= replayWindowMs) return null;
+    if (!submission || !expected.leaseUntil) return null;
+    const now = await readClock();
+    const age = now.getTime() - expected.createdAt.getTime();
+    if (now >= expected.leaseUntil || age < 0 || age >= replayWindowMs) return null;
     const body = new URLSearchParams({
       amount: String(expected.amountMinor), currency: 'lkr', destination: expected.stripeAccountId,
       transfer_group: group, source_type: 'card', 'metadata[stagelink_payout_transfer]': expected.id,
