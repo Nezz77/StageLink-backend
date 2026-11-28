@@ -5,6 +5,7 @@ import type { Request } from 'express';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import type { Prisma, PromotionalCampaign } from '../../../generated/prisma/client.js';
+import { databaseNow } from '../../../shared/database-clock.js';
 import { readPromotionalUnsubscribeToken, revokePromotionalConsent } from '../../../shared/promotional-unsubscribe.js';
 import { PublicError } from '../auth/errors.js';
 import type { AuthService } from '../auth/service.js';
@@ -227,7 +228,7 @@ export function makeCampaignControllers(auth: AuthService) {
           }
         }
         if (row.state !== 'draft') throw new PublicError(409, 'CAMPAIGN_NOT_DRAFT', 'This campaign already has a scheduling decision.');
-        const now = Date.now();
+        const now = (await databaseNow(tx)).getTime();
         if (scheduledFor.getTime() <= now || scheduledFor.getTime() > now + 30 * 86_400_000) {
           throw new PublicError(400, 'INVALID_CAMPAIGN_SCHEDULE', 'Choose a future time within the next 30 days.');
         }
@@ -257,12 +258,13 @@ export function makeCampaignControllers(auth: AuthService) {
       return mutation(req, true, async (tx, actor) => {
         const row = await lockCampaign(tx, id);
         if (row.state === 'cancelled') return presentOne(tx, row);
+        const cancelledAt = await databaseNow(tx);
         const updated = await tx.promotionalCampaign.update({
-          where: { id }, data: { state: 'cancelled', cancelledAt: new Date(), cancelledBy: actor.user.id, cancellationReason: reason },
+          where: { id }, data: { state: 'cancelled', cancelledAt, cancelledBy: actor.user.id, cancellationReason: reason },
         });
         await tx.promotionalCampaignRecipient.updateMany({
           where: { campaignId: id, deliveryStatus: 'queued' },
-          data: { deliveryStatus: 'skipped', resolvedAt: new Date(), deliveryCode: 'CAMPAIGN_CANCELLED' },
+          data: { deliveryStatus: 'skipped', resolvedAt: cancelledAt, deliveryCode: 'CAMPAIGN_CANCELLED' },
         });
         return presentOne(tx, updated);
       });

@@ -3,9 +3,12 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { createApp } from '../api/src/app.js';
 import { hashPassword } from '../api/src/auth/security.js';
+import { processPromotionalEmail } from '../shared/campaign-delivery.js';
+import { databaseNow } from '../shared/database-clock.js';
 import { promotionalUnsubscribeHeaders } from '../shared/promotional-unsubscribe.js';
 import { readConfig } from '../shared/config.js';
 import { resources } from '../shared/resources.js';
+import { serverClock } from './fixtures/server-clock.js';
 
 const config = readConfig({ ...process.env, AUTH_RATE_PREFIX: 'system-controls-test-' + randomUUID() });
 if (config.NODE_ENV !== 'test' || !new URL(config.DATABASE_URL).pathname.endsWith('_test')) {
@@ -18,6 +21,7 @@ test('system controls enforce maintenance, invalidate announcements and revoke s
   const users: string[] = [];
   const announcementId = randomUUID();
   const campaignId = randomUUID();
+  const deliveryCampaignId = randomUUID();
   const password = 'A private fixture password 12!';
   const reason = 'Verify the system operations.';
   type Login = { accessToken: string; csrfToken: string; user: { id: string; email: string } };
@@ -105,16 +109,63 @@ test('system controls enforce maintenance, invalidate announcements and revoke s
     const preview = await request(campaign + '/preview', 'POST', {}, admin);
     assert.equal(preview.data.recipientCount, 1);
     assert.deepEqual(Object.keys(preview.data).sort(), ['audienceFingerprint', 'recipientCount', 'recipientLimit']);
-    const scheduledFor = new Date(Date.now() + 60_000).toISOString();
+    const campaignTime = (await databaseNow(deps.db)).getTime();
+    const scheduledFor = new Date(campaignTime + 120_000).toISOString();
     await request(preferencePath, 'PUT', { revision: 1, emailOptIn: false }, outsider);
     const stale = { scheduledFor, audienceFingerprint: preview.data.audienceFingerprint };
     assert.equal((await request(campaign + '/schedule', 'POST', stale, admin)).data.code, 'CAMPAIGN_AUDIENCE_CHANGED');
     await request(preferencePath, 'PUT', { revision: 2, emailOptIn: true }, outsider);
     const refreshed = await request(campaign + '/preview', 'POST', {}, admin);
     const schedule = { scheduledFor, audienceFingerprint: refreshed.data.audienceFingerprint };
-    assert.equal((await request(campaign + '/schedule', 'POST', schedule, admin)).data.state, 'scheduled');
+    const skew = 5 * 60_000;
+    const slowAdmin = await serverClock(-skew, async () => {
+      const login = await request('auth/login', 'POST', { email: admin.user.email, password });
+      assert.equal(login.response.status, 200);
+      return login.data as Login;
+    });
+    const pastSchedule = { ...schedule, scheduledFor: new Date(campaignTime - 120_000).toISOString() };
+    const beyondLimit = { ...schedule, scheduledFor: new Date(campaignTime + 30 * 86_400_000 + 120_000).toISOString() };
+    assert.equal((await serverClock(-skew, () => request(campaign + '/schedule', 'POST', pastSchedule, slowAdmin))).data.code,
+      'INVALID_CAMPAIGN_SCHEDULE');
+    assert.equal((await serverClock(skew, () => request(campaign + '/schedule', 'POST', beyondLimit, admin))).data.code,
+      'INVALID_CAMPAIGN_SCHEDULE');
+    assert.equal((await serverClock(skew, () => request(campaign + '/schedule', 'POST', schedule, admin))).data.state, 'scheduled');
     assert.equal((await request(campaign + '/schedule', 'POST', schedule, admin)).data.recipientCount, 1);
-    assert.equal((await request(campaign + '/cancel', 'POST', { reason }, admin)).data.state, 'cancelled');
+    const beforeCancel = await databaseNow(deps.db);
+    const cancelled = await serverClock(-skew, () => request(campaign + '/cancel', 'POST', { reason }, slowAdmin));
+    assert.equal(cancelled.data.state, 'cancelled');
+    const cancelledRecipient = await deps.db.promotionalCampaignRecipient.findFirstOrThrow({ where: { campaignId } });
+    assert.equal(cancelledRecipient.deliveryStatus, 'skipped');
+    assert.equal(cancelledRecipient.resolvedAt?.toISOString(), cancelled.data.cancelledAt);
+    assert.ok(cancelledRecipient.resolvedAt! >= beforeCancel);
+
+    const deliveryCampaign = 'admin/campaigns/' + deliveryCampaignId;
+    assert.equal((await request('admin/campaigns', 'POST', { ...draft, id: deliveryCampaignId }, admin)).response.status, 200);
+    const deliveryPreview = await request(deliveryCampaign + '/preview', 'POST', {}, admin);
+    assert.equal((await request(deliveryCampaign + '/schedule', 'POST', {
+      scheduledFor, audienceFingerprint: deliveryPreview.data.audienceFingerprint,
+    }, admin)).response.status, 200);
+    let sends = 0;
+    const mailer = { async sendMail() {
+      sends += 1;
+      return {
+        accepted: [outsider.user.email], rejected: [], response: '250 fixture accepted',
+        messageId: 'campaign-clock-fixture', envelope: { from: config.SMTP_FROM, to: [outsider.user.email] },
+        envelopeTime: 0, messageTime: 0, messageSize: 0,
+      };
+    } };
+    const deliver = () => processPromotionalEmail(deps.db, { ...config, PROMOTIONAL_EMAIL_DELIVERY: 'true' }, mailer);
+    await serverClock(skew, deliver);
+    assert.equal(sends, 0, 'A fast host must not send a future campaign');
+    await deps.db.promotionalCampaign.update({
+      where: { id: deliveryCampaignId }, data: { scheduledFor: pastSchedule.scheduledFor },
+    });
+    await serverClock(-skew, deliver);
+    const delivered = await deps.db.promotionalCampaignRecipient.findFirstOrThrow({ where: { campaignId: deliveryCampaignId } });
+    assert.equal(sends, 1);
+    assert.equal(delivered.deliveryStatus, 'accepted');
+    assert.ok(delivered.resolvedAt! >= delivered.claimedAt!);
+    assert.ok(delivered.resolvedAt! <= await databaseNow(deps.db));
 
     function unsubscribeUrl(consentRevision: number) {
       const headers = promotionalUnsubscribeHeaders({
@@ -152,8 +203,9 @@ test('system controls enforce maintenance, invalidate announcements and revoke s
       } });
       await deps.db.publicAnnouncement.deleteMany({ where: { id: announcementId } });
       await deps.db.systemAuditEntry.deleteMany({ where: { actorId: { in: users } } });
-      await deps.db.promotionalCampaignRecipient.deleteMany({ where: { campaignId } });
-      await deps.db.promotionalCampaign.deleteMany({ where: { id: campaignId } });
+      const campaignIds = [campaignId, deliveryCampaignId];
+      await deps.db.promotionalCampaignRecipient.deleteMany({ where: { campaignId: { in: campaignIds } } });
+      await deps.db.promotionalCampaign.deleteMany({ where: { id: { in: campaignIds } } });
       await deps.db.authUser.deleteMany({ where: { id: { in: users } } });
     } finally {
       await app.close();
