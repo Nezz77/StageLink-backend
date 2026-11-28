@@ -47,6 +47,14 @@ export async function rank(
   )` : Prisma.sql`false`;
   const date = brief.eventDate.toISOString().slice(0, 10);
   const rows = await tx.$queryRaw<z.infer<typeof result>[]>`
+    WITH event_day AS (
+      SELECT tstzrange(
+        ${date}::date::timestamp AT TIME ZONE 'Asia/Colombo',
+        (${date}::date + 1)::timestamp AT TIME ZONE 'Asia/Colombo', '[)'
+      ) AS span
+    ), calendar_zones AS MATERIALIZED (
+      SELECT DISTINCT lower(name) AS name FROM pg_timezone_names
+    )
     SELECT l.id AS "gigId", v.version, v.price_minor AS "priceMinor", p.approved_snapshot->>'city' AS city,
            r.rating, r.count AS "reviewCount",
            round((
@@ -59,6 +67,15 @@ export async function rank(
     JOIN artist_gig_versions v ON v.gig_id = l.id AND v.version = l.published_version
     JOIN auth_users u ON u.id = l.owner_id
     JOIN provider_profiles p ON p.user_id = u.id AND p.kind = 'artist'
+    CROSS JOIN event_day
+    LEFT JOIN availability_calendars calendar ON calendar.owner_id = l.owner_id
+    LEFT JOIN calendar_zones zone ON zone.name = lower(calendar.timezone)
+    LEFT JOIN LATERAL (
+      SELECT COALESCE(range_agg(tstzrange(block.starts_at, block.ends_at, '[)')), '{}'::tstzmultirange) AS span
+      FROM availability_blocks block
+      WHERE block.owner_id = l.owner_id
+        AND block.starts_at < upper(event_day.span) AND block.ends_at > lower(event_day.span)
+    ) blackouts ON true
     LEFT JOIN LATERAL (
       SELECT avg(reviews.rating)::double precision AS rating, count(*)::integer AS count
       FROM booking_reviews reviews
@@ -67,12 +84,26 @@ export async function rank(
     WHERE l.status = 'published' AND v.price_minor <= ${brief.budgetMinor}
       AND u.disabled_at IS NULL AND u.email_verified_at IS NOT NULL AND 'artist'::"AuthRole" = ANY(u.roles)
       AND p.approved_revision IS NOT NULL AND p.approved_snapshot IS NOT NULL
-      AND NOT EXISTS (
-        SELECT 1 FROM availability_blocks block
-        WHERE block.owner_id = l.owner_id
-          AND block.starts_at <= (${date}::date::timestamp AT TIME ZONE 'Asia/Colombo')
-          AND block.ends_at >= ((${date}::date + 1)::timestamp AT TIME ZONE 'Asia/Colombo')
-      )
+      -- A date-only brief can overlap more than one day in the provider's calendar.
+      AND CASE WHEN zone.name IS NOT NULL AND jsonb_array_length(calendar.hours) = 7 THEN EXISTS (
+        SELECT 1
+        FROM LATERAL (
+          SELECT (lower(event_day.span) AT TIME ZONE zone.name)::date AS first_day,
+                 ((upper(event_day.span) - interval '1 millisecond') AT TIME ZONE zone.name)::date AS last_day
+        ) local_days
+        CROSS JOIN LATERAL generate_series(0, local_days.last_day - local_days.first_day) AS days(day_offset)
+        CROSS JOIN LATERAL jsonb_to_recordset(calendar.hours) AS hours(day integer, opens time, closes time)
+        CROSS JOIN LATERAL (
+          SELECT ((local_days.first_day + days.day_offset) + hours.opens) AT TIME ZONE zone.name AS opens_at,
+                 ((local_days.first_day + days.day_offset) + hours.closes) AT TIME ZONE zone.name AS closes_at
+        ) schedule
+        WHERE hours.day = extract(dow FROM local_days.first_day + days.day_offset)
+          AND hours.opens IS NOT NULL AND hours.closes IS NOT NULL
+          AND NOT isempty(
+            (tstzmultirange(tstzrange(schedule.opens_at, greatest(schedule.opens_at, schedule.closes_at), '[)'))
+              * tstzmultirange(event_day.span)) - blackouts.span
+          )
+      ) ELSE NOT (blackouts.span @> event_day.span) END
     ORDER BY score DESC, l.id ASC LIMIT ${limit}
   `;
   return z.array(result).max(limit).parse(rows);

@@ -127,6 +127,30 @@ test('semantic recommendations preserve eligibility, consent, provenance, and we
       ownerId: blocked.ownerId, startsAt: new Date('2080-02-28T00:00:00+05:30'),
       endsAt: new Date('2080-03-02T00:00:00+05:30'), reason: 'Fixture blackout',
     } });
+    const closed = await listing(60, query);
+    const coveredHours = await listing(70, query);
+    const outsideEventDay = await listing(80, query);
+    const eventWeekday = brief.eventDate.getUTCDay();
+    const previousWeekday = (eventWeekday + 6) % 7;
+    async function operatingHours(ownerId: string, timezone: string, weekday: number, opens: string, closes: string) {
+      await deps.db.availabilityCalendar.create({ data: {
+        ownerId, timezone, hours: Array.from({ length: 7 }, (_, day) => ({
+          day, opens: day === weekday ? opens : null, closes: day === weekday ? closes : null,
+        })),
+      } });
+    }
+    const addBlackout = (ownerId: string, startsAt: string, endsAt: string) => deps.db.availabilityBlock.create({
+      data: { ownerId, startsAt: new Date(startsAt), endsAt: new Date(endsAt), reason: 'Fixture blackout' },
+    });
+    await operatingHours(closed.ownerId, 'Asia/Colombo', (eventWeekday + 1) % 7, '09:00', '17:00');
+    await operatingHours(coveredHours.ownerId, 'Asia/Colombo', eventWeekday, '09:00', '17:00');
+    await addBlackout(coveredHours.ownerId, '2080-02-29T09:00:00+05:30', '2080-02-29T13:00:00+05:30');
+    await addBlackout(coveredHours.ownerId, '2080-02-29T13:00:00+05:30', '2080-02-29T17:00:00+05:30');
+    await operatingHours(outsideEventDay.ownerId, 'America/New_York', previousWeekday, '08:00', '09:00');
+    await operatingHours(relevant.ownerId, 'america/new_york', previousWeekday, '14:00', '15:00');
+    await addBlackout(relevant.ownerId, '2080-02-28T14:00:00-05:00', '2080-02-28T14:30:00-05:00');
+    const calendarExcluded = [blocked.id, closed.id, coveredHours.id, outsideEventDay.id];
+
     async function request(headers: Record<string, string>, relative: string, command?: object) {
       const response = await fetch(base + relative, {
         method: command ? 'POST' : 'GET', headers, body: command ? JSON.stringify(command) : undefined,
@@ -137,7 +161,7 @@ test('semantic recommendations preserve eligibility, consent, provenance, and we
     const baseline = await request(owner, path, command());
     assert.equal(baseline.status, 200);
     assert.equal(baseline.data.method, 'weighted_catalog_v1');
-    assert.equal(baseline.data.items[0].gigId, paused.id);
+    assert.deepEqual(baseline.data.items.map((item: { gigId: string }) => item.gigId), [paused.id, cheap.id, stale.id]);
     assert.equal(calls.length, 0);
 
     const optedIn = { ...command(), useSemantic: true };
@@ -195,7 +219,7 @@ test('semantic recommendations preserve eligibility, consent, provenance, and we
     const proof = stored.semanticProvenance as { candidates: { gigId: string; version: number; embeddingAttemptId: string | null }[] };
     assert.ok(proof.candidates.find(candidate => candidate.gigId === relevant.id)?.embeddingAttemptId);
     assert.ok(proof.candidates.some(candidate => candidate.gigId === stale.id && candidate.version === 2 && candidate.embeddingAttemptId === null));
-    assert.ok(!proof.candidates.some(candidate => [paused.id, expensive.id, blocked.id].includes(candidate.gigId)));
+    assert.ok(!proof.candidates.some(candidate => [paused.id, expensive.id, ...calendarExcluded].includes(candidate.gigId)));
     assert.ok(!JSON.stringify(stored).includes(brief.description));
 
     const failed = await request(owner, path, { ...command(), useSemantic: true });
