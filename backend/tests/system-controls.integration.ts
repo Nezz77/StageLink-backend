@@ -20,6 +20,7 @@ test('system controls enforce maintenance, invalidate announcements and revoke s
   const { app } = await createApp(config, deps);
   const users: string[] = [];
   const announcementId = randomUUID();
+  const futureAnnouncementId = randomUUID();
   const campaignId = randomUUID();
   const deliveryCampaignId = randomUUID();
   const password = 'A private fixture password 12!';
@@ -73,10 +74,26 @@ test('system controls enforce maintenance, invalidate announcements and revoke s
     const hasAnnouncement = async () => (await request('public/announcements')).data.items
       .some((item: { id: string }) => item.id === announcementId);
     assert.equal(await hasAnnouncement(), false);
+    const announcementTime = await databaseNow(deps.db);
+    const startsLater = new Date(announcementTime.getTime() + 120_000);
+    await deps.db.publicAnnouncement.create({ data: {
+      id: futureAnnouncementId, title: 'Future notice', body: 'Scheduled message.',
+      startsAt: startsLater, publishedAt: announcementTime,
+    } });
     const publish = { action: 'publish', id: announcementId, title: 'System notice', body: 'Scheduled maintenance.',
-      startsAt: new Date(Date.now() - 1000).toISOString(), endsAt: null, reason };
-    assert.equal((await request('admin/announcements', 'PUT', publish, admin)).response.status, 200);
+      startsAt: new Date(announcementTime.getTime() - 120_000).toISOString(), endsAt: startsLater.toISOString(), reason };
+    const announcementSkew = 5 * 60_000;
+    assert.equal((await serverClock(announcementSkew, () => request('admin/announcements', 'PUT', publish, admin))).response.status, 200);
     assert.equal(await hasAnnouncement(), true);
+    for (const skew of [announcementSkew, -announcementSkew]) {
+      await serverClock(skew, async () => {
+        for (const [path, key] of [['public/feed', 'announcements'], ['public/announcements', 'items']] as const) {
+          const { data } = await request(path);
+          assert.deepEqual(data[key].map((item: { id: string }) => item.id)
+            .filter((id: string) => id === announcementId || id === futureAnnouncementId), [announcementId]);
+        }
+      });
+    }
     assert.equal((await request('admin/cache/invalidate', 'POST', { scope: 'sessions', reason }, admin)).response.status, 400);
     assert.equal((await request('admin/cache/invalidate', 'POST', { scope: 'public_announcements', reason }, admin)).response.status, 200);
     assert.equal((await request('admin/announcements', 'PUT', { action: 'unpublish', id: announcementId, reason }, admin)).response.status, 200);
@@ -201,7 +218,7 @@ test('system controls enforce maintenance, invalidate announcements and revoke s
       await deps.db.systemSetting.update({ where: { id: 1 }, data: {
         maintenance: initial.maintenance, maintenanceMessage: initial.maintenanceMessage, revision: initial.revision,
       } });
-      await deps.db.publicAnnouncement.deleteMany({ where: { id: announcementId } });
+      await deps.db.publicAnnouncement.deleteMany({ where: { id: { in: [announcementId, futureAnnouncementId] } } });
       await deps.db.systemAuditEntry.deleteMany({ where: { actorId: { in: users } } });
       const campaignIds = [campaignId, deliveryCampaignId];
       await deps.db.promotionalCampaignRecipient.deleteMany({ where: { campaignId: { in: campaignIds } } });

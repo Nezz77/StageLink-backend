@@ -3,6 +3,7 @@ import { ApiOkResponse, ApiTags, type SchemaObject } from '@nestjs/swagger';
 import { z } from 'zod';
 import type { Resources } from '../../../shared/resources.js';
 import type { Prisma } from '../../../generated/prisma/client.js';
+import { databaseNow } from '../../../shared/database-clock.js';
 import { featuredGig, gigSummary, presentFeaturedGig, presentGigSummary, publicGigFilter, publicGigInclude } from './gigs.js';
 import { rentalSummary, presentRentalSummary, publicRentalFilter, publicRentalInclude } from './rentals.js';
 
@@ -37,8 +38,8 @@ export function makePublicFeedController(db: Resources['db']) {
     @Get('feed')
     @ApiOkResponse({ schema: schema(feed) })
     async feed() {
-      const now = new Date();
       return db.$transaction(async tx => {
+        const now = await databaseNow(tx);
         const gigs = await tx.artistGig.findMany({
           where: publicGigFilter, include: publicGigInclude, orderBy: { id: 'asc' }, take: 6,
         });
@@ -68,9 +69,12 @@ export function makePublicFeedController(db: Resources['db']) {
     @Get('announcements')
     @ApiOkResponse({ schema: schema(announcements) })
     async announcements() {
-      const settings = await db.systemSetting.findUniqueOrThrow({ where: { id: 1 }, select: { announcementCacheVersion: true } });
-      const now = new Date();
-      if (cached?.version === settings.announcementCacheVersion && cached.until > now.getTime()) return { items: cached.items };
+      const [clock] = await db.$queryRaw<{ version: bigint; now: Date }[]>`
+        SELECT announcement_cache_version AS version, clock_timestamp() AS now
+        FROM system_settings WHERE id = 1`;
+      if (!clock) throw new Error('SYSTEM_SETTINGS_UNAVAILABLE');
+      const { version, now } = clock;
+      if (cached?.version === version && cached.until > now.getTime()) return { items: cached.items };
       const [items, upcoming] = await Promise.all([
         activeAnnouncements(db, now),
         db.publicAnnouncement.findFirst({
@@ -80,7 +84,7 @@ export function makePublicFeedController(db: Resources['db']) {
       ]);
       const ends = items.map(item => item.endsAt ? Date.parse(item.endsAt) : Infinity);
       const until = Math.min(now.getTime() + 5000, upcoming?.startsAt.getTime() ?? Infinity, ...ends);
-      cached = { version: settings.announcementCacheVersion, until, items };
+      cached = { version, until, items };
       return { items };
     }
   }

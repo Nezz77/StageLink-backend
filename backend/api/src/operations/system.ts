@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiQuery, ApiTags } from '@nestj
 import type { Request } from 'express';
 import { z } from 'zod';
 import type { SystemSetting, Prisma, SystemAuditAction } from '../../../generated/prisma/client.js';
+import { databaseNow } from '../../../shared/database-clock.js';
 import { PublicError } from '../auth/errors.js';
 import type { AuthService } from '../auth/service.js';
 import { parse, schema, uuid } from '../payments/orders.js';
@@ -161,7 +162,7 @@ export function makeSystemControllers(auth: AuthService) {
             existing.startsAt.getTime() === startsAt.getTime() && (existing.endsAt?.getTime() ?? null) === (endsAt?.getTime() ?? null)) {
             return { id, published: true };
           }
-          const data = { title: input.title, body: input.body, startsAt, endsAt, publishedAt: new Date() };
+          const data = { title: input.title, body: input.body, startsAt, endsAt, publishedAt: await databaseNow(tx) };
           await tx.publicAnnouncement.upsert({ where: { id }, create: { id, ...data }, update: data });
           await incrementAnnouncementCache(tx);
           await audit(tx, actorId, 'announcement_publish', input.reason, { startsAt: startsAt.toISOString(), endsAt: endsAt?.toISOString() ?? null }, id);
