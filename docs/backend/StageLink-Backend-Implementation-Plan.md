@@ -1,12 +1,12 @@
 # StageLink backend implementation plan
 
-See the [completion backlog](StageLink-Completion-Backlog.md) for completed tasks, remaining work in order and verification status. This document records the original proposal baseline and phase design.
+The 28 November 2026 checkpoint covers the verified `main` build at `b5abf9a`. **116 of 127 backend build checklist items are complete (91.3%)**, counting each item equally and excluding frontend-only entries. The [completion backlog](StageLink-Completion-Backlog.md) holds the checkboxes and [build history](PROGRESS.md) records the evidence. The original proposal baseline and acceptance gates are retained below.
 
-Prepared 1 November 2026. Scope: all current public, customer, artist, equipment-provider and administrator UI workflows, the 14 completed frontend feature extensions, and remaining backend responsibilities named in the supplied proposal. This request supersedes the earlier frontend-only restriction for future implementation. This deliverable is a plan; no backend application, Git branch or live integration was created during planning.
+The original plan was prepared on 1 November 2026 before backend implementation started. It covers the then-current public, customer, artist, equipment-provider and administrator workflows, the 14 frontend feature extensions, and the backend responsibilities in the proposal.
 
 ## 1. Baseline and source of requirements
 
-Repository: `/Users/nezz/Desktop/Git/Antigravity/StageLink_UI`. Current branch: `main`. Baseline commit: `9cbbe0ded3112a347c8ba1ffdf7029bd4fde268e`. The working tree was clean at inspection. The root project is React/TypeScript/Vite, with two shared in-memory state providers and a frontend-only Docker Compose service. It does not contain the proposed API/database services.
+The November planning baseline was React/TypeScript/Vite at commit `9cbbe0ded3112a347c8ba1ffdf7029bd4fde268e` on `main` in `/Users/nezz/Desktop/Git/Antigravity/StageLink_UI`. At that inspection, the frontend used two shared in-memory state providers and a frontend-only Compose service. The implemented backend is now in [Nezz77/StageLink-backend](https://github.com/Nezz77/StageLink-backend).
 
 Requirements were checked against both `06_Fusion 5_Final proposal.pdf` and `Project Proposal Fusion 5 .docx`, plus current source and the 25 October implementation/evaluation checkpoints. A separately named final project report was not found. The technology baseline below therefore uses the supplied proposal. If a different final report exists, compare it at P00 before locking versions or installing tools; do not silently treat the evaluation guide as a separate approved technology report.
 
@@ -77,7 +77,7 @@ Outbox dispatcher -> BullMQ -> Node worker
 
 The browser must never contact PostgreSQL, Redis or the internal AI/provider APIs using privileged credentials. Socket.IO handlers invoke the same authorization/domain commands as REST. They are not a second path that bypasses rules.
 
-### Proposed repository layout
+### Repository layout from the original plan
 
 Keep root frontend paths stable initially:
 
@@ -103,7 +103,7 @@ No whole-app move into `apps/web` during the foundation ticket. Use workspaces o
 
 ## 4. Git branch and delivery workflow
 
-Backend development uses `main` in [Nezz77/StageLink-backend](https://github.com/Nezz77/StageLink-backend). The backend checkout contains server code, contracts, documentation, and infrastructure. Push each completed backend task with `git push origin main`.
+The backend checkout contains server code, contracts, documentation, and infrastructure. Start each task on a separate branch from `main`, push the branch, and open a pull request into `main` in [Nezz77/StageLink-backend](https://github.com/Nezz77/StageLink-backend). Record verification against the commit under review.
 
 Frontend development stays in a separate checkout of [Nezz77/StageLink](https://github.com/Nezz77/StageLink). Update the corresponding Figma screens when making UI changes.
 
@@ -246,6 +246,19 @@ Generation is a suggestion requiring user review, never automatic publication or
 ## 9. Implementation phases and acceptance gates
 
 Phase order is dependency-driven. Each phase consists of small tickets in `backend-backlog.json`; no phase is marked complete from API scaffolding alone.
+
+### Current implementation and remaining gates
+
+| Phases | Verified backend work in `main` | Remaining work |
+| --- | --- | --- |
+| P00–P04 | Separate backend repository, migrations, API and worker foundation, persistent accounts and profiles, and reviewed private media | Hosted private storage and client verification where required |
+| P05–P09 | Versioned catalogs, published ratings in search results, saved items and inquiries, date-specific stock, database-clock holds, protected blackouts, and versioned quotations and agreements | Remaining website API connections and two-account staging booking checks |
+| P10–P14 | Persistent chat, sandbox collection and reconciliation, payout and refund audit records, private financial PDFs, rental inspections and deposit claims | Hosted callbacks and WebSocket reconnects, Stripe LKR and Connect verification, partial PayHere refunds, remaining payouts and production document issuance |
+| P15 | Prompt operations, artist writing suggestions, referenced equipment facts, weighted ranking and opt-in semantic reranking. Database time governs model deadlines and artist quotas | Approve and expand references on staging, exercise configured models and evaluate ranking on representative data |
+| P16–P17 | Verification and support cases, private evidence, arbitration records, realtime notifications, email and SMS reminder queues, consent and campaign controls | Verify hosted private PDF access, arbitration execution and communication delivery. Complete administrator and member interfaces and Figma updates |
+| P18 | Sandbox analytics, PostgreSQL restore drill, API and worker schema readiness, rollback readiness check and dependency updates | Live financial totals and staging access, accessibility, load, backup and rollback sign-off |
+
+The current CI run passed the Node and Python suites, migrations, PostgreSQL restoration, OpenAPI consistency, and both container builds. External release evidence remains tracked in the [completion backlog](StageLink-Completion-Backlog.md). [Run 46133760621](https://github.com/Nezz77/StageLink-backend/actions/runs/46133760621)
 
 ### P00 — Branch, requirements and baseline
 
@@ -464,11 +477,9 @@ These are feature gates, not requests to paste secrets into chat. Create sanitiz
 | Signing requirements and image-diff expectations | P00/P14 | Authenticated acknowledgment/hash evidence and reviewed photo comparison; stronger claims require matching implementation |
 | AWS staging account/region/domain and CI deployment identity | P18 | Local containers/CI image builds; no automatic public deployment |
 
-## 14. First implementation milestone
+## 14. Current release priorities
 
-Start with **P00 + P01**, then **P02**. The first reviewable result should be a backend checkout with reproducible API/PostgreSQL/Redis/worker infrastructure, migrations, contracts and health checks, followed by persistent real accounts and sessions. This makes later per-user data meaningful and prevents investing in more role-global fixtures.
-
-Do not start by connecting the existing “Pay” button to a gateway or by copying all current seed objects into database tables. First establish identity, catalog and reservation truth, then agreement and money commands.
+The original P00–P02 milestone is complete. The current priorities are to approve and measure equipment reference coverage in staging, verify the supported payment routes with sandbox merchant accounts, and finish the remaining payment implementation once provider evidence is available. In parallel with hosted verification, connect the remaining website flows to the persisted API and update the corresponding Figma screens. Use the [ordered completion backlog](StageLink-Completion-Backlog.md#remaining-work-in-order) to record evidence through release sign-off.
 
 ## 15. Reference documentation used for design checks
 
