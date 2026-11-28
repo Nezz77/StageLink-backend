@@ -300,7 +300,7 @@ The customer submits one review after completion is verified. Use `POST /api/v1/
 
 ## Equipment inspections
 
-The renter opens an inspection at `POST /api/v1/bookings/:id/inspections` during the booking window with the accessory manifest. The server allocates registered serials from the booking's equipment lines. Use upload purpose `inspection` for private photos. The provider submits condition and photo evidence, and the customer acknowledges the submitted revision or requests a correction.
+The renter opens an inspection at `POST /api/v1/bookings/:id/inspections` during the booking window with the accessory manifest. PostgreSQL time governs eligibility and timestamps for handover, return and inventory release. The server allocates registered serials from the booking's equipment lines. Use upload purpose `inspection` for private photos. The provider submits condition and photo evidence, and the customer acknowledges the submitted revision or requests a correction.
 
 The renter opens return inspection at `POST /api/v1/inspections/:id/return`. Booking participants can compare submitted conditions and photo sets at `GET /api/v1/inspections/:id/comparison`. Discrepancies keep units quarantined until the provider submits clearance evidence.
 

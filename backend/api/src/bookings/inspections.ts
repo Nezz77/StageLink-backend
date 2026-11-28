@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiParam, ApiQuery, ApiTags } fr
 import type { Request } from 'express';
 import { z } from 'zod';
 import { Prisma, type Booking, type InventoryStatus } from '../../../generated/prisma/client.js';
+import { databaseNow } from '../../../shared/database-clock.js';
 import { PublicError } from '../auth/errors.js';
 import type { AuthService } from '../auth/service.js';
 import { parse, schema, uuid } from '../payments/orders.js';
@@ -97,8 +98,10 @@ async function validateEvidence(tx: Prisma.TransactionClient, row: Inspection, b
   }
 }
 
-async function moveUnits(tx: Prisma.TransactionClient, row: Inspection, from: InventoryStatus, to: InventoryStatus, reason: string, booking: Booking) {
-  const now = new Date();
+async function moveUnits(
+  tx: Prisma.TransactionClient, row: Inspection, from: InventoryStatus, to: InventoryStatus,
+  reason: string, booking: Booking, now: Date,
+) {
   for (const { unit } of row.units) {
     if (unit.status !== from) invalidStage();
     const custodyReference = to === 'out' ? booking.id : null;
@@ -109,7 +112,7 @@ async function moveUnits(tx: Prisma.TransactionClient, row: Inspection, from: In
         revision: { increment: 1 }, status: to, custodyReference, dueAt, updatedAt: now,
         movements: { create: {
           revision: unit.revision + 1, fromStatus: from, toStatus: to, reason,
-          custodyReference: booking.id, dueAt: dueAt ?? unit.dueAt,
+          custodyReference: booking.id, dueAt: dueAt ?? unit.dueAt, createdAt: now,
         } },
       },
     });
@@ -172,7 +175,7 @@ export function makeInspectionsController(auth: AuthService) {
       const currentPhase = acknowledgmentPhase[row.stage];
       const latest = row.reports[0];
       if (!currentPhase || !latest || latest.phase !== currentPhase || latest.decision) invalidStage();
-      const now = new Date();
+      const now = await databaseNow(tx);
       let next: Inspection['stage'];
       let draft: Evidence | typeof Prisma.DbNull = Prisma.DbNull;
       if (reason) {
@@ -186,11 +189,11 @@ export function makeInspectionsController(auth: AuthService) {
         if (terms.depositMinor > 0 && !await tx.paymentOrder.count({
           where: { bookingId: booking.id, purpose: 'deposit', amountMinor: terms.depositMinor, status: 'paid' },
         })) throw new PublicError(409, 'DEPOSIT_REQUIRED', 'The agreed deposit is required before dispatch.');
-        await moveUnits(tx, row, 'available', 'out', 'Customer acknowledged dispatch condition', booking);
+        await moveUnits(tx, row, 'available', 'out', 'Customer acknowledged dispatch condition', booking, now);
         next = 'out';
       } else {
         const discrepant = hasDiscrepancy(evidence.parse(latest.evidence));
-        await moveUnits(tx, row, 'inspection', discrepant ? 'quarantined' : 'available', 'Customer acknowledged return condition', booking);
+        await moveUnits(tx, row, 'inspection', discrepant ? 'quarantined' : 'available', 'Customer acknowledged return condition', booking, now);
         next = discrepant ? 'quarantined' : 'cleared';
       }
       await tx.equipmentInspectionReport.update({
@@ -217,7 +220,7 @@ export function makeInspectionsController(auth: AuthService) {
       return write(req, parse(uuid, id), 'provider', async (tx, booking) => {
         const existing = await tx.equipmentInspection.findUnique({ where: { bookingId: booking.id }, include });
         if (existing) return present(existing, true);
-        const now = new Date();
+        const now = await databaseNow(tx);
         if (booking.targetKind !== 'rental' || !booking.agreedAt || now < booking.startsAt || booking.endsAt <= now ||
           await paymentBlocked(tx, booking.id) || !await paidAdvance(tx, booking.id)) {
           throw new PublicError(409, 'INSPECTION_NOT_ELIGIBLE', 'An agreed equipment booking with a paid advance is required.');
@@ -342,7 +345,9 @@ export function makeInspectionsController(auth: AuthService) {
         if (currentPhase !== 'return' && hasDiscrepancy(content)) {
           throw new PublicError(409, 'INSPECTION_DISCREPANCY', 'Resolve missing or damaged items before dispatch or clearance.');
         }
-        if (currentPhase === 'clearance') await moveUnits(tx, row, 'quarantined', 'available', 'Provider documented equipment clearance', booking);
+        if (currentPhase === 'clearance') {
+          await moveUnits(tx, row, 'quarantined', 'available', 'Provider documented equipment clearance', booking, await databaseNow(tx));
+        }
         await tx.equipmentInspectionReport.create({
           data: {
             inspectionId: row.id, phase: currentPhase, evidence: content, submittedBy: actorId, revision: row.revision + 1,
@@ -382,7 +387,7 @@ export function makeInspectionsController(auth: AuthService) {
     @ApiOkResponse({ schema: schema(view) })
     abandon(@Req() req: Request, @Param('id') id: string, @Body() body: unknown) {
       return changeInspection(req, id, parse(change, body).revision, 'provider', async (tx, booking, row) => {
-        const now = new Date();
+        const now = await databaseNow(tx);
         if (booking.endsAt > now || (row.stage !== 'dispatch_draft' && row.stage !== 'dispatch_ack')) invalidStage();
         await tx.equipmentInspectionUnit.updateMany({ where: { inspectionId: row.id }, data: { releasedAt: now } });
         return present(await tx.equipmentInspection.update({
@@ -399,7 +404,7 @@ export function makeInspectionsController(auth: AuthService) {
     returnEquipment(@Req() req: Request, @Param('id') id: string, @Body() body: unknown) {
       return changeInspection(req, id, parse(change, body).revision, 'provider', async (tx, booking, row) => {
         if (row.stage !== 'out') invalidStage();
-        await moveUnits(tx, row, 'out', 'inspection', 'Provider opened the return inspection', booking);
+        await moveUnits(tx, row, 'out', 'inspection', 'Provider opened the return inspection', booking, await databaseNow(tx));
         return present(await tx.equipmentInspection.update({
           where: { id: row.id }, data: { stage: 'return_draft', revision: { increment: 1 } }, include,
         }), true);
