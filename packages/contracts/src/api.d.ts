@@ -21230,6 +21230,7 @@ export interface operations {
             content: {
                 "application/json": {
                     expectedRevision: number;
+                    expectedDestinationRevision?: number;
                     testReference: string;
                     reason: string;
                 };

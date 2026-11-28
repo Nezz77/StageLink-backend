@@ -53734,6 +53734,12 @@
                     "exclusiveMinimum": true,
                     "maximum": 2147483646
                   },
+                  "expectedDestinationRevision": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "exclusiveMinimum": true,
+                    "maximum": 2147483647
+                  },
                   "testReference": {
                     "type": "string",
                     "pattern": "^SBX-[A-Z0-9][A-Z0-9-]{3,75}$"

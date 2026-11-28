@@ -19,7 +19,9 @@ export const manualSandboxStatus = z.enum(['awaiting_review', 'settled', 'review
 export const manualSandboxRecord = z.object({
   testReference, amountMinor: positive, destinationRevision: positive, reason,
 }).strict();
-export const manualSandboxCorrection = z.object({ expectedRevision: positive.max(maxMinor - 1), testReference, reason }).strict();
+export const manualSandboxCorrection = z.object({
+  expectedRevision: positive.max(maxMinor - 1), expectedDestinationRevision: positive.optional(), testReference, reason,
+}).strict();
 export const manualSandboxReview = z.object({
   decision: z.enum(['confirm', 'flag']), reason, expectedRevision: positive.optional(),
 }).strict();
