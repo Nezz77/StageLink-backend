@@ -39,6 +39,7 @@ Checked boxes mark completed repository work. Hosted checks and remaining client
 - [x] P06 minimum-rating filter from published verified booking reviews.
 - [x] P07 private saved items, resumable drafts and pre-booking inquiries. Booking submission links an inquiry to the resulting booking.
 - [x] P08 provider calendars, blackouts, date-specific stock, booking requests, captured terms and renewable holds.
+- [x] P08 Equipment availability returns effective inventory capacity, peak reserved units, and remaining units for the requested date range.
 - [x] P09 provider decisions and calendar/history projections.
 - [x] P09 quotation revisions, counteroffers, authenticated acceptance and SHA-256 agreement evidence.
 - [x] P08–P09 Booking holds, capacity checks, and quotation expiry use PostgreSQL time across API instances.

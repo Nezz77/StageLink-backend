@@ -25,7 +25,7 @@ if (config.NODE_ENV !== 'test' || !new URL(config.DATABASE_URL).pathname.endsWit
   throw new Error('Equipment listing integration requires an isolated *_test database.');
 }
 
-test('renter owns revisions and public browse only shows approved published equipment', async () => {
+test('renter owns revisions and public browse only shows approved published equipment', async t => {
   const deps = resources(config);
   const { app } = await createApp(config, deps);
   const ids: string[] = [];
@@ -39,8 +39,8 @@ test('renter owns revisions and public browse only shows approved published equi
   try {
     await app.listen(0, '127.0.0.1');
     const base = await app.getUrl();
-    async function call(path: string, body?: unknown, login?: Login, method = body === undefined ? 'GET' : 'POST') {
-      const response = await fetch(base + '/api/v1/' + path, {
+    async function call(path: string, body?: unknown, login?: Login, method = body === undefined ? 'GET' : 'POST', origin = base) {
+      const response = await fetch(origin + '/api/v1/' + path, {
         method, headers: {
           'Content-Type': 'application/json', Origin: config.WEB_ORIGIN,
           ...(login ? { Authorization: 'Bearer ' + login.accessToken, 'X-CSRF-Token': login.csrfToken } : {}),
@@ -307,12 +307,25 @@ test('renter owns revisions and public browse only shows approved published equi
     assert.equal(bundleDraft.status, 200);
     assert.deepEqual(bundleDraft.data.bundleItems, [{ listingId: id, quantity: 2, title: fields.title, version: 3 }]);
     assert.equal((await call(`me/rentals/${bundleDraft.data.id}/status`, { revision: 1, action: 'publish' }, renter)).status, 200);
-    assert.equal((await call(units, { listingId: id, serial: 'SN-02' }, renter)).status, 200);
     const secondCustomer = await fixture('customer');
     const bookingFields = {
       targetKind: 'rental', targetId: id, targetVersion: 3, quantity: 1, rateUnit: 'day',
       startsAt: '2090-03-01T09:00:00Z', endsAt: '2090-03-03T09:00:00Z',
     };
+    function equipmentAvailability(quantity = 1, origin = base) {
+      const query = new URLSearchParams({
+        targetKind: bookingFields.targetKind, targetVersion: String(bookingFields.targetVersion), quantity: String(quantity),
+        rateUnit: bookingFields.rateUnit, startsAt: bookingFields.startsAt, endsAt: bookingFields.endsAt,
+      });
+      return call(`listings/${id}/availability?` + query, undefined, undefined, 'GET', origin);
+    }
+    assert.deepEqual(await equipmentAvailability(2), {
+      status: 200, data: { available: false, stock: { totalUnits: 1, reservedUnits: 0, availableUnits: 1 } },
+    });
+    assert.equal((await call(units, { listingId: id, serial: 'SN-02' }, renter)).status, 200);
+    assert.deepEqual(await equipmentAvailability(2), {
+      status: 200, data: { available: true, stock: { totalUnits: 2, reservedUnits: 0, availableUnits: 2 } },
+    });
     const bookingRequest = { ...bookingFields, requestKey: randomUUID(), inquiryId: opened[0]?.data.id };
     const fastClock = 5 * 60000;
     const beforeHold = await databaseNow(deps.db);
@@ -323,6 +336,9 @@ test('renter owns revisions and public browse only shows approved published equi
     assert.ok(initialDeadline <= (await databaseNow(deps.db)).getTime() + 15 * 60000);
     assert.equal(booked.data.snapshot.subtotalMinor, 500000);
     assert.equal(booked.data.snapshot.depositMinor, 0);
+    assert.deepEqual((await equipmentAvailability()).data, {
+      available: true, stock: { totalUnits: 2, reservedUnits: 1, availableUnits: 1 },
+    });
     assert.equal((await call('bookings', bookingRequest, customer)).data.id, booked.data.id);
     assert.equal((await call('bookings', { ...bookingRequest, quantity: 2 }, customer)).status, 409);
     assert.equal((await call('bookings/' + booked.data.id, undefined, other)).status, 404);
@@ -359,11 +375,22 @@ test('renter owns revisions and public browse only shows approved published equi
     assert.ok(renewedDeadline <= (await databaseNow(deps.db)).getTime() + 15 * 60000);
     await deps.db.booking.update({ where: { id: booked.data.id }, data: { holdExpiresAt: expiredDeadline } });
     assert.deepEqual((await call(availabilityPath)).data, { available: true });
+    assert.deepEqual((await equipmentAvailability()).data, {
+      available: true, stock: { totalUnits: 2, reservedUnits: 0, availableUnits: 2 },
+    });
+    const { app: replica } = await createApp(config);
+    t.after(() => replica.close());
+    await replica.listen(0, '127.0.0.1');
+    const replicaOrigin = await replica.getUrl();
     const competing = await Promise.all([
       call('bookings', bundleRequest, secondCustomer),
-      call('bookings', { ...bookingFields, quantity: 2, requestKey: randomUUID() }, customer),
+      call('bookings', { ...bookingFields, quantity: 2, requestKey: randomUUID() }, customer, 'POST', replicaOrigin),
     ]);
     assert.deepEqual(competing.map(result => result.status).sort(), [200, 409]);
+    assert.equal(competing.find(result => result.status === 409)?.data.code, 'RESERVATION_UNAVAILABLE');
+    const soldOut = { available: false, stock: { totalUnits: 2, reservedUnits: 2, availableUnits: 0 } };
+    assert.deepEqual((await equipmentAvailability()).data, soldOut);
+    assert.deepEqual((await equipmentAvailability(1, replicaOrigin)).data, soldOut);
     assert.equal((await call('bookings/' + booked.data.id + '/reservation-renewals', {
       expectedHoldExpiresAt: (await call('bookings/' + booked.data.id, undefined, customer)).data.holdExpiresAt,
     }, customer)).status, 409);
