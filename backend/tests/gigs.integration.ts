@@ -4,6 +4,8 @@ import { randomUUID } from 'node:crypto';
 import { createApp } from '../api/src/app.js';
 import { hashPassword } from '../api/src/auth/security.js';
 import { readConfig } from '../shared/config.js';
+import { databaseNow } from '../shared/database-clock.js';
+import { NOTIFICATION_TOPIC } from '../shared/notifications.js';
 import { resources } from '../shared/resources.js';
 
 const config = readConfig({ ...process.env, AUTH_RATE_PREFIX: 'gigs-test-' + randomUUID() });
@@ -11,10 +13,11 @@ if (config.NODE_ENV !== 'test' || !new URL(config.DATABASE_URL).pathname.endsWit
   throw new Error('Gig integration requires an isolated *_test database.');
 }
 
-test('gig ownership, publication snapshots and concurrent revisions', async () => {
+test('gig ownership, publication snapshots and concurrent revisions', async t => {
   const deps = resources(config);
   const { app } = await createApp(config, deps);
   const ids: string[] = [];
+  let bookingId: string | undefined;
   const password = 'A private fixture password 12!';
   type Login = { accessToken: string; csrfToken: string; user: { id: string } };
 
@@ -22,8 +25,8 @@ test('gig ownership, publication snapshots and concurrent revisions', async () =
     await app.listen(0, '127.0.0.1');
     const base = await app.getUrl();
 
-    async function call(path: string, body?: unknown, login?: Login, method = body === undefined ? 'GET' : 'POST') {
-      const response = await fetch(base + '/api/v1/' + path, {
+    async function call(path: string, body?: unknown, login?: Login, method = body === undefined ? 'GET' : 'POST', origin = base) {
+      const response = await fetch(origin + '/api/v1/' + path, {
         method,
         headers: {
           'Content-Type': 'application/json', Origin: config.WEB_ORIGIN,
@@ -34,7 +37,7 @@ test('gig ownership, publication snapshots and concurrent revisions', async () =
       return { status: response.status, data: await response.json() };
     }
 
-    async function fixture(role: 'artist' | 'admin'): Promise<Login> {
+    async function fixture(role: 'artist' | 'admin' | 'customer'): Promise<Login> {
       const user = await deps.db.authUser.create({ data: {
         email: randomUUID() + '@stagelink.test', displayName: 'Gig fixture', roles: [role],
         passwordHash: await hashPassword(password), emailVerifiedAt: new Date(),
@@ -89,10 +92,78 @@ test('gig ownership, publication snapshots and concurrent revisions', async () =
     assert.deepEqual(publicCalendar.data.blocks, [{ startsAt: '2028-01-10T03:30:00.000Z', endsAt: '2028-01-10T11:30:00.000Z' }]);
     const blackoutPath = 'me/availability/blocks/' + savedBlock.data.blocks[0].id;
     assert.equal((await call(blackoutPath, { revision: 1 }, artist, 'DELETE')).status, 409);
-    assert.equal((await call(blackoutPath, { revision: 2 }, artist, 'DELETE')).status, 200);
+    const cleared = await call(blackoutPath, { revision: 2 }, artist, 'DELETE');
+    assert.equal(cleared.status, 200);
+    let calendarRevision = cleared.data.revision;
     assert.deepEqual((await call(calendarPath)).data.blocks, []);
 
     assert.equal((await call(privatePath + '/status', { revision: 1, action: 'publish' }, artist)).status, 200);
+    const customer = await fixture('customer');
+    const window = { startsAt: '2090-01-10T09:00:00+05:30', endsAt: '2090-01-10T11:00:00+05:30' };
+    const booking = await call('bookings', {
+      ...window, targetKind: 'gig', targetId: created.data.id, targetVersion: (await call(publicPath)).data.version,
+      quantity: 1, requestKey: randomUUID(),
+    }, customer);
+    assert.equal(booking.status, 200);
+    assert.equal(booking.data.state, 'held');
+    bookingId = booking.data.id as string;
+    const bookingDecision = `bookings/${bookingId}/provider-decisions`;
+    const accept = { revision: 1, decision: 'accepted' };
+    const bookingBlock = { ...window, reason: 'Private schedule conflict' };
+    const earlyBlock = await call('me/availability/blocks', { ...bookingBlock, revision: calendarRevision }, artist);
+    assert.equal(earlyBlock.status, 200);
+    const unavailable = await call(bookingDecision, accept, artist);
+    assert.equal(unavailable.status, 409);
+    assert.equal(unavailable.data.code, 'RESERVATION_UNAVAILABLE');
+    const reopened = await call('me/availability/blocks/' + earlyBlock.data.blocks[0].id, { revision: earlyBlock.data.revision }, artist, 'DELETE');
+    assert.equal(reopened.status, 200);
+    calendarRevision = reopened.data.revision;
+
+    const { app: replica } = await createApp(config);
+    t.after(() => replica.close());
+    await replica.listen(0, '127.0.0.1');
+    const [accepted, blocked] = await Promise.all([
+      call(bookingDecision, accept, artist),
+      call('me/availability/blocks', { ...bookingBlock, revision: calendarRevision }, artist, 'POST', await replica.getUrl()),
+    ]);
+    assert.deepEqual([accepted.status, blocked.status].sort(), [200, 409]);
+    if (blocked.status === 200) {
+      assert.equal(accepted.data.code, 'RESERVATION_UNAVAILABLE');
+      const removed = await call('me/availability/blocks/' + blocked.data.blocks[0].id, { revision: blocked.data.revision }, artist, 'DELETE');
+      assert.equal(removed.status, 200);
+      calendarRevision = removed.data.revision;
+      assert.equal((await call(bookingDecision, accept, artist)).data.state, 'accepted');
+    } else {
+      assert.equal(blocked.data.code, 'BLACKOUT_BOOKING_CONFLICT');
+    }
+    const conflict = await call('me/availability/blocks', { ...bookingBlock, revision: calendarRevision }, artist);
+    assert.equal(conflict.status, 409);
+    assert.equal(conflict.data.code, 'BLACKOUT_BOOKING_CONFLICT');
+    assert.doesNotMatch(JSON.stringify(conflict.data), /Private schedule conflict/);
+    const adjacent = await call('me/availability/blocks', {
+      ...bookingBlock, revision: calendarRevision, startsAt: window.endsAt, endsAt: '2090-01-10T12:00:00+05:30',
+    }, artist);
+    assert.equal(adjacent.status, 200);
+    const removedAdjacent = await call('me/availability/blocks/' + adjacent.data.blocks[0].id, { revision: adjacent.data.revision }, artist, 'DELETE');
+    assert.equal(removedAdjacent.status, 200);
+    const databaseTime = await databaseNow(deps.db);
+    await deps.db.booking.update({ where: { id: bookingId }, data: { holdExpiresAt: new Date(databaseTime.getTime() - 1000) } });
+    const afterExpiry = await call('me/availability/blocks', { ...bookingBlock, revision: removedAdjacent.data.revision }, artist);
+    assert.equal(afterExpiry.status, 200);
+    const removedExpired = await call('me/availability/blocks/' + afterExpiry.data.blocks[0].id, { revision: afterExpiry.data.revision }, artist, 'DELETE');
+    assert.equal(removedExpired.status, 200);
+    // Historical agreements can have an expired hold and no provider decision recorded.
+    await deps.db.booking.update({
+      where: { id: bookingId },
+      data: { agreedAt: databaseTime, providerDecision: null, decidedAt: null, decisionReason: null },
+    });
+    const agreedBlock = await call('me/availability/blocks', { ...bookingBlock, revision: removedExpired.data.revision }, artist);
+    assert.equal(agreedBlock.status, 409);
+    assert.equal(agreedBlock.data.code, 'BLACKOUT_BOOKING_CONFLICT');
+    const schedule = await call('me/calendar?' + new URLSearchParams({ from: window.startsAt, to: window.endsAt }), undefined, artist);
+    assert.equal(schedule.status, 200);
+    assert.ok(schedule.data.items.some((item: { id: string; state: string }) => item.id === bookingId && item.state === 'agreed'));
+
     const fixed = {
       title: 'Acoustic package', pricing: 'fixed', durationMinutes: 120, performers: 2,
       basePriceMinor: 1500000, included: 'Acoustic set', excluded: 'Lighting',
@@ -176,6 +247,10 @@ test('gig ownership, publication snapshots and concurrent revisions', async () =
   } finally {
     try {
       const owned = { ownerId: { in: ids } };
+      if (bookingId) {
+        await deps.db.outboxEvent.deleteMany({ where: { topic: NOTIFICATION_TOPIC, payload: { path: ['sourceId'], equals: bookingId } } });
+        await deps.db.booking.deleteMany({ where: { id: bookingId } });
+      }
       await deps.db.artistGig.updateMany({ where: owned, data: { status: 'archived', publishedVersion: null } });
       await deps.db.artistGigVersion.deleteMany({ where: { gig: owned } });
       await deps.db.artistGig.deleteMany({ where: owned });

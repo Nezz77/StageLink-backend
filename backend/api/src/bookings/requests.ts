@@ -8,6 +8,7 @@ import { z } from 'zod';
 import type { Booking, Prisma } from '../../../generated/prisma/client.js';
 import type { AuthService, Identity } from '../auth/service.js';
 import { PublicError } from '../auth/errors.js';
+import { providerCalendarFilter } from '../availability/calendars.js';
 import { ProfileService } from '../profiles/service.js';
 import { checkCalendar, checkCapacity } from './reservations.js';
 import { bookingSelection, publishedTarget, selection, snapshot } from './selection.js';
@@ -258,11 +259,8 @@ export function makeBookingRequestsController(auth: AuthService) {
       profiles.providerRole(actor);
       const query = parse(calendarQuery, raw);
       const now = await databaseNow(db);
-      return bookingPage(db, {
-        providerId: actor.user.id, providerDecision: 'accepted', cancelledAt: null,
-        OR: [{ agreedAt: { not: null } }, { holdExpiresAt: { gt: now } }],
-        endsAt: { gt: new Date(query.from) }, startsAt: { lt: new Date(query.to) },
-      }, query.cursor, now);
+      const window = { startsAt: new Date(query.from), endsAt: new Date(query.to) };
+      return bookingPage(db, providerCalendarFilter(actor.user.id, window, now), query.cursor, now);
     }
 
     @Post('bookings/:id/provider-decisions')
