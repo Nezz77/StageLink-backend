@@ -104,6 +104,7 @@ async function main() {
   void scan();
   const server = createServer(async (req, res) => {
     res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Cache-Control', 'no-store');
     if (req.url === '/health/live') { res.end(JSON.stringify({ status: 'alive', service: 'worker' })); return; }
     if (req.url !== '/health/ready') { res.writeHead(404); res.end('{"code":"NOT_FOUND"}'); return; }
     const health = await readiness(deps);

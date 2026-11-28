@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { MIGRATION } from '../generated/migration-version.js';
+import { BUILD_FINGERPRINT, MIGRATION } from '../generated/migration-version.js';
 
 const serviceOrigin = z.url({ protocol: /^https?$/ }).refine(raw => {
   const { origin } = new URL(raw);
@@ -13,6 +13,7 @@ const readiness = z.object({
   status: z.literal('ready'),
   dependencies: z.object({ postgres: z.literal('up'), redis: z.literal('up') }),
   schemaVersion: z.string().min(1),
+  buildFingerprint: z.string().regex(/^[a-f0-9]{64}$/).optional(),
 });
 const workerReadiness = readiness.extend({ dispatcher: z.literal('up') });
 
@@ -29,11 +30,11 @@ export function releaseReadinessConfig(env: NodeJS.ProcessEnv) {
 
 type Check = { service: 'api' | 'worker' } & (
   { passed: true; httpStatus: 200 } |
-  { passed: false; reason: 'request_failed' | 'not_ready' | 'invalid_health_response' | 'schema_mismatch'; httpStatus?: number }
+  { passed: false; reason: 'request_failed' | 'not_ready' | 'invalid_health_response' | 'schema_mismatch' | 'build_mismatch'; httpStatus?: number }
 );
 
 export async function checkReleaseReadiness(config: ReturnType<typeof releaseReadinessConfig>, send = fetch) {
-  async function check(service: 'api' | 'worker', path: string, schema: z.ZodType<{ schemaVersion: string }>, origin: string): Promise<Check> {
+  async function check(service: 'api' | 'worker', path: string, schema: z.ZodType<z.infer<typeof readiness>>, origin: string): Promise<Check> {
     let response: Response;
     try {
       response = await send(new URL(path, origin), {
@@ -48,6 +49,7 @@ export async function checkReleaseReadiness(config: ReturnType<typeof releaseRea
     try {
       const health = schema.parse(await response.json());
       if (health.schemaVersion !== MIGRATION) return { service, passed: false, httpStatus: 200, reason: 'schema_mismatch' };
+      if (health.buildFingerprint !== BUILD_FINGERPRINT) return { service, passed: false, httpStatus: 200, reason: 'build_mismatch' };
       return { service, passed: true, httpStatus: 200 };
     } catch { return { service, passed: false, httpStatus: 200, reason: 'invalid_health_response' }; }
   }
@@ -55,7 +57,7 @@ export async function checkReleaseReadiness(config: ReturnType<typeof releaseRea
     check('api', '/api/v1/health/ready', readiness, config.apiOrigin),
     check('worker', '/health/ready', workerReadiness, config.workerOrigin),
   ]);
-  return { passed: checks.every(row => row.passed), expectedSchemaVersion: MIGRATION, checks };
+  return { passed: checks.every(row => row.passed), expectedSchemaVersion: MIGRATION, expectedBuildFingerprint: BUILD_FINGERPRINT, checks };
 }
 
 if (import.meta.main) {

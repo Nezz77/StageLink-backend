@@ -6,6 +6,7 @@ import { once } from 'node:events';
 import { Queue } from 'bullmq';
 import { Redis } from 'ioredis';
 import { createApp } from '../api/src/app.js';
+import { BUILD_FINGERPRINT } from '../generated/migration-version.js';
 import { checkReleaseReadiness, releaseReadinessConfig } from '../scripts/release-readiness-check.js';
 import { readConfig } from '../shared/config.js';
 import { resources, closeResources, MIGRATION, readiness } from '../shared/resources.js';
@@ -26,8 +27,8 @@ test('database readiness requires the built schema and blocks an unfinished migr
   const newerId = randomUUID();
   const migration = '29991231235959_readiness_fixture';
   const checksum = '0'.repeat(64);
-  const ready = { status: 'ready', dependencies: { postgres: 'up', redis: 'up' }, schemaVersion: MIGRATION };
-  const unavailable = { status: 'unavailable', dependencies: { postgres: 'down', redis: 'up' }, schemaVersion: null };
+  const ready = { status: 'ready', dependencies: { postgres: 'up', redis: 'up' }, schemaVersion: MIGRATION, buildFingerprint: BUILD_FINGERPRINT };
+  const unavailable = { status: 'unavailable', dependencies: { postgres: 'down', redis: 'up' }, schemaVersion: null, buildFingerprint: BUILD_FINGERPRINT };
   try {
     assert.deepEqual(await readiness(deps), ready);
     await deps.db.$executeRaw`

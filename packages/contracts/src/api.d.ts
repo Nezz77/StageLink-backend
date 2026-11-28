@@ -3948,6 +3948,7 @@ export interface components {
             status: "ready" | "unavailable";
             dependencies: components["schemas"]["Dependencies"];
             schemaVersion: string | null;
+            buildFingerprint: string;
         };
         ErrorResponse: {
             statusCode: number;

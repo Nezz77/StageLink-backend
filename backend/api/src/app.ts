@@ -80,6 +80,7 @@ class ReadyResponse {
   @ApiProperty({ type: String, enum: ['ready', 'unavailable'] }) status!: string;
   @ApiProperty({ type: Dependencies }) dependencies!: Dependencies;
   @ApiProperty({ type: String, nullable: true }) schemaVersion!: string | null;
+  @ApiProperty({ type: String, pattern: '^[a-f0-9]{64}$' }) buildFingerprint!: string;
 }
 class ErrorResponse {
   @ApiProperty({ type: Number }) statusCode!: number;

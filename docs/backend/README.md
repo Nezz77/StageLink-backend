@@ -79,7 +79,7 @@ The drill covers PostgreSQL data and schema in the test environment. Hosted back
 
 Run the check from the built backend release you expect to be serving. Set `STAGELINK_RELEASE_API_ORIGIN` and `STAGELINK_RELEASE_WORKER_ORIGIN` to the two service origins. Use the worker’s internal address. From the backend package, run `npm run --silent release:check`.
 
-The check requires both readiness endpoints to report PostgreSQL and Redis available, the worker dispatcher to be active, and both schema versions to match the migration bundled with this build. After a rollback, run it from the restored release after starting the API and worker against the matching database schema. The check exits nonzero when either service fails and makes no changes to the database.
+The check requires both readiness endpoints to report PostgreSQL and Redis available, the worker dispatcher to be active, and both schema versions to match the migration bundled with this build. Both services must also report its build fingerprint, a SHA-256 digest of the Node backend source, migrations and dependency metadata. A different or missing fingerprint returns `build_mismatch` even when the database schema matches. After a rollback, run the check from the restored release against its API and worker. The check exits nonzero when either service fails and makes no changes to the database.
 
 Generated contracts are `contracts/openapi.json` → `packages/contracts/src/api.d.ts`. Regenerate and commit both after endpoint changes; CI rejects drift. Never edit an applied migration.
 
