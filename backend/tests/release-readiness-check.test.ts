@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { MIGRATION } from '../generated/migration-version.js';
+import { BUILD_FINGERPRINT, MIGRATION } from '../generated/migration-version.js';
 import { checkReleaseReadiness, releaseReadinessConfig } from '../scripts/release-readiness-check.js';
 
 const env = {
@@ -8,14 +8,14 @@ const env = {
   STAGELINK_RELEASE_WORKER_ORIGIN: 'http://127.0.0.1:4001',
 };
 const config = releaseReadinessConfig(env);
-const healthy = { status: 'ready', dependencies: { postgres: 'up', redis: 'up' }, schemaVersion: MIGRATION };
+const healthy = { status: 'ready', dependencies: { postgres: 'up', redis: 'up' }, schemaVersion: MIGRATION, buildFingerprint: BUILD_FINGERPRINT };
 
-function transport(worker: () => Response): typeof fetch {
+function transport(worker: () => Response, api = () => Response.json(healthy)): typeof fetch {
   return async (input, init) => {
     assert.equal(init?.method, 'GET');
     assert.equal(init?.redirect, 'error');
     assert.equal(new Headers(init?.headers).has('Authorization'), false);
-    if (String(input) === 'https://staging-api.example.test/api/v1/health/ready') return Response.json(healthy);
+    if (String(input) === 'https://staging-api.example.test/api/v1/health/ready') return api();
     assert.equal(String(input), 'http://127.0.0.1:4001/health/ready');
     return worker();
   };
@@ -23,9 +23,22 @@ function transport(worker: () => Response): typeof fetch {
 
 test('release check requires both services and the schema bundled with this build', async () => {
   const result = await checkReleaseReadiness(config, transport(() => Response.json({ ...healthy, dispatcher: 'up' })));
-  assert.deepEqual(result, { passed: true, expectedSchemaVersion: MIGRATION, checks: [
+  assert.deepEqual(result, { passed: true, expectedSchemaVersion: MIGRATION, expectedBuildFingerprint: BUILD_FINGERPRINT, checks: [
     { service: 'api', passed: true, httpStatus: 200 }, { service: 'worker', passed: true, httpStatus: 200 },
   ] });
+});
+
+test('release check rejects services with matching schema and an older or missing build fingerprint', async () => {
+  const otherBuild = '0'.repeat(64);
+  const result = await checkReleaseReadiness(config, transport(
+    () => Response.json({ ...healthy, dispatcher: 'up', buildFingerprint: otherBuild }),
+    () => Response.json({ ...healthy, buildFingerprint: undefined }),
+  ));
+  assert.equal(result.passed, false);
+  assert.deepEqual(result.checks, [
+    { service: 'api', passed: false, httpStatus: 200, reason: 'build_mismatch' },
+    { service: 'worker', passed: false, httpStatus: 200, reason: 'build_mismatch' },
+  ]);
 });
 
 test('release check rejects an older schema, failed dependency, unavailable service and malformed response', async () => {

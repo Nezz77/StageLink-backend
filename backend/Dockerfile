@@ -3,11 +3,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-cert
 WORKDIR /app/backend
 COPY backend/package.json backend/package-lock.json ./
 RUN npm ci
-COPY backend/prisma ./prisma
-COPY backend/prisma.config.ts ./
-COPY backend/scripts/generate-migration-version.mjs ./scripts/
-RUN npm run db:generate
 COPY backend .
+RUN npm run db:generate
 RUN npm run build
 USER node
 EXPOSE 4000 4001

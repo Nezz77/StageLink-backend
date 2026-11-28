@@ -1,4 +1,4 @@
-import { MIGRATION } from '../generated/migration-version.js';
+import { BUILD_FINGERPRINT, MIGRATION } from '../generated/migration-version.js';
 import { PrismaClient } from '../generated/prisma/client.js';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Redis } from 'ioredis';
@@ -60,6 +60,7 @@ export async function readiness({ db, redis }: Resources) {
     status: postgres && redisOk ? 'ready' as const : 'unavailable' as const,
     dependencies: { postgres: postgres ? 'up' : 'down', redis: redisOk ? 'up' : 'down' },
     schemaVersion: postgres ? MIGRATION : null,
+    buildFingerprint: BUILD_FINGERPRINT,
   };
 }
 export async function closeResources({ db, redis }: Resources) {

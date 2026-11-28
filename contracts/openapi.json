@@ -58906,12 +58906,17 @@
           "schemaVersion": {
             "type": "string",
             "nullable": true
+          },
+          "buildFingerprint": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
           }
         },
         "required": [
           "status",
           "dependencies",
-          "schemaVersion"
+          "schemaVersion",
+          "buildFingerprint"
         ]
       },
       "ErrorResponse": {

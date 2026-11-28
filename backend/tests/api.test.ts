@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createApp } from '../api/src/app.js';
+import { BUILD_FINGERPRINT } from '../generated/migration-version.js';
 import { readConfig } from '../shared/config.js';
 import { MIGRATION, type Resources } from '../shared/resources.js';
 const config = readConfig({ NODE_ENV: 'test', AUTH_JWT_SECRET: '01'.repeat(32), AUTH_MAIL_KEY: '02'.repeat(32), PAYOUT_DATA_KEY: '03'.repeat(32), DATABASE_URL: 'postgresql://unused:unused@localhost/test', REDIS_URL: 'redis://localhost:6379' });
@@ -22,7 +23,11 @@ for (const up of [true, false]) test(`API health and errors when dependencies ar
     const ready = await fetch(base + '/api/v1/health/ready');
     assert.equal(ready.status, up ? 200 : 503);
     const body = await ready.text(); assert.ok(!body.includes('secret') && !body.includes('password'));
-    if (up) assert.equal(JSON.parse(body).schemaVersion, MIGRATION);
+    if (up) {
+      const health = JSON.parse(body);
+      assert.equal(health.schemaVersion, MIGRATION);
+      assert.equal(health.buildFingerprint, BUILD_FINGERPRINT);
+    }
     const missing = await fetch(base + '/api/v1/not-real?token=do-not-log', { headers: { 'X-Request-ID': 'untrusted', Authorization: 'Bearer secret' } });
     assert.equal(missing.status, 404);
     const error = await missing.json() as any;
