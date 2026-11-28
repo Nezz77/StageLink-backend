@@ -9,40 +9,47 @@ import { csrfFor } from '../api/src/auth/security.js';
 import { listingEmbeddingInput } from '../api/src/ai/embedding-client.js';
 import { captureRecommendationEvaluation } from '../scripts/capture-recommendation-evaluation.js';
 import { readConfig } from '../shared/config.js';
+import { databaseNow } from '../shared/database-clock.js';
 import { resources } from '../shared/resources.js';
+import { serverClock } from './fixtures/server-clock.js';
 
 const model = 'text-embedding-3-small';
 const capability = 'semantic-recommendation';
 const query = [1, ...Array<number>(255).fill(0)];
 const offTopic = [0, 1, ...Array<number>(254).fill(0)];
 
+function responseGate() {
+  let notifyStarted!: () => void;
+  let release!: () => void;
+  const started = new Promise<void>(resolve => { notifyStarted = resolve; });
+  const proceed = new Promise<void>(resolve => { release = resolve; });
+  return { started, notifyStarted, proceed, release };
+}
+
 test('semantic recommendations preserve eligibility, consent, provenance, and weighted fallback', async () => {
   const config = readConfig({
     ...process.env, AUTH_RATE_PREFIX: 'recommendation-test-' + randomUUID(),
     WEB_ORIGIN: 'https://web.stagelink.test',
     AI_EMBEDDING_MODEL: model, AI_INTERNAL_TOKEN: 'ab'.repeat(32),
-    AI_SEMANTIC_RECOMMENDATIONS: 'true', AI_SEMANTIC_DAILY_LIMIT: '2',
+    AI_SEMANTIC_RECOMMENDATIONS: 'true', AI_SEMANTIC_DAILY_LIMIT: '3',
   });
   if (config.NODE_ENV !== 'test' || !new URL(config.DATABASE_URL).pathname.endsWith('_test')) {
     throw new Error('Semantic recommendation integration requires an isolated *_test database.');
   }
   const calls: unknown[] = [];
-  let notifyStarted!: () => void;
-  let releaseResponse!: () => void;
-  const started = new Promise<void>(resolve => { notifyStarted = resolve; });
-  const proceed = new Promise<void>(resolve => { releaseResponse = resolve; });
+  const first = responseGate(), late = responseGate();
   const service = createServer(async (req, res) => {
     const chunks: Buffer[] = [];
     for await (const chunk of req) chunks.push(chunk);
     calls.push(JSON.parse(Buffer.concat(chunks).toString()));
-    const first = calls.length === 1;
-    if (first) {
-      notifyStarted();
-      await proceed;
+    const gate = calls.length === 1 ? first : calls.length === 3 ? late : undefined;
+    if (gate) {
+      gate.notifyStarted();
+      await gate.proceed;
     }
     res.setHeader('Content-Type', 'application/json');
     res.end(JSON.stringify({
-      model, outcome: first ? 'succeeded' : 'failed', vector: first ? query : null, latencyMs: 12, inputTokens: 8,
+      model, outcome: gate ? 'succeeded' : 'failed', vector: gate ? query : null, latencyMs: 12, inputTokens: 8,
     }));
   });
   service.listen(0, '127.0.0.1');
@@ -53,7 +60,7 @@ test('semantic recommendations preserve eligibility, consent, provenance, and we
   const { app } = await createApp({ ...config, AI_SERVICE_ORIGIN: 'http://127.0.0.1:' + address.port }, deps);
   const users: string[] = [];
   const gigs: string[] = [];
-  const since = new Date();
+  const since = await databaseNow(deps.db);
 
   try {
     await app.listen(0, '127.0.0.1');
@@ -72,7 +79,7 @@ test('semantic recommendations preserve eligibility, consent, provenance, and we
       } });
       const token = await new SignJWT({ sid: row.id }).setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
         .setIssuer('stagelink-api').setAudience('stagelink-web').setSubject(ownerId)
-        .setIssuedAt().setExpirationTime('10m').sign(Buffer.from(config.AUTH_JWT_SECRET, 'hex'));
+        .setIssuedAt(Math.floor(Date.now() / 1000) - 180).setExpirationTime('10m').sign(Buffer.from(config.AUTH_JWT_SECRET, 'hex'));
       return {
         Authorization: 'Bearer ' + token, 'X-CSRF-Token': csrfFor(config.AUTH_JWT_SECRET, row.id),
         Origin: config.WEB_ORIGIN, 'Content-Type': 'application/json',
@@ -135,17 +142,25 @@ test('semantic recommendations preserve eligibility, consent, provenance, and we
 
     const optedIn = { ...command(), useSemantic: true };
     assert.equal((await request(other, path, optedIn)).status, 404);
-    const running = request(owner, path, optedIn);
-    await Promise.race([started, running.then(result => assert.fail(JSON.stringify(result)))]);
-    try {
-      assert.equal((await request(owner, path, optedIn)).data.code, 'RECOMMENDATION_PROCESSING');
-      assert.equal((await request(owner, path, { ...optedIn, useSemantic: false })).data.code, 'REQUEST_KEY_REUSED');
-      await deps.db.artistGig.update({ where: { id: paused.id }, data: { status: 'paused' } });
-    } finally {
-      releaseResponse();
-    }
-
-    const hybrid = await running;
+    const hybrid = await serverClock(120_000, async () => {
+      const running = request(owner, path, optedIn);
+      await Promise.race([first.started, running.then(result => assert.fail(JSON.stringify(result)))]);
+      try {
+        const pending = await deps.db.recommendationRun.findUniqueOrThrow({
+          where: { briefId_requestKey: { briefId: brief.id, requestKey: optedIn.requestKey } },
+        });
+        assert.ok(pending.semanticPendingUntil);
+        const remaining = pending.semanticPendingUntil.getTime() - (await databaseNow(deps.db)).getTime();
+        assert.ok(remaining > 0 && remaining <= 30_000);
+        assert.equal((await request(owner, 'recommendations/' + pending.id)).data.code, 'RECOMMENDATION_PROCESSING');
+        assert.equal((await request(owner, path, optedIn)).data.code, 'RECOMMENDATION_PROCESSING');
+        assert.equal((await request(owner, path, { ...optedIn, useSemantic: false })).data.code, 'REQUEST_KEY_REUSED');
+        await deps.db.artistGig.update({ where: { id: paused.id }, data: { status: 'paused' } });
+      } finally {
+        first.release();
+      }
+      return running;
+    });
     assert.equal(hybrid.status, 200);
     assert.equal(hybrid.data.method, 'semantic_hybrid_v1');
     assert.deepEqual(hybrid.data.items.map((item: { gigId: string }) => item.gigId), [relevant.id, stale.id, cheap.id],
@@ -188,19 +203,50 @@ test('semantic recommendations preserve eligibility, consent, provenance, and we
     assert.equal(failed.data.method, 'weighted_catalog_v1');
     assert.equal(failed.data.items[0].gigId, cheap.id);
     assert.equal('semantic' in failed.data, false);
+
+    const lateCommand = { ...command(), useSemantic: true };
+    await serverClock(-120_000, async () => {
+      const running = request(owner, path, lateCommand);
+      await Promise.race([late.started, running.then(result => assert.fail(JSON.stringify(result)))]);
+      try {
+        const pending = await deps.db.recommendationRun.findUniqueOrThrow({
+          where: { briefId_requestKey: { briefId: brief.id, requestKey: lateCommand.requestKey } },
+        });
+        const read = 'recommendations/' + pending.id;
+        const now = await databaseNow(deps.db);
+        await deps.db.recommendationRun.update({
+          where: { id: pending.id }, data: { semanticPendingUntil: new Date(now.getTime() - 1000) },
+        });
+        const fallback = await request(owner, read);
+        assert.equal(fallback.status, 200);
+        assert.equal(fallback.data.method, 'weighted_catalog_v1');
+        assert.equal(fallback.data.items[0].gigId, cheap.id);
+        assert.equal('semantic' in fallback.data, false);
+        assert.deepEqual(await request(owner, path, lateCommand), fallback);
+        late.release();
+        assert.deepEqual(await running, fallback);
+        assert.deepEqual(await request(owner, read), fallback);
+      } finally {
+        late.release();
+      }
+    });
+
     assert.equal((await request(owner, path, { ...command(), useSemantic: true })).data.method, 'weighted_catalog_v1');
-    assert.equal(calls.length, 2);
+    assert.equal(calls.length, 3);
 
     await deps.db.artistGig.update({ where: { id: relevant.id }, data: { status: 'paused' } });
     const noCoverage = await request(owner, path, { ...command(), useSemantic: true });
     assert.equal(noCoverage.data.method, 'weighted_catalog_v1');
-    assert.equal(calls.length, 2);
+    assert.equal(calls.length, 3);
 
     const usage = await deps.db.aiModelCall.findMany({ where: { model, capability, createdAt: { gte: since } } });
-    assert.deepEqual(usage.map(item => item.outcome).sort(), ['failed', 'succeeded']);
+    assert.deepEqual(usage.map(item => item.outcome).sort(), ['failed', 'succeeded', 'succeeded']);
     assert.ok(usage.every(item => item.inputTokens === 8));
+    const finishedAt = await databaseNow(deps.db);
+    assert.ok(usage.every(item => item.createdAt <= finishedAt));
   } finally {
-    releaseResponse();
+    first.release();
+    late.release();
     try {
       await deps.db.aiModelCall.deleteMany({ where: { model, capability, createdAt: { gte: since } } });
       await deps.db.artistGig.updateMany({ where: { id: { in: gigs } }, data: { publishedVersion: null, status: 'draft' } });

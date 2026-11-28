@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiParam, ApiTags } from '@nestj
 import type { Request } from 'express';
 import { z } from 'zod';
 import { Prisma, type EventBrief, type MatchingVersion, type RecommendationRun } from '../../../generated/prisma/client.js';
+import { databaseNow } from '../../../shared/database-clock.js';
 import { PublicError } from '../auth/errors.js';
 import type { AuthService, Identity } from '../auth/service.js';
 import { publicGigFilter } from '../catalog/gigs.js';
@@ -24,6 +25,7 @@ const result = z.object({
 });
 const results = z.array(result).max(3);
 const methods = z.enum(['weighted_catalog_v1', 'semantic_hybrid_v1']);
+const semanticPendingMs = 30_000;
 const embeddingProvenance = z.object({
   model: z.string(), listingInputVersion: z.literal(listingEmbeddingInput),
   briefInputVersion: z.literal(briefEmbeddingInput), semanticWeight: z.literal(semanticWeight),
@@ -77,7 +79,7 @@ export async function rank(
 }
 
 async function present(tx: Prisma.TransactionClient, row: RecommendationRun) {
-  if (row.semanticPendingUntil && row.semanticPendingUntil > new Date()) {
+  if (row.semanticPendingUntil && row.semanticPendingUntil > await databaseNow(tx)) {
     throw new PublicError(409, 'RECOMMENDATION_PROCESSING', 'Recommendations are being prepared. Retry with the same request key.');
   }
   const snapshot = results.parse(row.results);
@@ -159,11 +161,14 @@ export function makeRecommendationController(auth: AuthService) {
         const candidates = await rank(tx, brief, weights, genres, semanticModel ? semanticCandidateLimit : 3);
         const enoughEmbeddings = semanticModel &&
           (await compatibleEmbeddings(tx, candidates, semanticModel)).size >= minimumEmbeddedCandidates;
+        const semanticPendingUntil = enoughEmbeddings
+          ? new Date((await databaseNow(tx)).getTime() + semanticPendingMs)
+          : null;
         const row = await tx.recommendationRun.create({
           data: {
             ...key, briefRevision: brief.revision, weightsRevision: weights.revision,
             method: 'weighted_catalog_v1', genres, results: candidates.slice(0, 3), semanticRequested,
-            semanticPendingUntil: enoughEmbeddings ? new Date(Date.now() + 30_000) : null,
+            semanticPendingUntil,
           },
         });
         if (!enoughEmbeddings || !semanticModel) return { view: await present(tx, row) };
@@ -178,8 +183,9 @@ export function makeRecommendationController(auth: AuthService) {
         const vectors = observation?.vector ? await compatibleEmbeddings(tx, result, prepared.model) : undefined;
         const ranked = observation?.vector && vectors && vectors.size >= minimumEmbeddedCandidates
           ? rerank(result, vectors, observation.vector) : null;
+        const now = await databaseNow(tx);
         await tx.recommendationRun.updateMany({
-          where: { id: prepared.row.id, semanticPendingUntil: { gt: new Date() } },
+          where: { id: prepared.row.id, semanticPendingUntil: { gt: now } },
           data: {
             method: ranked ? 'semantic_hybrid_v1' : 'weighted_catalog_v1',
             semanticPendingUntil: null, results: ranked?.items ?? result.slice(0, 3),
@@ -192,7 +198,7 @@ export function makeRecommendationController(auth: AuthService) {
         if (observation) {
           await tx.aiModelCall.create({ data: {
             capability: 'semantic-recommendation', provider: 'openai', model: prepared.model,
-            outcome: observation.outcome, latencyMs: observation.latencyMs, inputTokens: observation.inputTokens,
+            outcome: observation.outcome, latencyMs: observation.latencyMs, inputTokens: observation.inputTokens, createdAt: now,
           } });
         }
         return present(tx, await tx.recommendationRun.findUniqueOrThrow({ where: { id: prepared.row.id } }));
