@@ -67,6 +67,8 @@ Integration uses a separate Compose project, `stagelink_test`, PostgreSQL 55433,
 
 The HTTP tests listen on a temporary loopback port.
 
+Account email verification, email changes and password recovery use PostgreSQL time for code issuance, expiry and consumption. The mail worker uses that clock for leases, retry delays and delivery timestamps. Expired or exhausted mail jobs release their lease and discard their sealed payload.
+
 The integration script and CI run a PostgreSQL backup and restore drill after the suites finish. The drill archives the migrated test database, restores it in one transaction into a fresh database, and compares table row counts and checksums, sequence state, constraints and indexes. It removes the temporary database and archive on exit. To repeat it with the test stack idle, run from the repository root:
 
 ```sh
