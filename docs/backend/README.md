@@ -156,7 +156,7 @@ The optional PayHere refund fixture checks the recorded recovery against the exp
 
 ## Date-specific equipment availability
 
-Use `GET /api/v1/listings/:id/availability` with the published listing version, date range, requested quantity and rate unit. For standalone equipment with a bookable calendar window, the response includes `stock.totalUnits`, `stock.reservedUnits` and `stock.availableUnits`. Total units reflect the published stock limit and available registered units when the listing tracks serials. Reserved units reflect peak overlapping active holds and agreements, including demand from bundles that use the same equipment. Availability compares the requested quantity against the remaining stock for the entire interval.
+Use `GET /api/v1/listings/:id/availability` with the published listing version, date range, requested quantity and rate unit. For standalone equipment with a bookable calendar window, the response includes `stock.totalUnits`, `stock.reservedUnits` and `stock.availableUnits`. The published limit caps the stock. For serialized equipment, the stock also accounts for registered units and their current condition. A unit already dispatched or awaiting inspection counts once toward the overlapping reservation that assigned it. It stays unavailable for another booking until it clears inspection. Reserved stock includes equipment demand from bundles. Availability compares the requested quantity against remaining stock across the entire interval.
 
 Calendar closures and other listing types return the existing `available` flag. Refresh the counts when the date range changes. The booking request still checks capacity inside the provider lock.
 

@@ -313,10 +313,10 @@ test('renter owns revisions and public browse only shows approved published equi
       targetKind: 'rental', targetId: id, targetVersion: 3, quantity: 1, rateUnit: 'day',
       startsAt: '2090-03-01T09:00:00Z', endsAt: '2090-03-03T09:00:00Z',
     };
-    function equipmentAvailability(quantity = 1, origin = base) {
+    function equipmentAvailability(quantity = 1, origin = base, window = bookingFields) {
       const query = new URLSearchParams({
         targetKind: bookingFields.targetKind, targetVersion: String(bookingFields.targetVersion), quantity: String(quantity),
-        rateUnit: bookingFields.rateUnit, startsAt: bookingFields.startsAt, endsAt: bookingFields.endsAt,
+        rateUnit: bookingFields.rateUnit, startsAt: window.startsAt, endsAt: window.endsAt,
       });
       return call(`listings/${id}/availability?` + query, undefined, undefined, 'GET', origin);
     }
@@ -596,10 +596,46 @@ test('renter owns revisions and public browse only shows approved published equi
     assert.equal(submitted.status, 200);
     const handover = await call(inspect + '/acknowledge', { revision: submitted.data.revision, confirmed: true }, winnerCustomer);
     assert.equal(handover.data.stage, 'out');
+    const nextMinute = Math.floor(inspectionNow / 60_000) * 60_000 + 120_000;
+    const overlapsDispatch = {
+      ...bookingFields, startsAt: new Date(nextMinute).toISOString(),
+      endsAt: new Date(nextMinute + 86_400_000).toISOString(),
+    };
+    const afterDispatch = {
+      ...bookingFields, startsAt: overlapsDispatch.endsAt,
+      endsAt: new Date(nextMinute + 2 * 86_400_000).toISOString(),
+    };
+    assert.deepEqual((await equipmentAvailability(1, base, overlapsDispatch)).data, soldOut);
+    assert.deepEqual((await equipmentAvailability(1, base, afterDispatch)).data, {
+      available: false, stock: { totalUnits: 0, reservedUnits: 0, availableUnits: 0 },
+    }, 'An outstanding handover cannot be promised for a later window');
+
+    assert.equal((await call(units, { listingId: id, serial: 'SN-03' }, renter)).status, 200);
+    assert.deepEqual((await equipmentAvailability(1, base, overlapsDispatch)).data, soldOut,
+      'A spare serial cannot override the published stock limit');
+    const publishedStock = { listingId_version: { listingId: id, version: 3 } };
+    await deps.db.rentalListingVersion.update({ where: publishedStock, data: { stockQuantity: 3 } });
+    try {
+      assert.deepEqual((await equipmentAvailability(1, base, overlapsDispatch)).data, {
+        available: true, stock: { totalUnits: 3, reservedUnits: 2, availableUnits: 1 },
+      });
+      const spare = await call('bookings', { ...overlapsDispatch, requestKey: randomUUID() }, secondCustomer);
+      assert.equal(spare.status, 200);
+      assert.equal((await call('bookings', { ...overlapsDispatch, requestKey: randomUUID() }, customer)).data.code,
+        'RESERVATION_UNAVAILABLE');
+      assert.equal((await call('bookings/' + spare.data.id + '/cancellations', {
+        reason: 'Release the spare equipment test booking.',
+      }, secondCustomer)).status, 200);
+    } finally {
+      await deps.db.rentalListingVersion.update({ where: publishedStock, data: { stockQuantity: 2 } });
+    }
     const returning = await call(inspect + '/return', { revision: handover.data.revision }, renter);
     const returned = await call(inspect + '/submit', { revision: returning.data.revision, confirmed: true, evidence: condition }, renter);
     const cleared = await call(inspect + '/acknowledge', { revision: returned.data.revision, confirmed: true }, winnerCustomer);
     assert.equal(cleared.data.stage, 'cleared');
+    assert.deepEqual((await equipmentAvailability(1, base, afterDispatch)).data, {
+      available: true, stock: { totalUnits: 2, reservedUnits: 0, availableUnits: 2 },
+    });
     assert.equal((await call(inspect + '/comparison', undefined, winnerCustomer)).data.units.length, 2);
     assert.equal((await call('damage-claims', { ...damageInput, amountMinor: 100 }, renter)).data.code, 'DEDUCTION_NOT_ELIGIBLE');
     const damage = await call('damage-claims', damageInput, renter);
