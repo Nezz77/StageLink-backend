@@ -4,8 +4,10 @@ import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
 import { createApp } from '../api/src/app.js';
 import { hashPassword } from '../api/src/auth/security.js';
+import { databaseNow } from '../shared/database-clock.js';
 import { readConfig } from '../shared/config.js';
 import { resources } from '../shared/resources.js';
+import { serverClock } from './fixtures/server-clock.js';
 
 const config = readConfig({
   ...process.env, AUTH_RATE_PREFIX: 'completion-test-' + randomUUID(),
@@ -23,7 +25,7 @@ test('completion requires a paid advance, provider check-in and resolved overtim
   let bookingId: string | undefined;
   let cancelledBookingId: string | undefined;
   const password = 'A private fixture password 12!';
-  type Login = { accessToken: string; csrfToken: string; user: { id: string } };
+  type Login = { accessToken: string; csrfToken: string; user: { id: string; email: string } };
   try {
     await app.listen(0, '127.0.0.1');
     const base = await app.getUrl();
@@ -239,11 +241,14 @@ test('completion requires a paid advance, provider check-in and resolved overtim
     assert.ok((await call(adminDispute + '/dismissals', resolution, admin)).data.dismissedAt);
     assert.equal((await call(path + '/disputes', undefined, customer)).data.dispute.dismissalReason, resolution.reason);
 
-    const futureStart = new Date(Date.now() + 86_400_000);
+    const cancellationTime = (await databaseNow(deps.db)).getTime();
+    const futureStart = new Date(cancellationTime + 120_000);
+    const futureEnd = new Date(futureStart.getTime() + 3_600_000);
+    const holdExpiresAt = new Date(cancellationTime + 60_000);
     const cancellation = await deps.db.booking.create({ data: {
       providerId: provider.user.id, customerId: customer.user.id, requestKey: randomUUID(), requestDigest: '0'.repeat(64),
       targetKind: 'gig', targetId: randomUUID(), targetVersion: 1, startsAt: futureStart,
-      endsAt: new Date(futureStart.getTime() + 3_600_000), holdExpiresAt: new Date(Date.now() + 60_000),
+      endsAt: futureEnd, holdExpiresAt,
       snapshot: {
         title: 'Cancellation fixture', currency: 'LKR', quantity: 1, guestCount: null,
         rateMinor: 35_011, periods: 1, rateUnit: null, subtotalMinor: 35_011,
@@ -255,8 +260,24 @@ test('completion requires a paid advance, provider check-in and resolved overtim
     const cancelBody = { reason: 'The customer changed the event date.' };
     assert.equal((await call(cancellationPath + '/cancellations', cancelBody, provider)).status, 403);
     assert.equal((await call(cancellationPath + '/cancellations', cancelBody, outsider)).status, 404);
-    const cancelled = await call(cancellationPath + '/cancellations', cancelBody, customer);
+    const fastClock = 5 * 60_000;
+    const pastStart = new Date(cancellationTime - 60_000);
+    await deps.db.booking.update({
+      where: { id: cancellation.id }, data: { startsAt: pastStart, holdExpiresAt: pastStart },
+    });
+    const started = await serverClock(-fastClock, async () => {
+      const slowLogin = await call('auth/login', { email: customer.user.email, password });
+      assert.equal(slowLogin.status, 200);
+      return call(cancellationPath + '/cancellations', cancelBody, slowLogin.data);
+    });
+    assert.equal(started.data.code, 'CANCELLATION_NOT_ELIGIBLE');
+    await deps.db.booking.update({
+      where: { id: cancellation.id }, data: { startsAt: futureStart, holdExpiresAt },
+    });
+    const cancelled = await serverClock(fastClock, () => call(cancellationPath + '/cancellations', cancelBody, customer));
     assert.equal(cancelled.status, 200);
+    const cancelledAt = Date.parse(cancelled.data.cancelledAt);
+    assert.ok(cancelledAt >= cancellationTime && cancelledAt <= (await databaseNow(deps.db)).getTime());
     assert.deepEqual((await call(cancellationPath + '/cancellations', cancelBody, customer)).data, cancelled.data);
     assert.equal((await call(cancellationPath, undefined, provider)).data.state, 'cancelled');
     assert.equal((await call(cancellationPath + '/provider-decisions', { revision: 2, decision: 'accepted' }, provider)).status, 409);
