@@ -710,7 +710,57 @@ async function checkPayoutReconciliation(
       assert.deepEqual(await (await review(reviewer, confirmation)).json(), reversed);
       assert.deepEqual(await (await fetch(historyPath, admin)).json(), { items: [reversed, decision], nextBeforeRevision: null });
       assert.equal((await (await fetch(base + 'payouts/' + payoutId, provider)).json()).manualSandboxPayoutStatus, 'reversed');
-      assert.equal((await (await correct({ ...correctionInput, expectedRevision: 2 })).json()).code, 'MANUAL_PAYOUT_NOT_FLAGGED');
+
+      const replacementInput = {
+        expectedRevision: 2, testReference: 'SBX-' + randomUUID().toUpperCase(),
+        reason: 'Replace the reversed sandbox payout with new evidence.',
+      };
+      assert.equal((await (await correct(replacementInput)).json()).code, 'PAYOUT_NOT_ELIGIBLE');
+      await deps.db.bookingPayoutHold.create({ data: {
+        bookingId, revision: 2, held: false, reason: 'Fixture review hold cleared for replacement.', actorId: admin.id, createdAt: now,
+      } });
+      assert.equal((await (await correct({ ...replacementInput, testReference: manualInput.testReference })).json()).code,
+        'MANUAL_PAYOUT_REFERENCE_REUSED');
+      assert.equal((await deps.db.manualSandboxPayout.findUniqueOrThrow({ where: { id: correction.id } })).supersededReversalId, null);
+      const replacements = await Promise.all([correct(replacementInput), correct(replacementInput)]);
+      assert.ok(replacements.every(result => result.status === 200));
+      const [replacement, repeatedReplacement] = await Promise.all(replacements.map(result => result.json()));
+      assert.deepEqual(repeatedReplacement, replacement);
+      assert.equal(replacement.revision, 3);
+      assert.equal(replacement.state, 'awaiting_review');
+      assert.equal(replacement.journalId, null);
+      assert.ok(!('supersededReversalId' in replacement));
+      assert.equal(await postedBalance(deps.db, reserved.account.id), 100000n);
+      assert.equal((await deps.db.manualSandboxPayout.findUniqueOrThrow({ where: { id: correction.id } })).supersededReversalId, reversed.reversal.id);
+      assert.deepEqual(await (await reverse()).json(), reversed, 'an older reversal still replays after replacement');
+      assert.equal((await (await reverse(admin, { ...reversalInput, requestKey: randomUUID() })).json()).code,
+        'MANUAL_PAYOUT_REVISION_CHANGED');
+      assert.deepEqual((await (await fetch(historyPath, admin)).json()).items, [replacement, reversed, decision]);
+      const replacementConfirmation = { ...confirmation, expectedRevision: 3 };
+      assert.equal((await review(admin, replacementConfirmation)).status, 403);
+      const replacementReviews = await Promise.all([review(reviewer, replacementConfirmation), review(reviewer, replacementConfirmation)]);
+      assert.ok(replacementReviews.every(result => result.status === 200));
+      const [newSettlement, repeatedSettlement] = await Promise.all(replacementReviews.map(result => result.json()));
+      assert.deepEqual(repeatedSettlement, newSettlement);
+      assert.equal(newSettlement.state, 'settled');
+      assert.equal(await postedBalance(deps.db, reserved.account.id), 0n);
+      assert.deepEqual((await (await fetch(historyPath, admin)).json()).items, [newSettlement, reversed, decision]);
+      const replacementAnalytics = await payoutAnalytics();
+      assert.equal(replacementAnalytics.settled.paidOutMinor, '95000');
+      assert.equal(replacementAnalytics.settled.feeRevenueMinor, '5000');
+      const newStatement = await deps.db.bookingDocument.findFirstOrThrow({ where: { bookingId, kind: 'settlement', sourceId: newSettlement.journalId } });
+      assert.deepEqual((newStatement.snapshot as { manualSettlement: object }).manualSettlement, {
+        state: 'settled', settlementId: replacement.id, revision: 3, journalId: newSettlement.journalId,
+      });
+      await assert.rejects(deps.db.manualSandboxPayout.update({
+        where: { id: replacement.id }, data: { supersededReversalId: reversed.reversal.id },
+      }), { code: 'P2003' });
+      await assert.rejects(deps.db.manualSandboxPayout.create({
+        data: {
+          payoutId, revision: 4, amountMinor: 95000, destinationRevision: 1,
+          testReference: 'SBX-' + randomUUID().toUpperCase(), recordedBy: admin.id, recordReason: replacementInput.reason,
+        },
+      }), { code: 'P2002' });
       assert.equal((await (await submitStripe()).json()).code, 'MANUAL_SANDBOX_PAYOUT_STARTED');
       assert.equal(gatewayRequests, before);
       return;
@@ -1219,8 +1269,10 @@ async function checkPayoutReconciliation(
         await deps.db.stripeBankPayoutSettlement.deleteMany({ where: { transfer: { payout } } });
         await deps.db.stripePayoutTransferEvent.deleteMany({ where: { transfer: { payout } } });
         await deps.db.stripePayoutTransfer.deleteMany({ where: { payout } });
-        await deps.db.manualSandboxPayoutReversal.deleteMany({ where: { settlement: { payout } } });
-        await deps.db.manualSandboxPayout.deleteMany({ where: { payout } });
+        await deps.db.$transaction(async tx => {
+          await tx.manualSandboxPayoutReversal.deleteMany({ where: { settlement: { payout } } });
+          await tx.manualSandboxPayout.deleteMany({ where: { payout } });
+        });
         await deps.db.payoutDestinationRepair.deleteMany({ where: { payout } });
         await deps.db.payoutOrder.deleteMany({ where: payout });
         await deps.db.stripeRefundExecution.deleteMany({ where: { damageClaim: { bookingId } } });

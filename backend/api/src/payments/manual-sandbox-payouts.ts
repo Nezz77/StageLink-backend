@@ -48,8 +48,9 @@ export function manualSandboxState(
 }
 
 export function presentManualSandbox(row: ManualEvidence) {
+  const { supersededReversalId: _supersededReversalId, ...evidence } = row;
   return {
-    ...row, state: manualSandboxState(row), environment: 'sandbox' as const, currency: 'LKR' as const,
+    ...evidence, state: manualSandboxState(row), environment: 'sandbox' as const, currency: 'LKR' as const,
     createdAt: row.createdAt.toISOString(), reviewedAt: row.reviewedAt?.toISOString() ?? null,
     reversal: row.reversal ? { ...row.reversal, createdAt: row.reversal.createdAt.toISOString() } : null,
   };
@@ -125,6 +126,12 @@ export async function reviewManualSandboxPayout(
   }));
 }
 
+export function matchesManualReversal(
+  reversal: ManualSandboxPayoutReversal, actorId: string, input: z.infer<typeof manualSandboxReversal>,
+) {
+  return reversal.requestKey === input.requestKey.toLowerCase() && reversal.actorId === actorId && reversal.reason === input.reason;
+}
+
 export async function reverseManualSandboxPayout(
   tx: Prisma.TransactionClient, payout: PayoutOrder, record: ManualEvidence, actorId: string,
   input: z.infer<typeof manualSandboxReversal>,
@@ -132,7 +139,7 @@ export async function reverseManualSandboxPayout(
   const requestKey = input.requestKey.toLowerCase();
   const prior = record.reversal;
   if (prior) {
-    if (prior.requestKey === requestKey && prior.actorId === actorId && prior.reason === input.reason) {
+    if (matchesManualReversal(prior, actorId, input)) {
       return presentManualSandbox(record);
     }
     throw new PublicError(409, 'MANUAL_PAYOUT_REVERSAL_RECORDED', 'This sandbox reversal has already been recorded.');
