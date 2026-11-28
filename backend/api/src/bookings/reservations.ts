@@ -50,12 +50,12 @@ export function peakReserved(allocations: (Window & { quantity: number })[], win
 }
 
 export async function reservationStock(tx: Prisma.TransactionClient, line: ReservationLine, window: Window, now: Date, exclude?: string) {
-  let totalUnits = line.capacity;
+  let availableSerials: number | null = null;
   if (line.resource === 'equipment') {
     const counts = await tx.inventoryUnit.groupBy({
       by: ['status'], where: { listingId: line.resourceId }, _count: { _all: true },
     });
-    if (counts.length) totalUnits = Math.min(totalUnits, counts.find(row => row.status === 'available')?._count._all ?? 0);
+    if (counts.length) availableSerials = counts.find(row => row.status === 'available')?._count._all ?? 0;
   }
   const held = await tx.bookingReservationLine.findMany({
     where: {
@@ -69,16 +69,43 @@ export async function reservationStock(tx: Prisma.TransactionClient, line: Reser
         ],
       },
     },
-    select: { quantity: true, booking: { select: { startsAt: true, endsAt: true } } },
+    select: {
+      quantity: true,
+      booking: { select: {
+        startsAt: true,
+        endsAt: true,
+        inspection: { select: { _count: { select: {
+          units: { where: { releasedAt: null, unit: { listingId: line.resourceId, status: { not: 'available' } } } },
+        } } } },
+      } },
+    },
   });
-  const reservedUnits = peakReserved(held.map(row => ({ ...row.booking, quantity: row.quantity })), window);
-  return { totalUnits, reservedUnits, availableUnits: Math.max(0, totalUnits - reservedUnits) };
+  const catalogReserved = peakReserved(held.map(({ booking, quantity }) => ({
+    startsAt: booking.startsAt, endsAt: booking.endsAt, quantity,
+  })), window);
+  const catalogRemaining = line.capacity - catalogReserved;
+  if (availableSerials === null) {
+    return { totalUnits: line.capacity, reservedUnits: catalogReserved, availableUnits: Math.max(0, catalogRemaining) };
+  }
+
+  // An unreleased serial already out of stock covers the overlapping reservation that assigned it.
+  // Keep it unavailable outside that reservation too until the inspection releases it.
+  let occupiedSerials = 0;
+  const holdsOnAvailableSerials = held.map(({ booking, quantity }) => {
+    const assigned = Math.min(quantity, booking.inspection?._count.units ?? 0);
+    occupiedSerials += assigned;
+    return { startsAt: booking.startsAt, endsAt: booking.endsAt, quantity: quantity - assigned };
+  });
+  const physicalRemaining = availableSerials - peakReserved(holdsOnAvailableSerials, window);
+  const totalUnits = Math.min(line.capacity, availableSerials + occupiedSerials);
+  const remaining = Math.min(catalogRemaining, physicalRemaining);
+  return { totalUnits, reservedUnits: totalUnits - remaining, availableUnits: Math.max(0, remaining) };
 }
 
 // Call with the provider user row locked, shared by catalog, calendar and inventory mutations.
 export async function checkCapacity(tx: Prisma.TransactionClient, lines: ReservationLine[], window: Window, now: Date, exclude?: string) {
   for (const line of lines) {
     const stock = await reservationStock(tx, line, window, now, exclude);
-    if (line.quantity + stock.reservedUnits > stock.totalUnits) unavailable();
+    if (line.quantity > stock.availableUnits) unavailable();
   }
 }
