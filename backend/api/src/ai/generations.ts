@@ -4,6 +4,7 @@ import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiParam, ApiTags } from '@nestj
 import type { Request } from 'express';
 import { z } from 'zod';
 import { Prisma, type AiGenerationJob } from '../../../generated/prisma/client.js';
+import { databaseNow } from '../../../shared/database-clock.js';
 import { PublicError } from '../auth/errors.js';
 import type { AuthService } from '../auth/service.js';
 import { schema } from '../payments/orders.js';
@@ -47,8 +48,8 @@ function missing() {
   return new PublicError(404, 'GENERATION_NOT_FOUND', 'This suggestion is unavailable.');
 }
 
-function presentArtistJob(row: AiGenerationJob) {
-  const expired = row.status === 'processing' && row.expiresAt <= new Date();
+async function presentArtistJob(db: Pick<Prisma.TransactionClient, '$queryRaw'>, row: AiGenerationJob) {
+  const expired = row.status === 'processing' && row.expiresAt <= await databaseNow(db);
   return {
     id: row.id, kind: kinds.parse(row.kind), promptVersion: row.promptVersion,
     status: expired ? 'unavailable' as const : row.status,
@@ -164,8 +165,8 @@ export function makeGenerationsController(auth: AuthService) {
 
         // Serialize quota checks across replicas. The model call starts after this transaction commits.
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(5, 27)`;
-        const now = new Date();
-        const createdAt = { gt: new Date(now.getTime() - rollingDayMs) };
+        const quotaNow = await databaseNow(tx);
+        const createdAt = { gt: new Date(quotaNow.getTime() - rollingDayMs) };
         const artistJobs = { kind: { in: kinds.options }, createdAt };
         const used = await tx.aiGenerationJob.count({ where: { ownerId, ...artistJobs } });
         if (used >= artistDailyLimit || await tx.aiGenerationJob.count({ where: artistJobs }) >= auth.config.AI_GENERATION_DAILY_LIMIT) {
@@ -177,6 +178,7 @@ export function makeGenerationsController(auth: AuthService) {
         });
         const published = template.versions[0]!;
         resolvePrompt(kind, published.body, fields);
+        const now = await databaseNow(tx);
         const row = await tx.aiGenerationJob.create({
           data: {
             ownerId, requestKey, requestHash, kind, promptVersion: published.version,
@@ -185,13 +187,13 @@ export function makeGenerationsController(auth: AuthService) {
         });
         return { row, template: published.body };
       });
-      if (accepted.template === null) return presentArtistJob(accepted.row);
+      if (accepted.template === null) return presentArtistJob(db, accepted.row);
 
       const result = await requestModelPreview(auth.config, { key: kind, template: accepted.template, fields });
       const row = await db.$transaction(async tx => {
         const existing = await tx.aiGenerationJob.findUnique({ where: { id: accepted.row.id } });
         if (!existing || existing.templateRevision === null) throw missing();
-        const now = new Date();
+        const now = await databaseNow(tx);
         const status = existing.expiresAt <= now ? 'unavailable' : (result?.outcome ?? 'unavailable');
         const output = status === 'succeeded' ? result?.output : null;
         const draft = typeof output === 'string' ? { bio: output } : output;
@@ -201,10 +203,11 @@ export function makeGenerationsController(auth: AuthService) {
         if (result) await saveModelAttempts(tx, result, {
           capability: 'generation-' + kind, promptKey: kind, promptSource: 'published',
           generationId: completed.id, promptVersion: completed.promptVersion, templateRevision: existing.templateRevision,
+          createdAt: now,
         });
         return completed;
       });
-      return presentArtistJob(row);
+      return presentArtistJob(db, row);
     }
 
     @Get(':id')
@@ -220,7 +223,7 @@ export function makeGenerationsController(auth: AuthService) {
       });
       if (!row) throw missing();
       if (row.kind === 'equipment-specs') return presentEquipmentJob(row, Boolean(row.equipmentSource?.retiredAt));
-      return presentArtistJob(row);
+      return presentArtistJob(db, row);
     }
   }
 

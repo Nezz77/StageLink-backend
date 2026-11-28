@@ -57,6 +57,7 @@ type PromptTrace = {
   templateRevision: number;
   promptSource: 'inline' | 'draft' | 'published';
   generationId?: string;
+  createdAt?: Date;
 };
 
 export function saveModelAttempts(tx: Prisma.TransactionClient, result: ModelResult, trace: PromptTrace) {
