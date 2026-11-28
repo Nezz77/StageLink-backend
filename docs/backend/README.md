@@ -152,6 +152,8 @@ The optional PayHere refund fixture checks the recorded recovery against the exp
 
 ## Booking completion
 
+Booking hold creation, renewal, and expiry use the PostgreSQL clock. Booking and quotation status use that same clock. Writes sample it after acquiring the booking participants' locks so the timestamp reflects any wait for another request.
+
 Booking participants can read `GET /api/v1/bookings/:id/journey`. The provider submits `{"confirmed":true}` to the booking's `check-ins` route during its scheduled window and to its `completion` route after the scheduled and approved overtime end. Both require a paid advance. A check-in records the provider's manual confirmation. Either gig participant can propose overtime after check-in, and the other participant must resolve the proposal before completion.
 
 After the completion report, the customer can open a balance payment order for the original price plus approved overtime less the paid advance. A separate admin verification records the reviewer, time and reason. Completion and verification leave settlement to the payout workflow.

@@ -1,3 +1,4 @@
+import { databaseNow } from '../../../shared/database-clock.js';
 import { notifyUsers } from '../../../shared/notifications.js';
 import { Body, Controller, Get, HttpCode, Param, Post, Query, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiParam, ApiQuery, ApiTags, type SchemaObject } from '@nestjs/swagger';
@@ -105,7 +106,7 @@ export function makeQuotationsController(auth: AuthService) {
       const totalMinor = input.lines.reduce((sum, line) => sum + line.quantity * line.unitPriceMinor, 0);
       if (totalMinor < 1 || totalMinor > 2_147_483_647) throw new PublicError(400, 'QUOTATION_TOTAL_INVALID', 'Enter a positive quotation total within the LKR limit.');
       return write(req, parse(uuid, id), async (tx, booking, actorId) => {
-        const now = new Date();
+        const now = await databaseNow(tx);
         requireOpen(booking, input.revision, now);
         const latest = await tx.bookingQuotation.findFirst({ where: { bookingId: booking.id }, orderBy: { version: 'desc' } });
         if (!latest && actorId !== booking.providerId) throw new PublicError(403, 'PROVIDER_OFFER_REQUIRED', 'The provider must send the first quotation.');
@@ -132,7 +133,7 @@ export function makeQuotationsController(auth: AuthService) {
         const records = await tx.bookingQuotation.findMany({
           where: { bookingId, ...(cursor ? { version: { lt: cursor } } : {}) }, orderBy: { version: 'desc' }, take: pageSize + 1,
         });
-        const now = new Date();
+        const now = await databaseNow(tx);
         const items = records.slice(0, pageSize).map(row => presentQuote(row, latest._max.version ?? 0, booking, now));
         return { items, bookingRevision: booking.revision, nextVersion: records.length > pageSize ? items[pageSize - 1]!.version : null };
       }, { isolationLevel: 'RepeatableRead' });
@@ -153,7 +154,7 @@ export function makeQuotationsController(auth: AuthService) {
       });
       if (!original) throw new PublicError(404, 'QUOTATION_NOT_FOUND', 'This quotation is unavailable.');
       return write(req, original.bookingId, async (tx, booking, actorId) => {
-        const now = new Date();
+        const now = await databaseNow(tx);
         requireOpen(booking, input.revision, now);
         const latest = await tx.bookingQuotation.findFirst({ where: { bookingId: booking.id }, orderBy: { version: 'desc' } });
         if (!latest || latest.id !== quotationId || latest.decision) throw new PublicError(409, 'QUOTATION_CHANGED', 'Choose the latest pending quotation.');

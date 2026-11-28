@@ -11,19 +11,11 @@ import { processBookingReminders } from '../shared/booking-reminders.js';
 import { processBookingSmsReminders } from '../shared/booking-sms-reminders.js';
 import { payloadContext, processSmsVerifications, sealSmsNumber } from '../shared/sms-verification.js';
 import { smsDigest } from '../shared/sms.js';
+import { serverClock } from './fixtures/server-clock.js';
 
 const config = readConfig({ ...process.env, AUTH_RATE_PREFIX: 'notification-clock-'+randomUUID(), SMS_VERIFICATION_ENABLED:'true', BOOKING_SMS_REMINDERS:'true', BOOKING_EMAIL_REMINDERS:'true', TEXTLK_TOKEN:'fixture-token',TEXTLK_SENDER:'StageLink',SMS_HOURLY_LIMIT:'1000' });
 if(config.NODE_ENV!=='test'||!new URL(config.DATABASE_URL).pathname.endsWith('_test'))throw Error('Notification clock checks require an isolated test database');
 const ActualDate = Date;
-async function serverClock<T>(offset:number, work:()=>Promise<T>):Promise<T>{
-  assert.equal(globalThis.Date,ActualDate);
-  globalThis.Date = new Proxy(ActualDate,{
-    construct(target,args,newTarget){return Reflect.construct(target,args.length?args:[ActualDate.now()+offset],newTarget);},
-    apply(){return new ActualDate(ActualDate.now()+offset).toString();},
-    get(target,key,receiver){return key==='now'?()=>ActualDate.now()+offset:Reflect.get(target,key,receiver);},
-  });
-  try{return await work();}finally{globalThis.Date=ActualDate;}
-}
 
 test('booking reminders and verification use database time with fast/slow server clocks and lock waits',async()=>{
  const deps=resources(config),{app}=await createApp(config,deps),users:string[]=[],bookings:string[]=[];

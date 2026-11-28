@@ -1,3 +1,4 @@
+import { databaseNow } from '../../../shared/database-clock.js';
 import { notifyUsers } from '../../../shared/notifications.js';
 import { Body, Controller, Get, HttpCode, Param, Post, Query, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiParam, ApiQuery, ApiTags, type SchemaObject } from '@nestjs/swagger';
@@ -162,7 +163,7 @@ export function makeBookingRequestsController(auth: AuthService) {
       }, async (tx, current, providerId) => {
         const customerId = current.user.id;
         const existing = await tx.booking.findUnique({ where: { customerId_requestKey: { customerId, requestKey } } });
-        const now = new Date();
+        const now = await databaseNow(tx);
         if (existing) {
           if (existing.requestDigest !== digest) throw new PublicError(409, 'REQUEST_KEY_REUSED', 'Use a new request key for a different booking.');
           return present(existing, now);
@@ -205,9 +206,9 @@ export function makeBookingRequestsController(auth: AuthService) {
     async availability(@Param('id') id: string, @Query() raw: unknown) {
       const { startsAt, endsAt, ...selected } = parse(availabilityQuery, raw);
       const input = { ...selected, targetId: parse(uuid, id) };
-      const now = new Date();
-      const window = getWindow(new Date(startsAt), new Date(endsAt), now);
       return db.$transaction(async tx => {
+        const now = await databaseNow(tx);
+        const window = getWindow(new Date(startsAt), new Date(endsAt), now);
         const providerId = await publishedTarget(tx, input);
         const quoted = await bookingSelection(tx, input, window.duration);
         try {
@@ -230,7 +231,7 @@ export function makeBookingRequestsController(auth: AuthService) {
     async list(@Req() req: Request, @Query() raw: unknown) {
       const { user } = await identity(req);
       const query = parse(listQuery, raw);
-      const now = new Date();
+      const now = await databaseNow(db);
       const stateFilters = {
         held: { providerDecision: null, holdExpiresAt: { gt: now } },
         agreed: { agreedAt: { not: null } },
@@ -256,7 +257,7 @@ export function makeBookingRequestsController(auth: AuthService) {
       const actor = await identity(req);
       profiles.providerRole(actor);
       const query = parse(calendarQuery, raw);
-      const now = new Date();
+      const now = await databaseNow(db);
       return bookingPage(db, {
         providerId: actor.user.id, providerDecision: 'accepted', cancelledAt: null,
         OR: [{ agreedAt: { not: null } }, { holdExpiresAt: { gt: now } }],
@@ -279,7 +280,7 @@ export function makeBookingRequestsController(auth: AuthService) {
         if (record.cancelledAt || record.revision !== input.revision || record.providerDecision) {
           throw new PublicError(409, 'BOOKING_CHANGED', 'Reload the booking before deciding this request.');
         }
-        const now = new Date();
+        const now = await databaseNow(tx);
         if (input.decision === 'accepted') {
           if (record.holdExpiresAt <= now) throw new PublicError(409, 'HOLD_EXPIRED', 'The customer must renew the hold before acceptance.');
           await recheckReservation(tx, record, now);
@@ -302,7 +303,8 @@ export function makeBookingRequestsController(auth: AuthService) {
     @ApiOkResponse({ schema: schema(booking) })
     async get(@Req() req: Request, @Param('id') id: string) {
       const { user } = await identity(req);
-      return present(await member(db, parse(uuid, id), user.id), new Date());
+      const record = await member(db, parse(uuid, id), user.id);
+      return present(record, await databaseNow(db));
     }
 
     @Post('bookings/:id/reservation-renewals')
@@ -319,7 +321,7 @@ export function makeBookingRequestsController(auth: AuthService) {
         if (record.holdExpiresAt.getTime() !== Date.parse(expectedHoldExpiresAt)) {
           throw new PublicError(409, 'HOLD_CHANGED', 'Reload the booking before renewing its hold.');
         }
-        const now = new Date();
+        const now = await databaseNow(tx);
         if (record.cancelledAt) throw new PublicError(409, 'BOOKING_CANCELLED', 'This booking is cancelled.');
         if (record.agreedAt) return present(record, now);
         if (record.providerDecision === 'rejected') throw new PublicError(409, 'BOOKING_REJECTED', 'This booking was rejected.');
