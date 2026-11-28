@@ -6076,7 +6076,7 @@ export interface operations {
             content: {
                 "application/json": {
                     digest: string;
-                    models?: ("DXR15mkII" | "DXR12mkII" | "DXR10mkII" | "DXR8mkII" | "DXR15" | "DXR12" | "DXR10" | "DXR8" | "DXS15" | "DXS12" | "Intimidator Spot 160 ILS" | "Intimidator Spot 160" | "SM58" | "SM57" | "DBR10" | "DBR12" | "DBR15" | "K12.2")[];
+                    models?: ("DXR15mkII" | "DXR12mkII" | "DXR10mkII" | "DXR8mkII" | "DXR15" | "DXR12" | "DXR10" | "DXR8" | "DXS15" | "DXS12" | "DXS18" | "DXS15mkII" | "DXS12mkII" | "Intimidator Spot 160 ILS" | "Intimidator Spot 160" | "SM58" | "SM57" | "DBR10" | "DBR12" | "DBR15" | "K8.2" | "K10.2" | "K12.2")[];
                 };
             };
         };
