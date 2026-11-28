@@ -1,8 +1,10 @@
 # StageLink backend
 
-Backend development uses `main` in [Nezz77/StageLink-backend](https://github.com/Nezz77/StageLink-backend). Push backend commits with `git push origin main`. The frontend repository is [Nezz77/StageLink](https://github.com/Nezz77/StageLink). See the [whole-backend plan](StageLink-Backend-Implementation-Plan.md), [backlog](backend-backlog.json), [coverage](UI-Backend-Coverage.csv), [foundation decisions](ADR-001-foundation.md), [account decisions](ADR-002-accounts.md), and [progress](PROGRESS.md).
+Submit backend changes on a separate branch and open a pull request into `main` in [Nezz77/StageLink-backend](https://github.com/Nezz77/StageLink-backend). The frontend repository is [Nezz77/StageLink](https://github.com/Nezz77/StageLink). See the [implementation plan](StageLink-Backend-Implementation-Plan.md), [completion checklist](StageLink-Completion-Backlog.md), [ticket acceptance criteria](backend-backlog.json), [UI coverage](UI-Backend-Coverage.csv), and [build history](PROGRESS.md).
 
-The API supports accounts, profile onboarding, payout destination review, media, artist gigs, and rental listings. Bookings, chat and payments are tracked in the backlog.
+## Verified build
+
+The 28 November 2026 build at `b5abf9a` includes persistent accounts, marketplace listings, bookings and quotes, chat and support, rental inspections, private PDFs, sandbox payment reconciliation, and AI suggestions and ranking. GitHub CI passed 90 Node unit tests, 44 integration tests, 21 Python tests, the PostgreSQL restore drill, contract validation, and both container builds. **116 of 127 backend build checklist items are complete (91.3%)**. Use the checklist for the remaining payment implementation, hosted verification, client integration, and release gates. [GitHub build](https://github.com/Nezz77/StageLink-backend/actions/runs/46133760621) · [Completion checklist](StageLink-Completion-Backlog.md)
 
 ## Start locally
 
@@ -87,7 +89,7 @@ The build embeds the latest bundled Prisma migration in the API and worker. Thei
 
 The worker checks its bundled migration version before beginning a background scan or handling an outbox job. An unavailable database, a schema mismatch, or an unfinished migration defers work. Already queued jobs retry after a delay without using a delivery attempt and resume once the matching schema is available. Stop the deployed workers before applying or restoring migrations so work already in flight can finish.
 
-AI remains health-only. Under `backend/ai`, use Python 3.12 / uv 0.11.29, `uv sync --frozen`, then `uv run --frozen pytest -q`. No model/provider is configured.
+The internal FastAPI service provides health checks, opt-in prompt previews, artist bio and gig draft generation, and public gig embeddings. Run its tests under `backend/ai` with Python 3.12 and uv 0.11.29 using `uv sync --frozen`, then `uv run --frozen pytest -q`. Provider calls require explicit configuration. See [prompt model previews](#prompt-model-previews) and [semantic recommendations](#semantic-recommendations).
 
 ## Controlled administrator creation
 

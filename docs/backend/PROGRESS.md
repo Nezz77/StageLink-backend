@@ -1,10 +1,28 @@
 # StageLink backend checkpoint
 
-Updated 22 November 2026. Backend development uses `main` in [Nezz77/StageLink-backend](https://github.com/Nezz77/StageLink-backend). The [completion backlog](StageLink-Completion-Backlog.md) tracks current status. The entries below record the checks and implementation as each phase landed. Later entries supersede historical open-work notes.
+Updated 28 November 2026 against `main` in [Nezz77/StageLink-backend](https://github.com/Nezz77/StageLink-backend). The [completion backlog](StageLink-Completion-Backlog.md) tracks **116 of 127 backend checklist items complete (91.3%)**. The [implementation plan](StageLink-Backend-Implementation-Plan.md#current-implementation-and-remaining-gates) maps the verified build to each phase.
+
+## 28 November verified build
+
+`main` at `b5abf9a` passed 90 Node unit tests, 44 PostgreSQL-backed integration tests, 21 Python tests, the PostgreSQL restore drill, API contract consistency, and both container builds. Payment and model tests use controlled provider responses. Hosted provider and release checks are still open. [Build 46133760621](https://github.com/Nezz77/StageLink-backend/actions/runs/46133760621)
+
+| Merged work | What the build includes |
+| --- | --- |
+| [#45](https://github.com/Nezz77/StageLink-backend/pull/45), [#46](https://github.com/Nezz77/StageLink-backend/pull/46), [#47](https://github.com/Nezz77/StageLink-backend/pull/47) | Date-specific rental stock, database-clock hold and quote expiry, and blackouts that respect existing bookings |
+| [#48](https://github.com/Nezz77/StageLink-backend/pull/48), [#49](https://github.com/Nezz77/StageLink-backend/pull/49), [#54](https://github.com/Nezz77/StageLink-backend/pull/54) | Independently reviewed replacement of reversed sandbox payouts, destination repair with explicit revision verification, and database-clock Stripe test transfer retries |
+| [#50](https://github.com/Nezz77/StageLink-backend/pull/50) | Published review averages and counts returned with artist and rental browse results |
+| [#51](https://github.com/Nezz77/StageLink-backend/pull/51), [#52](https://github.com/Nezz77/StageLink-backend/pull/52), [#53](https://github.com/Nezz77/StageLink-backend/pull/53) | Database-clock deadlines for semantic recommendations, listing embeddings and artist writing suggestions, plus rolling artist request quotas |
+| [#42](https://github.com/Nezz77/StageLink-backend/pull/42), [#43](https://github.com/Nezz77/StageLink-backend/pull/43), [#44](https://github.com/Nezz77/StageLink-backend/pull/44) | Release and rollback readiness check, Node and FastAPI dependency patches, and worker deferral during incompatible migrations |
+
+The commits from the older draft migration-readiness PR #32 and sandbox refund PDF PR #34 are already reachable from `main`. Their corresponding build items are complete. [PR #32](https://github.com/Nezz77/StageLink-backend/pull/32) · [PR #34](https://github.com/Nezz77/StageLink-backend/pull/34)
+
+## Earlier checkpoints
+
+These entries record the state at each phase. Use the current build and completion backlog above for today's status.
 
 The PayHere refund recovery build at `52e0102` includes full sandbox recovery and matching audit evidence constraints. The Node and Python jobs passed, including integration tests, API contract consistency and both container builds. [GitHub run 44688362522](https://github.com/Nezz77/StageLink-backend/actions/runs/44688362522).
 
-P15 combines the six tested starter references with six Yamaha and CHAUVET DJ references in one administrator workflow. The pack uses a digest of the reviewed measurements and citations. Approval records the acting administrator and preserves existing approvals. Staging approval, broader catalog coverage, and frontend and Figma wiring remain open. [Manufacturer reference bundle](Equipment-Reference-Bundle.md).
+P15 expanded the six starter references through Yamaha and CHAUVET DJ additions. The current bundle has 18 cited models and uses a digest of the reviewed measurements and citations. Approval records the acting administrator and preserves existing approvals. Staging approval, broader catalog coverage, and frontend and Figma wiring remain open. [Manufacturer reference bundle](Equipment-Reference-Bundle.md).
 
 The combined backend release at `205953a` includes account-scoped sandbox payment capabilities, sanitized support PDFs, case-scoped live refresh, assignee alerts and CORS exposure for download filenames and request IDs. GitHub CI passed Node and Python checks, contract regeneration and both container builds. [Integration PR](https://github.com/Nezz77/StageLink-backend/pull/25). [GitHub run](https://github.com/Nezz77/StageLink-backend/actions/runs/44980820024).
 
@@ -20,13 +38,13 @@ P01: NestJS/Prisma/PostgreSQL API, Redis/BullMQ worker with recoverable transact
 
 P02: persistent public account registration, login, assigned-role selection, email verification, password recovery, refresh rotation/replay protection and sign-out. Administrator creation is an operator-only, create-only CLI; ordinary signup cannot request admin. PostgreSQL stores identity, hashed credentials/tokens and revocable sessions. The mail worker delivers transactionally queued, encrypted payloads to a local Mailpit inbox. No external email provider is enabled.
 
-The account API serves authenticated account data and assigned roles. A newly signed-in account sees its own identity and assigned roles. Sample bookings/balances/messages stay in the explicit demo app; catalog browsing is clearly labeled as a preview. Booking/chat/payment APIs remain to be implemented; profiles and payout metadata are now persistent. Artist/renter account types are not provider approval.
+At P02, the account API served authenticated account data and assigned roles while the demo supplied sample bookings, balances and messages. Later phases added booking, chat and payment APIs and persistent profiles and payout metadata. Artist and renter approval is handled by the provider review flow.
 
 
 P03: current-account contact details, separate confirmed email changes, artist/renter onboarding, approved public snapshots, encrypted and versioned payout destinations, and revision-safe administrator reviews. Provider profile review remains separate from KYC and real payout eligibility. Full bank numbers never enter API responses. See ADR 003 for the exact authorization and versioning boundaries.
 
 
-P04: durable private media library, profile-photo binding, real image/audio/video validation and derivatives, artist/renter portfolios, allowlisted video embeds, publication review and expiring read capabilities. PostgreSQL owns processing/lease/revision state; bytes use the S3 adapter with a persistent local development emulator. Future business modules will attach files under their own authorization. PDF/archive/SVG uploads remain unsupported. Live AWS is not configured or verified.
+P04 added the durable private media library, profile-photo binding, image/audio/video validation and derivatives, artist and renter portfolios, allowlisted video embeds, publication review and expiring read capabilities. PostgreSQL stores processing, lease and revision state. The S3 adapter stores media bytes with a persistent local emulator for development. Later phases added bounded private PDF uploads for verification and support.
 
 
 ## Validation

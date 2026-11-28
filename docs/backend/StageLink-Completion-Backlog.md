@@ -1,10 +1,12 @@
 # StageLink completion backlog
 
-Updated 22 November 2026. Scope comes from the final proposal, sections 4, 5 and 7, and the [interim report](https://chatgpt.com/library?file_id=libfile_52b19e94cb7c8191abf03766b2de8ca8&account_id=personal), sections 5.11, 6.4–6.8 and 7.6.
+Updated 28 November 2026. Scope comes from the final proposal, sections 4, 5 and 7, and the [interim report](https://chatgpt.com/library?file_id=libfile_52b19e94cb7c8191abf03766b2de8ca8&account_id=personal), sections 5.11, 6.4–6.8 and 7.6.
 
 ## Completed backend work
 
-The PayHere recovery build at `52e0102` passed Node and Python tests, API contract checks, and both container builds. [Run 44688362522](https://github.com/Nezz77/StageLink-backend/actions/runs/44688362522).
+**116 of 127 backend build checklist items are complete (91.3%).** The count uses the checkboxes in [Backend build order](#backend-build-order), excluding four frontend-only entries. Each item counts once. Hosted and release gates retain their own acceptance criteria.
+
+The `main` build at `b5abf9a` passed 90 Node unit tests, 44 integration tests, 21 Python tests, the PostgreSQL restore drill, contract regeneration, and both container builds. [GitHub run 46133760621](https://github.com/Nezz77/StageLink-backend/actions/runs/46133760621) · [Build history](PROGRESS.md)
 
 Full PayHere sandbox arbitration refunds and audited recovery are on `main`. Recovery covers uncertain full card refunds for cancellations, rental deposits and arbitration. It checks fresh payment evidence, settles the original reservation once, and records the administrator and journal. Hosted verification and partial PayHere refunds remain open.
 
@@ -37,6 +39,7 @@ Checked boxes mark completed repository work. Hosted checks and remaining client
 - [x] P05 catalog. Versioned gigs and packages, equipment, venues, bundles, rate plans, refundable deposit policies, serialized inventory and rental galleries.
 - [x] P06 published feed, scheduled announcements, featured package previews, private event briefs and catalog search by name, price, city, radius, genre, rental type and category.
 - [x] P06 minimum-rating filter from published verified booking reviews.
+- [x] P06 Artist and rental browse responses include the rating average and review count from published reviews. The minimum-rating filter uses the same average. [PR #50](https://github.com/Nezz77/StageLink-backend/pull/50).
 - [x] P07 private saved items, resumable drafts and pre-booking inquiries. Booking submission links an inquiry to the resulting booking.
 - [x] P08 provider calendars, blackouts, date-specific stock, booking requests, captured terms and renewable holds.
 - [x] P08 Equipment availability returns effective inventory capacity, peak reserved units, and remaining units for the requested date range.
@@ -74,6 +77,7 @@ Checked boxes mark completed repository work. Hosted checks and remaining client
 - [x] P12 Audited Stripe test transfer retry after a confirmed full reversal restores the original reserve.
 - [x] P12 Audited Stripe test transfer retry after a confirmed first-submission `balance_insufficient` rejection.
 - [x] P12 Signed Stripe test transfer creation and reversal events reconcile existing attempts and recover a lost submission response when Stripe confirms the transfer.
+- [x] P12 Stripe test transfer leases and the 23-hour replay cutoff use PostgreSQL time. Older attempts stay eligible for reconciliation from provider evidence. [PR #54](https://github.com/Nezz77/StageLink-backend/pull/54).
 - [x] P12 Read-only Stripe test confirmation of transfer inclusion in a reconciled automatic LKR bank payout, with fresh failure status.
 - [x] P12 Stripe test journal and fee settlement for confirmed automatic LKR bank payouts, with compensating entries when the payout fails or the transfer reverses.
 - [x] P12 Verified-admin investigation of uncertain Stripe test transfer attempts using stored webhook and ledger evidence.
@@ -102,11 +106,14 @@ Checked boxes mark completed repository work. Hosted checks and remaining client
 - [x] P15 Prompt drafts, placeholder validation, preview, published history and rollback.
 - [x] P15 Opt-in OpenAI and Gemini administrator previews, with bounded fallback and persisted usage per attempt.
 - [x] P15 Private artist biography and gig suggestions with published prompt versions, quotas and replay-safe retrieval.
+- [x] P15 PostgreSQL time governs artist biography and gig draft deadlines and rolling quotas. Expired drafts remain unavailable and late responses record usage. [PR #53](https://github.com/Nezz77/StageLink-backend/pull/53).
 - [x] P15 Equipment suggestions from approved manufacturer references with citation history and withdrawal.
 - [x] P15 Top-three event-brief artist recommendations using published listings and versioned catalog weights.
 - [x] P15 Natural-language artist search preview with confirmable catalog filters.
 - [x] P15 Administrator indexing and status checks for versioned public gig embeddings.
+- [x] P15 PostgreSQL time governs listing embedding claims and retries. Expired replies leave the saved vector intact. [PR #52](https://github.com/Nezz77/StageLink-backend/pull/52).
 - [x] P15 Opt-in semantic reranking, weighted fallback, embedding provenance and repeatable synthetic ranking evaluation.
+- [x] P15 Semantic recommendation deadlines use PostgreSQL time. Same-key retries return the saved weighted ranking after expiry. [PR #51](https://github.com/Nezz77/StageLink-backend/pull/51).
 - [x] P15 Offline paired ranking evaluator with graded relevance, fallback counts and snapshot compatibility checks.
 - [x] P15 Staging command to capture and score paired runs using the same briefs, explicit semantic opt-in and replay-safe request keys.
 - [x] P15 Staging smoke command for hosted model readiness, a synthetic prompt preview and recorded usage.
@@ -153,6 +160,7 @@ Checked boxes mark completed repository work. Hosted checks and remaining client
 - [x] P18 Stripe test and PayHere sandbox refund settlements in administrator and provider analytics, with daily totals.
 - [x] P18 Net Stripe test bank payout and platform fee analytics by UTC day and period, scoped by role and inclusive of posted reversals.
 - [x] P18 PostgreSQL test backup and restore drill compares data, sequences, constraints, indexes, triggers and routines in CI.
+- [x] P18 Dependency patches for Node and FastAPI runtime packages are merged and covered by the current test and container builds. [PR #43](https://github.com/Nezz77/StageLink-backend/pull/43).
 - [x] P18 Worker scans and queued outbox jobs defer processing while the database has an incompatible or unfinished migration.
 - [ ] P18 Live financial totals for supported workflows and release verification for security, accessibility, backup and rollback.
 - [x] P18 API and worker readiness use the build's migration version and reject unfinished migrations or a different database version.
@@ -160,6 +168,8 @@ Checked boxes mark completed repository work. Hosted checks and remaining client
 
 ## Verification and client integration
 
+- [x] The 28 November `main` checkpoint passed Node and Python tests, migrations, PostgreSQL restore, OpenAPI consistency, and both container builds. [Run 46133760621](https://github.com/Nezz77/StageLink-backend/actions/runs/46133760621).
+- [x] The refund receipt and migration-readiness commits are present on `main`. The older draft PRs [#34](https://github.com/Nezz77/StageLink-backend/pull/34) and [#32](https://github.com/Nezz77/StageLink-backend/pull/32) represent those same commits.
 - [x] Combined backend payment capabilities, private support PDFs, case-scoped live refresh, assignee alerts and browser response headers passed Node and Python CI, including integration, contract and container checks. [Backend run](https://github.com/Nezz77/StageLink-backend/actions/runs/44980820024).
 - [x] Member SMS enrollment and delivery history passed frontend tests, TypeScript and production builds. Local HTTP checks exercised real PostgreSQL and Redis with a simulated SMS provider and confirmed account isolation, maintenance-safe controls and session revocation.
 - [ ] Verify the connected member SMS workflows in a hosted browser and update their Figma screens.
