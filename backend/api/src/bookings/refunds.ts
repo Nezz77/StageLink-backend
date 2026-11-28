@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiParam, ApiQuery, ApiTags } fr
 import type { Request } from 'express';
 import { z } from 'zod';
 import type { Prisma, RefundRequest } from '../../../generated/prisma/client.js';
+import { databaseNow } from '../../../shared/database-clock.js';
 import { hasJournalSqlState, openAccount, postJournal } from '../../../shared/payments/journal.js';
 import { PublicError } from '../auth/errors.js';
 import type { AuthService } from '../auth/service.js';
@@ -145,10 +146,10 @@ export function makeRefundsController(auth: AuthService) {
         if (await tx.bookingDispute.count({ where: { bookingId: booking.id, dismissedAt: null } })) {
           throw new PublicError(409, 'BOOKING_DISPUTED', 'The booking needs an arbitration review.');
         }
-        const now = new Date();
         if (await tx.equipmentInspection.count({
           where: { bookingId: booking.id, stage: { in: ['out', 'return_draft', 'return_ack', 'quarantined', 'clearance_draft'] } },
         })) throw new PublicError(409, 'EQUIPMENT_IN_CUSTODY', 'Complete the equipment return before cancellation.');
+        const now = await databaseNow(tx);
         if (booking.startsAt <= now || booking.providerDecision === 'rejected') {
           throw new PublicError(409, 'CANCELLATION_NOT_ELIGIBLE', 'Only upcoming bookings can be cancelled here.');
         }
@@ -184,7 +185,7 @@ export function makeRefundsController(auth: AuthService) {
         if (await tx.bookingDispute.count({ where: { bookingId: booking.id, dismissedAt: null } })) {
           throw new PublicError(409, 'BOOKING_DISPUTED', 'The booking needs an arbitration review.');
         }
-        const now = new Date();
+        const now = await databaseNow(tx);
         if (!booking.agreedAt || booking.cancelledAt || booking.startsAt <= now || await tx.equipmentInspection.count({
           where: { bookingId: booking.id, stage: { notIn: ['dispatch_draft', 'dispatch_ack', 'abandoned'] } },
         })) unavailable();
@@ -255,7 +256,7 @@ export function makeRefundsController(auth: AuthService) {
           }
           return present(await tx.refundRequest.update({
             where: { id: refundId },
-            data: { status: input.decision, decidedBy: actorId, decidedAt: new Date(), decisionReason: input.reason },
+            data: { status: input.decision, decidedBy: actorId, decidedAt: await databaseNow(tx), decisionReason: input.reason },
             include: refundInclude,
           }));
         }, true);
