@@ -346,7 +346,7 @@ Verified renters can submit `requestKey`, `model` and optionally `manufacturer` 
 
 Set `AI_EMBEDDING_MODEL` to `text-embedding-3-small` or `text-embedding-3-large` on both the API and private FastAPI service. Configure the shared `AI_INTERNAL_TOKEN` and set `AI_OPENAI_API_KEY` on FastAPI. The API requires `AI_SERVICE_ORIGIN` in host development. Indexing is disabled by default. The shared 24-hour quota defaults to 20 provider requests through `AI_EMBEDDING_DAILY_LIMIT`.
 
-Verified administrators can send `POST /api/v1/admin/ai/listing-embeddings/:gigId` with the current published `expectedVersion` and the normal origin and CSRF headers. The provider receives the public title and description. Repeating an in-progress or completed request returns its status. An expired attempt can be retried after 30 seconds. `GET` on the same path reports the state for the currently published version and configured model. Vectors remain in PostgreSQL. Recommendations use the weighted catalog by default.
+Verified administrators can send `POST /api/v1/admin/ai/listing-embeddings/:gigId` with the current published `expectedVersion` and the normal origin and CSRF headers. The provider receives the public title and description. Repeating an in-progress or completed request returns its status. An attempt can be retried after its 30-second PostgreSQL deadline. Late responses are recorded as model usage and leave the stored listing vector intact. `GET` on the same path reports the state for the currently published version and configured model. Vectors remain in PostgreSQL. Recommendations use the weighted catalog by default.
 
 ## Semantic recommendations
 

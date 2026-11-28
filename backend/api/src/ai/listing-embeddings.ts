@@ -4,6 +4,7 @@ import type { Request } from 'express';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type { ListingEmbedding, Prisma } from '../../../generated/prisma/client.js';
+import { databaseNow } from '../../../shared/database-clock.js';
 import { PublicError } from '../auth/errors.js';
 import type { AuthService } from '../auth/service.js';
 import { publicGigFilter } from '../catalog/gigs.js';
@@ -26,8 +27,8 @@ type Key = Pick<ListingEmbedding, 'gigId' | 'gigVersion' | 'model' | 'inputVersi
 const statusFields = { state: true, startedAt: true, indexedAt: true } as const;
 type IndexRow = Pick<ListingEmbedding, keyof typeof statusFields>;
 
-function present(key: Omit<Key, 'model'> & { model: string | null }, row?: IndexRow | null) {
-  const expired = row?.state === 'processing' && row.startedAt.getTime() <= Date.now() - leaseMs;
+async function present(tx: Prisma.TransactionClient, key: Omit<Key, 'model'> & { model: string | null }, row?: IndexRow | null) {
+  const expired = row?.state === 'processing' && row.startedAt.getTime() <= (await databaseNow(tx)).getTime() - leaseMs;
   return {
     ...key,
     state: expired ? 'failed' : row?.state ?? (key.model ? 'missing' : 'disabled'),
@@ -72,9 +73,9 @@ export function makeListingEmbeddingsController(auth: AuthService) {
       return db.$transaction(async tx => {
         const { version: gigVersion } = await publishedVersion(tx, gigId);
         const key = { gigId, gigVersion, inputVersion };
-        if (!model) return present({ ...key, model: null });
+        if (!model) return present(tx, { ...key, model: null });
         const versioned = { ...key, model };
-        return present(versioned, await tx.listingEmbedding.findUnique({
+        return present(tx, versioned, await tx.listingEmbedding.findUnique({
           where: { gigId_gigVersion_model_inputVersion: versioned }, select: statusFields,
         }));
       }, { isolationLevel: 'RepeatableRead' });
@@ -104,20 +105,20 @@ export function makeListingEmbeddingsController(auth: AuthService) {
         if (published.version !== expectedVersion) {
           throw new PublicError(409, 'GIG_VERSION_CHANGED', 'Reload the published gig before indexing.');
         }
-        const staleAt = new Date(Date.now() - leaseMs);
         const claimed = await tx.$executeRaw`
           INSERT INTO listing_embeddings (gig_id, gig_version, model, input_version, attempt_id, started_at)
-          VALUES (${gigId}::uuid, ${expectedVersion}, ${model}, ${inputVersion}, ${attemptId}::uuid, CURRENT_TIMESTAMP)
+          VALUES (${gigId}::uuid, ${expectedVersion}, ${model}, ${inputVersion}, ${attemptId}::uuid, clock_timestamp())
           ON CONFLICT (gig_id, gig_version, model, input_version) DO UPDATE
-          SET state = 'processing', attempt_id = EXCLUDED.attempt_id, started_at = EXCLUDED.started_at
+          SET state = 'processing', attempt_id = EXCLUDED.attempt_id, started_at = clock_timestamp()
           WHERE listing_embeddings.state = 'failed'
-             OR (listing_embeddings.state = 'processing' AND listing_embeddings.started_at <= ${staleAt})
+             OR (listing_embeddings.state = 'processing'
+               AND listing_embeddings.started_at <= clock_timestamp() - ${leaseMs} * interval '1 millisecond')
         `;
         if (claimed) return { text: published.title + '\n\n' + published.description };
         const row = await tx.listingEmbedding.findUniqueOrThrow({ where: existing, select: statusFields });
-        return { row };
+        return { status: await present(tx, key, row) };
       });
-      if (claim.row) return present(key, claim.row);
+      if (claim.status) return claim.status;
 
       const attempt = { ...key, attemptId, state: 'processing' as const };
       try {
@@ -129,17 +130,26 @@ export function makeListingEmbeddingsController(auth: AuthService) {
 
       const result = await requestEmbedding(config, model, claim.text);
       return db.$transaction(async tx => {
+        // Check the deadline after waiting for any concurrent retry of this row.
+        await tx.$queryRaw`
+          SELECT attempt_id FROM listing_embeddings
+          WHERE gig_id = ${gigId}::uuid AND gig_version = ${expectedVersion}
+            AND model = ${model} AND input_version = ${inputVersion} AND attempt_id = ${attemptId}::uuid
+          FOR UPDATE
+        `;
+        const now = await databaseNow(tx);
         const data = result?.vector
-          ? { state: 'ready' as const, vector: result.vector, indexedAt: new Date() }
+          ? { state: 'ready' as const, vector: result.vector, indexedAt: now }
           : { state: 'failed' as const };
-        await tx.listingEmbedding.updateMany({ where: attempt, data });
+        const startedAfter = new Date(now.getTime() - leaseMs);
+        await tx.listingEmbedding.updateMany({ where: { ...attempt, startedAt: { gt: startedAfter } }, data });
         if (result) {
           await tx.aiModelCall.create({ data: {
             provider: 'openai', model, capability: 'listing-embedding', outcome: result.outcome,
-            latencyMs: result.latencyMs, inputTokens: result.inputTokens,
+            latencyMs: result.latencyMs, inputTokens: result.inputTokens, createdAt: now,
           } });
         }
-        return present(key, await tx.listingEmbedding.findUnique({ where: existing, select: statusFields }));
+        return present(tx, key, await tx.listingEmbedding.findUnique({ where: existing, select: statusFields }));
       });
     }
   }

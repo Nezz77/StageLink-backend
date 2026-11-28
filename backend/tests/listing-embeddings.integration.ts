@@ -7,7 +7,9 @@ import { SignJWT } from 'jose';
 import { createApp } from '../api/src/app.js';
 import { csrfFor } from '../api/src/auth/security.js';
 import { readConfig } from '../shared/config.js';
+import { databaseNow } from '../shared/database-clock.js';
 import { resources } from '../shared/resources.js';
+import { serverClock } from './fixtures/server-clock.js';
 
 const model = 'text-embedding-3-small';
 const capability = 'listing-embedding';
@@ -20,6 +22,10 @@ test('only admins index the current public gig with retries, version isolation a
   let releaseResponse!: () => void;
   const started = new Promise<void>(resolve => { notifyStarted = resolve; });
   const proceed = new Promise<void>(resolve => { releaseResponse = resolve; });
+  let notifyLateStarted!: () => void;
+  let releaseLateResponse!: () => void;
+  const lateStarted = new Promise<void>(resolve => { notifyLateStarted = resolve; });
+  const lateProceed = new Promise<void>(resolve => { releaseLateResponse = resolve; });
   const service = createServer(async (req, res) => {
     const chunks: Buffer[] = [];
     for await (const chunk of req) chunks.push(chunk);
@@ -29,6 +35,10 @@ test('only admins index the current public gig with retries, version isolation a
       notifyStarted();
       await proceed;
     }
+    if (attempt === 4) {
+      notifyLateStarted();
+      await lateProceed;
+    }
     const failed = attempt === 2;
     res.setHeader('Content-Type', 'application/json');
     res.end(JSON.stringify({
@@ -36,7 +46,7 @@ test('only admins index the current public gig with retries, version isolation a
     }));
   });
   const config = readConfig({
-    ...process.env, AI_EMBEDDING_MODEL: model, AI_EMBEDDING_DAILY_LIMIT: '3', AI_INTERNAL_TOKEN: secret,
+    ...process.env, AI_EMBEDDING_MODEL: model, AI_EMBEDDING_DAILY_LIMIT: '4', AI_INTERNAL_TOKEN: secret,
     AUTH_RATE_PREFIX: 'embeddings-test-' + randomUUID(),
   });
   if (config.NODE_ENV !== 'test' || !new URL(config.DATABASE_URL).pathname.endsWith('_test')) {
@@ -50,7 +60,7 @@ test('only admins index the current public gig with retries, version isolation a
   const { app } = await createApp({ ...config, AI_SERVICE_ORIGIN: 'http://127.0.0.1:' + address.port }, deps);
   const users: string[] = [];
   const gigId = randomUUID();
-  const since = new Date();
+  const since = await databaseNow(deps.db);
 
   try {
     await app.listen(0, '127.0.0.1');
@@ -66,7 +76,7 @@ test('only admins index the current public gig with retries, version isolation a
       } });
       const token = await new SignJWT({ sid: session.id }).setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
         .setIssuer('stagelink-api').setAudience('stagelink-web').setSubject(user.id)
-        .setIssuedAt().setExpirationTime('10m').sign(Buffer.from(config.AUTH_JWT_SECRET, 'hex'));
+        .setIssuedAt(Math.floor(Date.now() / 1000) - 180).setExpirationTime('10m').sign(Buffer.from(config.AUTH_JWT_SECRET, 'hex'));
       return {
         userId: user.id,
         headers: {
@@ -112,11 +122,18 @@ test('only admins index the current public gig with retries, version isolation a
     assert.equal((await call(admin.headers)).data.state, 'missing');
     assert.equal(requests.length, 0);
 
-    const indexing = call(admin.headers, 1);
-    await Promise.race([started, indexing.then(result => assert.fail(JSON.stringify(result)))]);
-    assert.equal((await call(otherAdmin.headers, 1)).data.state, 'processing');
-    releaseResponse();
-    const ready = await indexing;
+    const ready = await serverClock(120_000, async () => {
+      const indexing = call(admin.headers, 1);
+      await Promise.race([started, indexing.then(result => assert.fail(JSON.stringify(result)))]);
+      try {
+        assert.equal((await call(otherAdmin.headers)).data.state, 'processing');
+        assert.equal((await call(otherAdmin.headers, 1)).data.state, 'processing');
+        assert.equal(requests.length, 1);
+      } finally {
+        releaseResponse();
+      }
+      return indexing;
+    });
     assert.equal(ready.status, 200);
     assert.equal(ready.data.state, 'ready');
     assert.equal(ready.data.gigVersion, 1);
@@ -130,6 +147,7 @@ test('only admins index the current public gig with retries, version isolation a
     }]);
     const first = await deps.db.listingEmbedding.findFirstOrThrow({ where: { gigId, gigVersion: 1 } });
     assert.deepEqual(first.vector, vector);
+    assert.ok(first.indexedAt && first.indexedAt >= first.startedAt && first.indexedAt <= await databaseNow(deps.db));
 
     await publish(2);
     assert.equal((await call(admin.headers, 1)).status, 409);
@@ -137,23 +155,51 @@ test('only admins index the current public gig with retries, version isolation a
     assert.equal((await call(admin.headers, 2)).data.state, 'failed');
     const second = await deps.db.listingEmbedding.findFirstOrThrow({ where: { gigId, gigVersion: 2 } });
     const where = { gigId_gigVersion_model_inputVersion: { gigId, gigVersion: 2, model, inputVersion: second.inputVersion } };
-    await deps.db.listingEmbedding.update({ where, data: { state: 'processing', startedAt: new Date(Date.now() - 31_000) } });
-    assert.equal((await call(admin.headers)).data.state, 'failed');
-    assert.equal((await call(admin.headers, 2)).data.state, 'ready');
+    const expiry = new Date((await databaseNow(deps.db)).getTime() - 31_000);
+    await deps.db.listingEmbedding.update({ where, data: { state: 'processing', startedAt: expiry } });
+    await serverClock(-120_000, async () => {
+      assert.equal((await call(admin.headers)).data.state, 'failed');
+      assert.equal((await call(admin.headers, 2)).data.state, 'ready');
+    });
     assert.notEqual((await deps.db.listingEmbedding.findUniqueOrThrow({ where })).attemptId, second.attemptId);
-    const usage = await deps.db.aiModelCall.findMany({ where: { model, capability, createdAt: { gte: since } } });
-    assert.deepEqual(usage.map(item => item.outcome).sort(), ['failed', 'succeeded', 'succeeded']);
-    assert.ok(usage.every(item => item.inputTokens === 7));
 
     await createVersion(3);
     await publish(3);
-    assert.equal((await call(otherAdmin.headers, 3)).status, 429);
+    await serverClock(-120_000, async () => {
+      const indexing = call(admin.headers, 3);
+      await Promise.race([lateStarted, indexing.then(result => assert.fail(JSON.stringify(result)))]);
+      try {
+        const pending = await deps.db.listingEmbedding.findFirstOrThrow({ where: { gigId, gigVersion: 3 } });
+        assert.ok(pending.startedAt > expiry && pending.startedAt <= await databaseNow(deps.db));
+        const startedAt = new Date((await databaseNow(deps.db)).getTime() - 31_000);
+        await deps.db.listingEmbedding.updateMany({ where: { gigId, gigVersion: 3 }, data: { startedAt } });
+        assert.equal((await call(admin.headers)).data.state, 'failed');
+        releaseLateResponse();
+        const expired = await indexing;
+        assert.equal(expired.status, 200);
+        assert.equal(expired.data.state, 'failed');
+        assert.equal(expired.data.indexedAt, null);
+        const saved = await deps.db.listingEmbedding.findFirstOrThrow({ where: { gigId, gigVersion: 3 } });
+        assert.deepEqual(saved.vector, pending.vector);
+      } finally {
+        releaseLateResponse();
+      }
+    });
+    const usage = await deps.db.aiModelCall.findMany({ where: { model, capability, createdAt: { gte: since } } });
+    assert.deepEqual(usage.map(item => item.outcome).sort(), ['failed', 'succeeded', 'succeeded', 'succeeded']);
+    const finishedAt = await databaseNow(deps.db);
+    assert.ok(usage.every(item => item.inputTokens === 7 && item.createdAt <= finishedAt));
+
+    await createVersion(4);
+    await publish(4);
+    assert.equal((await call(otherAdmin.headers, 4)).status, 429);
     assert.equal((await call(admin.headers)).data.state, 'failed');
-    assert.equal(requests.length, 3);
+    assert.equal(requests.length, 4);
     await deps.db.artistGig.update({ where: { id: gigId }, data: { status: 'paused' } });
     assert.equal((await call(admin.headers)).status, 404);
   } finally {
     releaseResponse();
+    releaseLateResponse();
     try {
       await deps.db.aiModelCall.deleteMany({ where: { model, capability, createdAt: { gte: since } } });
       await deps.db.artistGig.updateMany({ where: { id: gigId }, data: { publishedVersion: null, status: 'draft' } });
