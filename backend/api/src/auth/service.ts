@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { SignJWT, jwtVerify } from 'jose';
 import { Prisma, type AuthUser, type AuthSession } from '../../../generated/prisma/client.js';
 import type { Config } from '../../../shared/config.js';
+import { databaseNow } from '../../../shared/database-clock.js';
 import type { Resources } from '../../../shared/resources.js';
 import { AuthRateLimit } from './rate-limit.js';
 import { csrfFor, digest, equal, hashPassword, opaqueToken, passwordMatches, seal, tokenPattern } from './security.js';
@@ -164,35 +165,39 @@ export class AuthService {
     await tx.$queryRaw`SELECT id FROM auth_users WHERE id = ${userId}::uuid FOR UPDATE`;
   }
   private async issueMailToken(tx: Tx, user: AuthUser, purpose: 'verify_email' | 'password_reset') {
-    const token = opaqueToken(), expiresAt = new Date(Date.now() + (purpose === 'verify_email' ? 86400000 : 900000));
-    await tx.authToken.updateMany({ where: { userId: user.id, purpose, usedAt: null }, data: { usedAt: new Date() } });
+    const issuedAt = await databaseNow(tx);
+    const token = opaqueToken();
+    const expiresAt = new Date(issuedAt.getTime() + (purpose === 'verify_email' ? 86_400_000 : 900_000));
+    await tx.authToken.updateMany({ where: { userId: user.id, purpose, usedAt: null }, data: { usedAt: issuedAt } });
     await tx.authToken.create({ data: { userId: user.id, purpose, digest: digest(token), email: user.email, expiresAt } });
     await tx.authMail.create({ data: { userId: user.id, expiresAt,
       sealedPayload: seal(this.config.AUTH_MAIL_KEY, { to: user.email, token, purpose }) } });
   }
   private async useToken(tx: Tx, raw: string, purpose: string) {
     const token = await tx.authToken.findUnique({ where: { digest: digest(raw) } });
-    if (!token || token.purpose !== purpose || token.usedAt || token.expiresAt <= new Date()) throw new PublicError(401, 'TOKEN_INVALID', 'This link or code is invalid or expired. Request another.');
+    if (!token || token.purpose !== purpose || token.usedAt) throw new PublicError(401, 'TOKEN_INVALID', 'This link or code is invalid or expired. Request another.');
     await this.lockUser(tx, token.userId);
     const user = await tx.authUser.findUniqueOrThrow({ where: { id: token.userId } });
     if (user.disabledAt || user.email !== token.email) throw unauthorized();
-    const consumed = await tx.authToken.updateMany({ where: { id: token.id, usedAt: null, expiresAt: { gt: new Date() } }, data: { usedAt: new Date() } });
+    const usedAt = await databaseNow(tx);
+    if (token.expiresAt <= usedAt) throw new PublicError(401, 'TOKEN_INVALID', 'This link or code is invalid or expired. Request another.');
+    const consumed = await tx.authToken.updateMany({ where: { id: token.id, usedAt: null, expiresAt: { gt: usedAt } }, data: { usedAt } });
     if (consumed.count !== 1) throw new PublicError(401, 'TOKEN_INVALID', 'This link or code has already been used.');
-    return user;
+    return { user, usedAt };
   }
   async confirmEmail(token: string, ip: string) {
     await this.limits.check('token-ip', ip, 30, 900);
     await this.deps.db.$transaction(async tx => {
-      const user = await this.useToken(tx, token, 'verify_email');
-      await tx.authUser.update({ where: { id: user.id }, data: { emailVerifiedAt: new Date() } });
+      const { user, usedAt } = await this.useToken(tx, token, 'verify_email');
+      await tx.authUser.update({ where: { id: user.id }, data: { emailVerifiedAt: usedAt } });
     });
   }
   async verifyReset(token: string, ip: string) {
     await this.limits.check('token-ip', ip, 30, 900);
     const grant = opaqueToken();
     await this.deps.db.$transaction(async tx => {
-      const user = await this.useToken(tx, token, 'password_reset');
-      await tx.authToken.create({ data: { userId: user.id, email: user.email, purpose: 'password_reset_grant', digest: digest(grant), expiresAt: new Date(Date.now() + 300000) } });
+      const { user, usedAt } = await this.useToken(tx, token, 'password_reset');
+      await tx.authToken.create({ data: { userId: user.id, email: user.email, purpose: 'password_reset_grant', digest: digest(grant), expiresAt: new Date(usedAt.getTime() + 300_000) } });
     });
     return { grant, expiresIn: 300 };
   }
@@ -200,10 +205,10 @@ export class AuthService {
     await this.limits.check('complete-reset-ip', ip, 10, 900);
     const passwordHash = await hashPassword(password);
     await this.deps.db.$transaction(async tx => {
-      const user = await this.useToken(tx, grant, 'password_reset_grant');
+      const { user, usedAt } = await this.useToken(tx, grant, 'password_reset_grant');
       await tx.authUser.update({ where: { id: user.id }, data: { passwordHash } });
-      await tx.authSession.updateMany({ where: { userId: user.id, revokedAt: null }, data: { revokedAt: new Date() } });
-      await tx.authToken.updateMany({ where: { userId: user.id, usedAt: null }, data: { usedAt: new Date() } });
+      await tx.authSession.updateMany({ where: { userId: user.id, revokedAt: null }, data: { revokedAt: usedAt } });
+      await tx.authToken.updateMany({ where: { userId: user.id, usedAt: null }, data: { usedAt } });
       await tx.pendingEmailChange.deleteMany({where:{userId:user.id}});
     });
   }

@@ -7,6 +7,7 @@ import { resources } from '../shared/resources.js';
 import { hashPassword, digest, unseal } from '../api/src/auth/security.js';
 import { createMailer, deliverAuthMail } from '../shared/auth-mail.js';
 import { assertReviewedDestination } from '../api/src/profiles/service.js';
+import { serverClock } from './fixtures/server-clock.js';
 const config=readConfig({...process.env,AUTH_RATE_PREFIX:'profiles-test-'+randomUUID()});
 if(config.NODE_ENV!=='test'||!new URL(config.DATABASE_URL).pathname.endsWith('_test')||!process.env.MAILPIT_API_URL)throw Error('Profiles integration requires isolated *_test database and mail catcher');
 test('independent profiles, approved snapshots, encrypted revision-bound destinations and verified email changes', {timeout:90000},async()=>{
@@ -101,7 +102,7 @@ test('independent profiles, approved snapshots, encrypted revision-bound destina
   assert.equal((await call('me/email-change',{email:nextEmail,password},a)).status,202);
   assert.equal((await call('me/profile',undefined,a)).data.email,a.user.email,'Trusted contact stays unchanged before confirmation');
   const token=await code(nextEmail);assert.equal((await call('auth/email-change/confirm',{token:'A'.repeat(43)})).status,401);
-  assert.equal((await call('auth/email-change/confirm',{token})).status,200);
+  assert.equal((await serverClock(3_600_000,()=>call('auth/email-change/confirm',{token}))).status,200);
   assert.equal((await call('auth/email-change/confirm',{token})).status,401);
   assert.equal((await call('me',undefined,a)).status,401);assert.equal((await call('me',undefined,b)).status,200);
   assert.equal((await call('auth/login',{email:a.user.email,password})).status,401);
@@ -111,7 +112,7 @@ test('independent profiles, approved snapshots, encrypted revision-bound destina
   assert.equal((await call('me/email-change/cancel',{},changed)).status,200);
   const expiredEmail=`expired-${suffix}@stagelink.test`;assert.equal((await call('me/email-change',{email:expiredEmail,password},b)).status,202);
   const expired=await code(expiredEmail);await deps.db.authToken.update({where:{digest:digest(expired)},data:{expiresAt:new Date(Date.now()-1)}});
-  assert.equal((await call('auth/email-change/confirm',{token:expired})).status,401);
+  assert.equal((await serverClock(-3_600_000,()=>call('auth/email-change/confirm',{token:expired}))).status,401);
   const collisionEmail=`collision-${suffix}@stagelink.test`;assert.equal((await call('me/email-change',{email:collisionEmail,password},c)).status,202);
   const collisionToken=await code(collisionEmail),collision=await deps.db.authUser.create({data:{email:collisionEmail,displayName:'Collision fixture',passwordHash:await hashPassword(password),roles:['customer']}});ids.push(collision.id);
   assert.equal((await call('auth/email-change/confirm',{token:collisionToken})).status,409);assert.equal((await call('me/profile',undefined,c)).data.email,c.user.email);

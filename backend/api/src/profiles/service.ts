@@ -1,4 +1,5 @@
 import { Prisma, type ProviderProfile, type PayoutDestination } from '../../../generated/prisma/client.js';
+import { databaseNow } from '../../../shared/database-clock.js';
 import type { Identity } from '../auth/service.js';
 import { AuthService } from '../auth/service.js';
 import { PublicError, unauthorized } from '../auth/errors.js';
@@ -134,15 +135,20 @@ export class ProfileService {
       await this.audit(tx,actor.user.id,userId,'payout',input.approved?'approved':'rejected',p.revision,input.reason);
     });return{message:'Destination review recorded. Payment setup and payout authorization remain separate.'};
   }
-  async pendingEmail(identity:Identity){const p=await this.db.pendingEmailChange.findUnique({where:{userId:identity.user.id}});return{pending:p&&p.expiresAt>new Date()?{email:p.newEmail,expiresAt:p.expiresAt.toISOString()}:null};}
+  async pendingEmail(identity:Identity){
+    const pending=await this.db.pendingEmailChange.findUnique({where:{userId:identity.user.id}});
+    return{pending:pending&&pending.expiresAt>await databaseNow(this.db)
+      ? {email:pending.newEmail,expiresAt:pending.expiresAt.toISOString()} : null};
+  }
   async requestEmail(identity:Identity,email:string,password:string,csrf:string|undefined){
     this.checkCsrf(identity,csrf);await this.auth.limits.check('email-change',identity.user.id,3,3600);await this.challenge(identity,password);
     await this.db.$transaction(async tx=>{
       const actor=await this.actor(tx,identity);if(actor.user.passwordHash!==identity.user.passwordHash)throw unauthorized();
-      await tx.authToken.updateMany({where:{userId:actor.user.id,purpose:'email_change',usedAt:null},data:{usedAt:new Date()}});
+      const issuedAt=await databaseNow(tx);
+      await tx.authToken.updateMany({where:{userId:actor.user.id,purpose:'email_change',usedAt:null},data:{usedAt:issuedAt}});
       await tx.pendingEmailChange.deleteMany({where:{userId:actor.user.id}});
       const deliver=email!==actor.user.email&&!await tx.authUser.findUnique({where:{email}});
-      const token=opaqueToken(),tokenDigest=digest(token),expiresAt=new Date(Date.now()+900000);
+      const token=opaqueToken(),tokenDigest=digest(token),expiresAt=new Date(issuedAt.getTime()+900_000);
       await tx.pendingEmailChange.create({data:{userId:actor.user.id,fromEmail:actor.user.email,newEmail:email,tokenDigest,expiresAt}});
       await tx.authToken.create({data:{userId:actor.user.id,purpose:'email_change',email,digest:tokenDigest,expiresAt}});
       if(deliver)await tx.authMail.create({data:{userId:actor.user.id,expiresAt,sealedPayload:seal(this.auth.config.AUTH_MAIL_KEY,{to:email,token,purpose:'email_change'})}});
@@ -150,19 +156,20 @@ export class ProfileService {
     });return{message:'If this address is available, a confirmation email will arrive. Your current email is unchanged until confirmation.'};
   }
   async cancelEmail(identity:Identity,csrf:string|undefined){this.checkCsrf(identity,csrf);await this.db.$transaction(async tx=>{
-    await this.actor(tx,identity);await tx.pendingEmailChange.deleteMany({where:{userId:identity.user.id}});await tx.authToken.updateMany({where:{userId:identity.user.id,purpose:'email_change',usedAt:null},data:{usedAt:new Date()}});
+    await this.actor(tx,identity);await tx.pendingEmailChange.deleteMany({where:{userId:identity.user.id}});await tx.authToken.updateMany({where:{userId:identity.user.id,purpose:'email_change',usedAt:null},data:{usedAt:await databaseNow(tx)}});
   });return{message:'Pending email change cancelled.'};}
   async confirmEmailChange(raw:string,ip:string){
     await this.auth.limits.check('email-change-confirm',ip,30,900);
     try{await this.db.$transaction(async tx=>{
-      const token=await tx.authToken.findUnique({where:{digest:digest(raw)}});if(!token||token.purpose!=='email_change'||token.usedAt||token.expiresAt<=new Date())throw unauthorized();
+      const token=await tx.authToken.findUnique({where:{digest:digest(raw)}});if(!token||token.purpose!=='email_change'||token.usedAt)throw unauthorized();
       await tx.$queryRaw`SELECT id FROM auth_users WHERE id=${token.userId}::uuid FOR UPDATE`;
       const p=await tx.pendingEmailChange.findUnique({where:{userId:token.userId},include:{user:true}});
-      if(!p||p.tokenDigest!==token.digest||p.newEmail!==token.email||p.fromEmail!==p.user.email||p.user.disabledAt||p.expiresAt<=new Date())throw unauthorized();
-      const consumed=await tx.authToken.updateMany({where:{id:token.id,usedAt:null,expiresAt:{gt:new Date()}},data:{usedAt:new Date()}});if(consumed.count!==1)throw unauthorized();
-      await tx.authUser.update({where:{id:p.userId},data:{email:p.newEmail,emailVerifiedAt:new Date()}});
-      await tx.authToken.updateMany({where:{userId:p.userId,usedAt:null},data:{usedAt:new Date()}});
-      await tx.authSession.updateMany({where:{userId:p.userId,revokedAt:null},data:{revokedAt:new Date()}});
+      const usedAt=await databaseNow(tx);
+      if(!p||p.tokenDigest!==token.digest||p.newEmail!==token.email||p.fromEmail!==p.user.email||p.user.disabledAt||p.expiresAt<=usedAt)throw unauthorized();
+      const consumed=await tx.authToken.updateMany({where:{id:token.id,usedAt:null,expiresAt:{gt:usedAt}},data:{usedAt}});if(consumed.count!==1)throw unauthorized();
+      await tx.authUser.update({where:{id:p.userId},data:{email:p.newEmail,emailVerifiedAt:usedAt}});
+      await tx.authToken.updateMany({where:{userId:p.userId,usedAt:null},data:{usedAt}});
+      await tx.authSession.updateMany({where:{userId:p.userId,revokedAt:null},data:{revokedAt:usedAt}});
       await tx.pendingEmailChange.delete({where:{userId:p.userId}});
       await this.audit(tx,p.userId,p.userId,'email','confirmed',0);
     });}catch(error){if(error instanceof Prisma.PrismaClientKnownRequestError&&error.code==='P2002')throw new PublicError(409,'EMAIL_CHANGE_UNAVAILABLE','This change is no longer available. Request another.');throw error;}

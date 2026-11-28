@@ -7,7 +7,9 @@ import { createApp } from '../api/src/app.js';
 import { readConfig } from '../shared/config.js';
 import { resources } from '../shared/resources.js';
 import { createMailer, deliverAuthMail } from '../shared/auth-mail.js';
-import { digest } from '../api/src/auth/security.js';
+import { databaseNow } from '../shared/database-clock.js';
+import { digest, opaqueToken, seal } from '../api/src/auth/security.js';
+import { serverClock } from './fixtures/server-clock.js';
 const config = readConfig({ ...process.env, AUTH_RATE_PREFIX: 'auth-test-' + randomUUID() });
 if (config.NODE_ENV !== 'test' || !new URL(config.DATABASE_URL).pathname.endsWith('_test') || !process.env.MAILPIT_API_URL) {
   throw new Error('Authentication integration requires a *_test database and explicit local mail-catcher URL');
@@ -94,12 +96,12 @@ test('two accounts, role guards, cookie rotation/replay, real SMTP recovery and 
     assert.equal((await call('me/active-role', { role: 'artist' }, b)).data.activeRole, 'artist');
 
     const verifyA = await emailToken(emailA, 'Verify your StageLink email');
-    assert.equal((await call('auth/email-verification/confirm', { token: verifyA })).response.status, 200);
+    assert.equal((await serverClock(25 * 3_600_000, () => call('auth/email-verification/confirm', { token: verifyA }))).response.status, 200);
     assert.equal((await call('me', undefined, a)).data.emailVerified, true);
     assert.equal((await call('auth/email-verification/confirm', { token: verifyA })).response.status, 401);
     const verifyB = await emailToken(emailB, 'Verify your StageLink email');
     await deps.db.authToken.update({ where: { digest: digest(verifyB) }, data: { expiresAt: new Date(Date.now() - 1000) } });
-    assert.equal((await call('auth/email-verification/confirm', { token: verifyB })).response.status, 401);
+    assert.equal((await serverClock(-3_600_000, () => call('auth/email-verification/confirm', { token: verifyB }))).response.status, 401);
     assert.equal((await call('me', undefined, b)).data.emailVerified, false);
 
     const boot = await call('auth/csrf', undefined, undefined, { cookie: a.cookie });
@@ -113,12 +115,15 @@ test('two accounts, role guards, cookie rotation/replay, real SMTP recovery and 
     assert.equal((await call('me', undefined, b)).response.status, 200, 'Another account remains signed in');
 
     const beforeReset = await login(emailA);
-    const known = await call('auth/password-reset', { email: emailA });
+    const known = await serverClock(-3_600_000, () => call('auth/password-reset', { email: emailA }));
     const unknown = await call('auth/password-reset', { email: `unknown-${suffix}@stagelink.test` });
     assert.equal(known.response.status, 202); assert.deepEqual(known.data, unknown.data);
     const resetToken = await emailToken(emailA, 'Reset your StageLink password');
-    const verified = await call('auth/password-reset/verify', { token: resetToken });
+    const verified = await serverClock(3_600_000, () => call('auth/password-reset/verify', { token: resetToken }));
     assert.equal(verified.response.status, 200);
+    const grant = await deps.db.authToken.findUniqueOrThrow({ where: { digest: digest(verified.data.grant) } });
+    const reset = await deps.db.authToken.findUniqueOrThrow({ where: { digest: digest(resetToken) } });
+    assert.equal(grant.expiresAt.getTime() - reset.usedAt!.getTime(), 300_000);
     assert.equal((await call('auth/password-reset/verify', { token: resetToken })).response.status, 401);
     assert.equal((await call('auth/password-reset/complete', { grant: verified.data.grant, password: newPassword })).response.status, 200);
     assert.equal((await call('auth/password-reset/complete', { grant: verified.data.grant, password })).response.status, 401);
@@ -161,5 +166,79 @@ test('two accounts, role guards, cookie rotation/replay, real SMTP recovery and 
     let cursor = '0';
     do { const [next, keys] = await deps.redis.scan(cursor, 'MATCH', config.AUTH_RATE_PREFIX + ':*', 'COUNT', 100); cursor = next; if (keys.length) await deps.redis.del(...keys); } while (cursor !== '0');
     await app.close();
+  }
+});
+
+test('account email retries and expiry use PostgreSQL time', async () => {
+  const deps = resources(config);
+  const email = randomUUID() + '@stagelink.test';
+  const user = await deps.db.authUser.create({
+    data: { email, displayName: 'Mail worker fixture', passwordHash: 'unused' },
+  });
+  const mailbox = deps.db.authMail;
+  let submissions = 0;
+  let reject = true;
+  const relay = {
+    async sendMail() {
+      submissions += 1;
+      if (reject) throw new Error('Local relay fixture rejection');
+      return {
+        accepted: [email], rejected: [], response: '250 fixture accepted', messageId: 'auth-mail-worker-fixture',
+        envelope: { from: config.SMTP_FROM, to: [email] }, envelopeTime: 0, messageTime: 0, messageSize: 0,
+      };
+    },
+  };
+  try {
+    const token = opaqueToken();
+    const initial = await databaseNow(deps.db);
+    const expiresAt = new Date(initial.getTime() + 120_000);
+    await deps.db.authToken.create({
+      data: { userId: user.id, email, purpose: 'password_reset', digest: digest(token), expiresAt },
+    });
+    const data = {
+      userId: user.id, expiresAt,
+      sealedPayload: seal(config.AUTH_MAIL_KEY, { to: email, token, purpose: 'password_reset' }),
+    };
+    const delayed = await mailbox.create({ data });
+    await serverClock(3_600_000, () => deliverAuthMail(deps, config, relay));
+    const queued = await mailbox.findUniqueOrThrow({ where: { id: delayed.id } });
+    assert.equal(queued.status, 'pending', 'A fast worker keeps an unexpired job eligible');
+    assert.equal(queued.attempts, 1);
+    const retryDelay = queued.availableAt.getTime() - (await databaseNow(deps.db)).getTime();
+    assert.ok(retryDelay > 0 && retryDelay <= 10_000);
+    await serverClock(3_600_000, () => deliverAuthMail(deps, config, relay));
+    assert.equal(submissions, 1, 'A fast worker honors the retry delay');
+
+    await mailbox.update({ where: { id: delayed.id }, data: { availableAt: initial } });
+    reject = false;
+    await serverClock(-3_600_000, () => deliverAuthMail(deps, config, relay));
+    const delivered = await mailbox.findUniqueOrThrow({ where: { id: delayed.id } });
+    assert.equal(delivered.status, 'delivered');
+    assert.ok(delivered.deliveredAt! >= initial);
+    assert.equal(delivered.sealedPayload, null);
+
+    reject = true;
+    const lastAttempt = await mailbox.create({ data: { ...data, attempts: 4 } });
+    const interrupted = await mailbox.create({ data: { ...data, attempts: 5, leaseOwner: randomUUID(), lockedUntil: initial } });
+    const expired = await mailbox.create({ data: { ...data, expiresAt: new Date(initial.getTime() - 1000) } });
+    await serverClock(-3_600_000, () => deliverAuthMail(deps, config, relay));
+    assert.equal(submissions, 3, 'Only the final scheduled attempt reaches the relay');
+    for (const { id, status } of [
+      { id: lastAttempt.id, status: 'failed' },
+      { id: interrupted.id, status: 'failed' },
+      { id: expired.id, status: 'expired' },
+    ]) {
+      const row = await mailbox.findUniqueOrThrow({ where: { id } });
+      assert.equal(row.status, status);
+      assert.equal(row.sealedPayload, null);
+      assert.equal(row.leaseOwner, null);
+      assert.equal(row.lockedUntil, null);
+    }
+  } finally {
+    try {
+      await deps.db.authUser.delete({ where: { id: user.id } });
+    } finally {
+      await deps.db.$disconnect();
+    }
   }
 });
