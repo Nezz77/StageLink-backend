@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOkResponse, ApiParam, ApiTags }
 import type { Request } from 'express';
 import { z } from 'zod';
 import type { Config } from '../../../shared/config.js';
+import { databaseNow } from '../../../shared/database-clock.js';
 import { createStripeCheckout, stripeEvent, stripeSession, stripeSessionReference, validStripeSignature } from '../../../shared/payments/stripe.js';
 import { checkoutExpiry, lockBooking, paidAdvance, paymentBlocked } from '../bookings/lifecycle.js';
 import { PublicError } from '../auth/errors.js';
@@ -56,11 +57,14 @@ export function makeStripeController(auth: AuthService) {
         await lockBooking(tx, booking.id);
         await lockPaymentOrder(tx, orderId);
         const order = await tx.paymentOrder.findUniqueOrThrow({
-          where: { id: orderId }, include: { stripeAttempt: true, payhereAttempt: { select: { id: true } } },
+          where: { id: orderId }, include: {
+            booking: { select: { id: true, agreedAt: true, startsAt: true } },
+            stripeAttempt: true, payhereAttempt: { select: { id: true } },
+          },
         });
         if (order.payhereAttempt) throw new PublicError(409, 'CHECKOUT_GATEWAY_SELECTED', 'This order already has a PayHere checkout.');
-        const now = new Date();
-        const deadline = await checkoutExpiry(tx, booking, order.purpose, now, checkoutLifetimeMs);
+        const now = await databaseNow(tx);
+        const deadline = await checkoutExpiry(tx, order.booking, order.purpose, now, checkoutLifetimeMs);
         if (!deadline || !['open', 'pending'].includes(order.status)) checkoutUnavailable();
         if (order.stripeAttempt) {
           if (order.stripeAttempt.expiresAt <= now) checkoutUnavailable();
@@ -87,13 +91,15 @@ export function makeStripeController(auth: AuthService) {
       const checkoutSession = await db.$transaction(async tx => {
         await lockBooking(tx, bookingId);
         await lockPaymentOrder(tx, orderId);
-        const current = await tx.stripeAttempt.findUniqueOrThrow({ where: { id: attempt.id }, include: { order: true } });
+        const current = await tx.stripeAttempt.findUniqueOrThrow({
+          where: { id: attempt.id }, include: { order: { include: { booking: { select: { id: true, agreedAt: true, startsAt: true } } } } },
+        });
         if (current.sessionId && current.sessionId !== session.id) {
           throw new PublicError(409, 'STRIPE_SESSION_MISMATCH', 'This checkout needs reconciliation.');
         }
+        const now = await databaseNow(tx);
         const available = current.order.status === 'pending' && session.status === 'open' &&
-          current.expiresAt > new Date() && !await paymentBlocked(tx, bookingId) &&
-          (current.order.purpose !== 'balance' || await paidAdvance(tx, bookingId));
+          current.expiresAt > now && await checkoutExpiry(tx, current.order.booking, current.order.purpose, now, checkoutLifetimeMs);
         const url = available ? session.url : null;
         if (current.sessionId !== session.id || current.checkoutUrl !== url) {
           await tx.stripeAttempt.update({
