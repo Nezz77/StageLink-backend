@@ -557,16 +557,22 @@ test('renter owns revisions and public browse only shows approved published equi
     const inspectionPath = 'bookings/' + winner.id + '/inspections';
     const manifest = { accessories: ['Power cable'] };
     assert.equal((await call(inspectionPath, manifest, renter)).status, 409);
-    const inspectionNow = Date.now();
+    const inspectionNow = (await databaseNow(deps.db)).getTime();
+    await deps.db.paymentOrder.update({ where: { id: advanceOrder.id }, data: { status: 'paid' } });
+    await deps.db.booking.update({
+      where: { id: winner.id },
+      data: { startsAt: new Date(inspectionNow + 60_000), endsAt: new Date(inspectionNow + 180_000) },
+    });
+    const premature = await serverClock(120_000, () => call(inspectionPath, manifest, renter));
+    assert.equal(premature.data.code, 'INSPECTION_NOT_ELIGIBLE');
     await deps.db.booking.update({
       where: { id: winner.id }, data: {
         startsAt: new Date(inspectionNow - 60_000), endsAt: new Date(inspectionNow + 180_000),
         holdExpiresAt: new Date(inspectionNow - 60_000),
       },
     });
-    await deps.db.paymentOrder.update({ where: { id: advanceOrder.id }, data: { status: 'paid' } });
     assert.equal((await call(inspectionPath, manifest, winnerCustomer)).status, 403);
-    const inspection = await call(inspectionPath, manifest, renter);
+    const inspection = await serverClock(fastClock, () => call(inspectionPath, manifest, renter));
     assert.equal(inspection.status, 200);
     assert.equal(inspection.data.stage, 'dispatch_draft');
     assert.equal(inspection.data.units.length, 2);
@@ -575,6 +581,8 @@ test('renter owns revisions and public browse only shows approved published equi
     assert.equal((await call(unitPath, { revision: 6, status: 'maintenance', reason: 'Manual update' }, renter, 'PATCH')).data.code, 'INVENTORY_INSPECTION_ACTIVE');
     const incomplete = { units: [], accessories: [false], photoIds: [], notes: 'Awaiting evidence.' };
     const inspect = 'inspections/' + inspection.data.id;
+    assert.equal((await serverClock(fastClock, () => call(inspect + '/abandon', { revision: 1 }, renter))).status, 409,
+      'An active dispatch manifest cannot be abandoned before the booking ends');
     assert.equal((await call(inspect + '/submit', { revision: 1, confirmed: true, evidence: incomplete }, renter)).data.code, 'INSPECTION_EVIDENCE_INVALID');
     const draft = await call(inspect + '/draft', { revision: 1, evidence: incomplete }, renter, 'PUT');
     assert.equal(draft.data.revision, 2);
