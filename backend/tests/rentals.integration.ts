@@ -155,6 +155,7 @@ test('renter owns revisions and public browse only shows approved published equi
     assert.deepEqual(original.specs, fields.specs);
     assert.equal('stockQuantity' in original, false);
     assert.deepEqual(original.storefront, { displayName: storefront.displayName, city: storefront.city });
+    assert.deepEqual(original.ratingSummary, { average: null, count: 0 });
     assert.equal((await call(path + '/status', { revision: 3, action: 'publish' }, renter)).status, 200);
     assert.deepEqual((await publicItem()).specs, edit.specs);
     assert.equal((await publicItem()).kind, 'equipment');

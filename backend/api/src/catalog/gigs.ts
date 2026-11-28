@@ -8,7 +8,7 @@ import { PublicError } from '../auth/errors.js';
 import { ProfileService } from '../profiles/service.js';
 import { artistDetails, providerPublic } from '../profiles/schemas.js';
 import { gigPackages } from './packages.js';
-import { ApiCatalogQuery, searchPublished } from './search.js';
+import { ApiCatalogQuery, ratingSummary, searchPublished } from './search.js';
 
 const uuid = z.string().uuid();
 const revision = z.number().int().positive().max(2_147_483_647);
@@ -28,7 +28,7 @@ const ownerGig = publicGig.extend({
 const artist = z.object({ displayName: z.string(), city: z.string(), category: artistDetails.shape.category });
 const listing = publicGig.extend({ artist });
 export const gigSummary = listing.omit({ description: true, packages: true });
-const listingPage = z.object({ items: z.array(gigSummary), nextCursor: uuid.nullable() });
+const listingPage = z.object({ items: z.array(gigSummary.extend({ ratingSummary })), nextCursor: uuid.nullable() });
 const publicProfileFilter = { kind: 'artist', approvedRevision: { not: null }, approvedSnapshot: { not: Prisma.DbNull } } as const;
 export const publicGigFilter = {
   status: 'published',
@@ -211,12 +211,12 @@ export function makeGigControllers(auth: AuthService) {
     @ApiOkResponse({ schema: schema(listingPage) })
     async list(@Query() query: unknown) {
       return db.$transaction(async tx => {
-        const { ids, nextCursor } = await searchPublished(tx, 'gig', query);
+        const { ratings, nextCursor } = await searchPublished(tx, 'gig', query);
         const records = await tx.artistGig.findMany({
-          where: { ...publicGigFilter, id: { in: ids } },
+          where: { ...publicGigFilter, id: { in: [...ratings.keys()] } },
           include: publicGigInclude, orderBy: { id: 'asc' },
         });
-        return { items: records.map(presentGigSummary), nextCursor };
+        return { items: records.map(record => ({ ...presentGigSummary(record), ratingSummary: ratings.get(record.id)! })), nextCursor };
       }, { isolationLevel: 'RepeatableRead' });
     }
 

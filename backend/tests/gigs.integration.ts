@@ -194,10 +194,32 @@ test('gig ownership, publication snapshots and concurrent revisions', async t =>
     const summary = await listed();
     assert.equal(summary.title, fields.title);
     assert.equal('packages' in summary, false);
-    const matching = await call('listings?q=acoustic&city=colombo&genre=jazz&lat=6.93&lng=79.86&radiusKm=5&maxPriceMinor=1500000');
+    assert.deepEqual(summary.ratingSummary, { average: null, count: 0 });
+    const search = 'listings?q=acoustic&city=colombo&genre=jazz&lat=6.93&lng=79.86&radiusKm=5&maxPriceMinor=1500000';
+    const matching = await call(search);
     assert.equal(matching.status, 200);
     assert.ok(matching.data.items.some((item: { id: string }) => item.id === created.data.id));
     assert.ok(!JSON.stringify(matching.data).includes('6.927111'));
+
+    const review = await deps.db.bookingReview.create({ data: {
+      bookingId, targetKind: 'gig', targetId: created.data.id, rating: 4, body: 'A review from the catalog fixture.',
+    } });
+    async function ratedListing(minRating: string) {
+      const result = await call(search + '&minRating=' + minRating);
+      assert.equal(result.status, 200);
+      return result.data.items.find((item: { id: string }) => item.id === created.data.id);
+    }
+    const moderation = 'admin/reviews/' + review.id + '/moderation';
+    assert.equal(await ratedListing('4'), undefined);
+    assert.deepEqual((await listed()).ratingSummary, { average: null, count: 0 });
+    assert.equal((await call(moderation, { revision: 1, status: 'published', reason: 'Review checked.' }, admin, 'PATCH')).status, 200);
+    assert.deepEqual((await ratedListing('4')).ratingSummary, { average: 4, count: 1 });
+    assert.deepEqual((await listed()).ratingSummary, { average: 4, count: 1 });
+    assert.equal(await ratedListing('4.01'), undefined);
+    assert.equal((await call('listings?minRating=5.01')).status, 400);
+    assert.equal((await call(moderation, { revision: 2, status: 'hidden', reason: 'Review withheld.' }, admin, 'PATCH')).status, 200);
+    assert.equal(await ratedListing('4'), undefined);
+    assert.deepEqual((await listed()).ratingSummary, { average: null, count: 0 });
 
     const discovery = await call('discovery/intent', { query: 'Find a Jazz singer in Colombo with LKR 15,000.' });
     assert.equal(discovery.status, 200);
@@ -249,6 +271,7 @@ test('gig ownership, publication snapshots and concurrent revisions', async t =>
       const owned = { ownerId: { in: ids } };
       if (bookingId) {
         await deps.db.outboxEvent.deleteMany({ where: { topic: NOTIFICATION_TOPIC, payload: { path: ['sourceId'], equals: bookingId } } });
+        await deps.db.bookingReview.deleteMany({ where: { bookingId } });
         await deps.db.booking.deleteMany({ where: { id: bookingId } });
       }
       await deps.db.artistGig.updateMany({ where: owned, data: { status: 'archived', publishedVersion: null } });
