@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiParam, ApiQuery, ApiTags, typ
 import type { Request } from 'express';
 import { z } from 'zod';
 import { Prisma, type AvailabilityCalendar, type AvailabilityBlock } from '../../../generated/prisma/client.js';
+import { databaseNow } from '../../../shared/database-clock.js';
 import type { AuthService } from '../auth/service.js';
 import { PublicError } from '../auth/errors.js';
 import { ProfileService } from '../profiles/service.js';
@@ -47,6 +48,19 @@ function settings(record: AvailabilityCalendar | null) {
 
 function present(block: AvailabilityBlock) {
   return { id: block.id, startsAt: block.startsAt.toISOString(), endsAt: block.endsAt.toISOString() };
+}
+
+export function providerCalendarFilter(providerId: string, window: { startsAt: Date; endsAt: Date }, now: Date): Prisma.BookingWhereInput {
+  return {
+    providerId,
+    cancelledAt: null,
+    startsAt: { lt: window.endsAt },
+    endsAt: { gt: window.startsAt },
+    OR: [
+      { agreedAt: { not: null } },
+      { providerDecision: 'accepted', holdExpiresAt: { gt: now } },
+    ],
+  };
 }
 
 export function makeAvailabilityControllers(auth: AuthService) {
@@ -125,6 +139,11 @@ export function makeAvailabilityControllers(auth: AuthService) {
         if (await tx.availabilityBlock.findFirst({ where: { ownerId, startsAt: { lt: endsAt }, endsAt: { gt: startsAt } } })) {
           throw new PublicError(409, 'BLACKOUT_OVERLAP', 'This period overlaps an existing blackout.');
         }
+        const booked = await tx.booking.findFirst({
+          where: providerCalendarFilter(ownerId, { startsAt, endsAt }, await databaseNow(tx)),
+          select: { id: true },
+        });
+        if (booked) throw new PublicError(409, 'BLACKOUT_BOOKING_CONFLICT', 'Choose a time outside your accepted and agreed bookings.');
         await tx.availabilityBlock.create({ data: { ownerId, startsAt, endsAt, reason: input.reason } });
         await tx.availabilityCalendar.update({ where: { ownerId }, data: { revision: { increment: 1 } } });
         return ownerView(tx, ownerId);

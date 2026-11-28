@@ -154,6 +154,8 @@ The optional PayHere refund fixture checks the recorded recovery against the exp
 
 Booking hold creation, renewal, and expiry use the PostgreSQL clock. Booking and quotation status use that same clock. Writes sample it after acquiring the booking participants' locks so the timestamp reflects any wait for another request.
 
+Adding a provider blackout through `POST /api/v1/me/availability/blocks` returns `409 BLACKOUT_BOOKING_CONFLICT` when the selected time overlaps an agreed booking or an accepted request with an active hold. A blackout and a booking decision use the same provider lock. An expired negotiation hold leaves the interval eligible for blocking. A blackout can begin exactly when a booking ends. Blackout reasons appear only in the provider's private calendar.
+
 Booking participants can read `GET /api/v1/bookings/:id/journey`. The provider submits `{"confirmed":true}` to the booking's `check-ins` route during its scheduled window and to its `completion` route after the scheduled and approved overtime end. Both require a paid advance. A check-in records the provider's manual confirmation. Either gig participant can propose overtime after check-in, and the other participant must resolve the proposal before completion.
 
 After the completion report, the customer can open a balance payment order for the original price plus approved overtime less the paid advance. A separate admin verification records the reviewer, time and reason. Completion and verification leave settlement to the payout workflow.

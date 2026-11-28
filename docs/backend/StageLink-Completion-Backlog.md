@@ -42,6 +42,7 @@ Checked boxes mark completed repository work. Hosted checks and remaining client
 - [x] P09 provider decisions and calendar/history projections.
 - [x] P09 quotation revisions, counteroffers, authenticated acceptance and SHA-256 agreement evidence.
 - [x] P08–P09 Booking holds, capacity checks, and quotation expiry use PostgreSQL time across API instances.
+- [x] P08–P09 Provider blackouts and booking decisions serialize under the same lock and prevent overlapping accepted or agreed bookings.
 - [x] P10 booking text persistence, retry deduplication, read receipts, and history catch-up.
 - [x] P10 private image attachments with validated derivatives, participant-only access, and retention while referenced.
 - [x] P10 Participant-scoped Socket.IO booking chat across API replicas, including typing signals, read receipts and socket session revocation.
