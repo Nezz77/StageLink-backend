@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiParam, ApiTags } from '@nestj
 import type { Request } from 'express';
 import { z } from 'zod';
 import type { PayHereRefundExecution, PayHereRefundRecovery } from '../../../generated/prisma/client.js';
+import { databaseNow } from '../../../shared/database-clock.js';
 import { makePayHereSandboxClient } from '../../../shared/payments/reconciliation.js';
 import { PublicError } from '../auth/errors.js';
 import type { AuthService } from '../auth/service.js';
@@ -139,16 +140,17 @@ export function makePayHereRefundExecutionController(auth: AuthService) {
         if (current.paymentId !== paymentId || !current.providerRefundId || current.amountMinor !== target.amountMinor) throw notEligible();
         const settlementId = await settleRefund(tx, target.booking, reserved, 'payhere', current.providerRefundId, current.id, current.amountMinor);
         return { response: present(await tx.payHereRefundExecution.update({
-          where: { id: current.id }, data: { status: 'succeeded', settlementId, updatedAt: new Date() },
+          where: { id: current.id }, data: { status: 'succeeded', settlementId, updatedAt: await databaseNow(tx) },
         })) };
       }
 
       if (prior || refreshed.order.status !== 'paid' ||
         (target.requestId === null && await paymentBlocked(tx, target.booking.id, false))) throw notEligible();
+      const now = await databaseNow(tx);
       const claim = await tx.payHereRefundExecution.createMany({
         data: {
           requestId: target.requestId, damageClaimId: target.damageClaimId, arbitrationId: target.arbitrationId, orderId: order.id,
-          actorId: currentAdmin.user.id, paymentId, amountMinor: target.amountMinor,
+          actorId: currentAdmin.user.id, paymentId, amountMinor: target.amountMinor, createdAt: now, updatedAt: now,
         },
         skipDuplicates: true,
       });
@@ -160,7 +162,8 @@ export function makePayHereRefundExecutionController(auth: AuthService) {
     // Only the administrator request that creates the execution can submit it to PayHere.
     const submission = await payHere.refund(paymentId, decision.row.id);
     await db.payHereRefundExecution.updateMany({
-      where: { id: decision.row.id, status: 'uncertain', settlementId: null }, data: { ...submission, updatedAt: new Date() },
+      where: { id: decision.row.id, status: 'uncertain', settlementId: null },
+      data: { ...submission, updatedAt: await databaseNow(db) },
     });
     return present(await db.payHereRefundExecution.findUniqueOrThrow({ where: { id: decision.row.id } }));
   }
@@ -215,10 +218,10 @@ export function makePayHereRefundExecutionController(auth: AuthService) {
       await auth.limits.check('reconciliation-admin', actor.user.id, 10, 60);
       await auth.limits.check('reconciliation-gateway', 'payhere', 4, 10);
       const observation = await payHere.observe({ id: attemptId, amountMinor: order.amountMinor });
-      const observedAt = new Date();
       if (observation.status !== 'refunded' || observation.paymentReference !== paymentId || !observation.payHereCardPayment) {
         throw new PublicError(409, 'PAYHERE_REFUND_NOT_CONFIRMED', 'PayHere must confirm this full card payment as refunded before recovery.');
       }
+      const observedAt = await databaseNow(db);
 
       return db.$transaction(async tx => {
         const currentAdmin = await profiles.actor(tx, actor, undefined, true);
@@ -239,14 +242,15 @@ export function makePayHereRefundExecutionController(auth: AuthService) {
         const reserved = await findReservedFunds(tx, target.reservationId, target.reserve, target.amountMinor, target.reserveAmountMinor);
         if (!reserved) throw notEligible();
         const journalId = await settleRefund(tx, target.booking, reserved, 'payhere', 'recovery:' + current.id, current.id, current.amountMinor);
+        const now = await databaseNow(tx);
         const updated = await tx.payHereRefundExecution.updateMany({
           where: { id: current.id, status: 'uncertain', updatedAt: current.updatedAt, providerRefundId: null, settlementId: null },
-          data: { status: 'succeeded', settlementId: journalId, updatedAt: new Date() },
+          data: { status: 'succeeded', settlementId: journalId, updatedAt: now },
         });
         if (updated.count !== 1) throw notEligible();
         return presentRecovery(await tx.payHereRefundRecovery.create({ data: {
           executionId, requestKey: command.requestKey, actorId: currentAdmin.user.id, reason: command.reason,
-          attemptId, paymentId, amountMinor: current.amountMinor, previousUpdatedAt: current.updatedAt, observedAt, journalId,
+          attemptId, paymentId, amountMinor: current.amountMinor, previousUpdatedAt: current.updatedAt, observedAt, journalId, createdAt: now,
         } }));
       });
     }

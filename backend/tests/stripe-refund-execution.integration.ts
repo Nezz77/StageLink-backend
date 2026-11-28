@@ -722,8 +722,13 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
     assert.equal((await (await executePayHereArbitration(uncertainPayHere.decision.id, zeroSource.id)).json()).code, 'PAYHERE_REFUND_NOT_ELIGIBLE');
     await selectPayHerePayment(uncertainSource.id);
     losePayHereResponse = true;
-    const uncertain = await (await executePayHereArbitration(uncertainPayHere.decision.id, uncertainSource.id)).json();
+    const beforeSubmission = await databaseNow(deps.db);
+    const uncertain = await serverClock(120_000, async () =>
+      (await executePayHereArbitration(uncertainPayHere.decision.id, uncertainSource.id)).json());
     assert.equal(uncertain.state, 'uncertain');
+    const submittedAt = new Date(uncertain.createdAt);
+    const uncertainAt = new Date(uncertain.updatedAt);
+    assert.ok(submittedAt >= beforeSubmission && submittedAt <= uncertainAt && uncertainAt <= await databaseNow(deps.db));
     const afterUncertainSubmission = payHereSubmissions;
     assert.deepEqual(await (await executePayHereArbitration(uncertainPayHere.decision.id, uncertainSource.id)).json(), uncertain);
     assert.equal(payHereSubmissions, afterUncertainSubmission);
@@ -764,7 +769,9 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
     }
     await resetPayHereLimit();
     payHereStatus = 'REFUNDED';
-    const recoveredResponses = await Promise.all([recoverPayHere(uncertain.id), recoverPayHere(uncertain.id)]);
+    const beforeRecovery = await databaseNow(deps.db);
+    const recoveredResponses = await serverClock(-120_000, () =>
+      Promise.all([recoverPayHere(uncertain.id), recoverPayHere(uncertain.id)]));
     for (const response of recoveredResponses) assert.equal(response.status, 200, await response.clone().text());
     const recoveries = await Promise.all(recoveredResponses.map(response => response.json()));
     assert.deepEqual(recoveries[0], recoveries[1]);
@@ -772,6 +779,9 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
     assert.equal(recovery.actorId, recoveryAdmin.id);
     assert.equal(recovery.paymentId, activePayHerePaymentId);
     assert.equal(recovery.amountMinor, 150001);
+    const observedAt = new Date(recovery.observedAt);
+    const recoveredAt = new Date(recovery.createdAt);
+    assert.ok(observedAt >= beforeRecovery && observedAt <= recoveredAt && recoveredAt <= await databaseNow(deps.db));
     assert.deepEqual(await (await recoverPayHere(uncertain.id)).json(), recovery);
     assert.deepEqual((await (await fetch(recoveryPath(uncertain.id) + '/recovery', recoveryAdmin)).json()).recovery, recovery);
     assert.equal((await (await recoverPayHere(uncertain.id, { ...recoveryCommand, reason: 'Changed reason for the recorded command.' })).json()).code, 'REQUEST_KEY_REUSED');
@@ -780,6 +790,7 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
     assert.equal(recoveredExecution.status, 'succeeded');
     assert.equal(recoveredExecution.providerRefundId, null);
     assert.equal(recoveredExecution.settlementId, recovery.journalId);
+    assert.equal(recoveredExecution.updatedAt.toISOString(), recovery.createdAt);
     assert.equal(recoveredExecution.settlement?.reference, 'recovery:' + uncertain.id);
     const recoveredReceipt = await refundReceipt(uncertain.id);
     assert.equal(recoveredReceipt.sourceId, recovery.journalId);
