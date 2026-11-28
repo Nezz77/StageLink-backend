@@ -165,8 +165,9 @@ test('equipment lookup retains approved sources, matches exact models and hides 
     assert.equal(retry.data.unchanged, allModels.length);
     assert.deepEqual(retry.data.items.map((entry: { id: string }) => entry.id), imported.map((entry: { id: string }) => entry.id));
     assert.deepEqual(retry.data.items.map((entry: { approvedBy: string }) => entry.approvedBy), imported.map((entry: { approvedBy: string }) => entry.approvedBy));
+    const bundleRenter = await actor('renter');
     for (const entry of equipmentReferenceBundle.entries) {
-      const result = await request(renter, search, { requestKey: randomUUID(), manufacturer: entry.manufacturer, model: entry.model });
+      const result = await request(bundleRenter, search, { requestKey: randomUUID(), manufacturer: entry.manufacturer, model: entry.model });
       assert.equal(result.status, 200);
       assert.equal(result.data.suggestion.match, 'matched');
       assert.deepEqual(result.data.suggestion.specs, entry.specs);
@@ -178,8 +179,13 @@ test('equipment lookup retains approved sources, matches exact models and hides 
     assert.equal(original.data.suggestion.specs.specSpl, '133');
     assert.equal(mkII.data.suggestion.specs.specSpl, '134');
     assert.notEqual(original.data.suggestion.source.id, mkII.data.suggestion.source.id);
-    const unreviewedVariant = await request(renter, search, { requestKey: randomUUID(), manufacturer: 'Yamaha', model: 'DXS15mkII' });
-    assert.equal(unreviewedVariant.data.suggestion.match, 'unknown', 'An original source must never auto-fill the mkII subwoofer');
+    const originalSubwoofer = await request(renter, search, { requestKey: randomUUID(), manufacturer: 'Yamaha', model: 'DXS15' });
+    const revisedSubwoofer = await request(renter, search, { requestKey: randomUUID(), manufacturer: 'Yamaha', model: 'DXS15mkII' });
+    assert.equal(originalSubwoofer.data.suggestion.specs.specWattage, '950');
+    assert.equal(revisedSubwoofer.data.suggestion.specs.specWattage, '1020');
+    assert.notEqual(originalSubwoofer.data.suggestion.source.id, revisedSubwoofer.data.suggestion.source.id);
+    const unreviewedVariant = await request(renter, search, { requestKey: randomUUID(), manufacturer: 'Yamaha', model: 'DXS15 mk3' });
+    assert.equal(unreviewedVariant.data.suggestion.match, 'unknown', 'An approved source cannot fill a different model generation');
     await request(admin, `${catalog}/${mkII.data.suggestion.source.id}/retire`, { reason: 'Keep this reference withdrawn on future imports.' });
     assert.equal((await request(admin, importPath, bundleCommand)).status, 409);
     const subset = await request(admin, importPath, { ...bundleCommand, models: ['Intimidator Spot 160 ILS'] });

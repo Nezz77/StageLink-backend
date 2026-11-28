@@ -23,7 +23,7 @@ Full PayHere sandbox arbitration refunds and audited recovery are on `main`. Rec
 
 | Order | Task | Completion criteria |
 | --- | --- | --- |
-| 1 | Equipment reference catalog, P15 | Review and approve the 18 bundled references on staging, then use the coverage report to prioritize further models from the rental catalog. |
+| 1 | Equipment reference catalog, P15 | Review and approve the current [reference bundle](Equipment-Reference-Bundle.md) on staging, then use the coverage report to prioritize further models from the rental catalog. |
 | 2 | Hosted payment verification, P11–P16 | Verify PayHere and Stripe test callbacks, retrieval and audited recovery with merchant accounts. Confirm Stripe LKR and Connect eligibility. Verify sandbox refunds, transfers, rental deductions and arbitration settlements with the supported routes. |
 | 3 | Remaining payment implementation, P12–P16 | Establish exact provider evidence for partial PayHere refunds, then implement supported reconciliation. Complete PayHere deduction, provider payout and fee settlement and manual bank payouts. Issue production documents and report live financial totals after confirming live settlements. |
 | 4 | AI and private evidence, P15–P16 | Smoke test hosted models, evaluate ranking against representative listings and event briefs, and verify private PDF access on staging storage. |
@@ -118,7 +118,7 @@ Checked boxes mark completed repository work. Hosted checks and remaining client
 - [x] P15 Staging command to capture and score paired runs using the same briefs, explicit semantic opt-in and replay-safe request keys.
 - [x] P15 Staging smoke command for hosted model readiness, a synthetic prompt preview and recorded usage.
 - [ ] P15 Live model smoke test and ranking evaluation against a representative catalog and event briefs.
-- [x] P15 Manufacturer reference bundle with 18 cited models, including separate original DXR and DXS references, administrator preview, digest-based approval and safeguards for duplicate, conflicting and retired entries. [Bundle guide](Equipment-Reference-Bundle.md).
+- [x] P15 Manufacturer reference bundle with original and mkII Yamaha DXS and DXR references, QSC K.2 speakers, administrator preview, digest-based approval and safeguards for duplicate, conflicting and retired entries. [Bundle guide](Equipment-Reference-Bundle.md).
 - [x] P15 Read-only equipment reference coverage report for published rental listings and versioned manufacturer/model reviews.
 - [ ] P15 Approve the bundled references on staging and expand coverage against the rental catalog.
 - [x] P16 Private provider verification submissions, administrative review and resubmission history.
