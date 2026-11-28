@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import type { Request } from 'express';
 import { z } from 'zod';
 import type { StripeRefundExecution } from '../../../generated/prisma/client.js';
+import { databaseNow } from '../../../shared/database-clock.js';
 import { observeStripe } from '../../../shared/payments/reconciliation.js';
 import { processStripeRefund } from '../../../shared/payments/stripe-refunds.js';
 import { PublicError } from '../auth/errors.js';
@@ -23,11 +24,11 @@ const execution = z.object({
 const view = execution.extend({ requestId: uuid });
 const depositView = execution.extend({ claimId: uuid });
 const arbitrationView = execution.extend({ arbitrationId: uuid });
-function present(row: StripeRefundExecution) {
+function present(row: StripeRefundExecution, now: Date) {
   const { id, orderId, requestId, damageClaimId, arbitrationId, status, amountMinor, createdAt, updatedAt } = row;
   const target = arbitrationId ? { arbitrationId } : damageClaimId ? { claimId: damageClaimId } : { requestId };
   return { id, orderId, ...target, amountMinor,
-    state: row.leaseUntil && row.leaseUntil > new Date() ? 'processing' : status,
+    state: row.leaseUntil && row.leaseUntil > now ? 'processing' : status,
     createdAt: createdAt.toISOString(), updatedAt: updatedAt.toISOString() };
 }
 
@@ -70,7 +71,9 @@ export function makeStripeRefundExecutionController(auth: AuthService) {
     const order = source.order;
     if (!order || !hasValidCapture(source)) throw notEligible();
     const orderId = order.id;
-    if (source.stripeExecution && ['succeeded', 'failed'].includes(source.stripeExecution.status)) return present(source.stripeExecution);
+    if (source.stripeExecution && ['succeeded', 'failed'].includes(source.stripeExecution.status)) {
+      return present(source.stripeExecution, await databaseNow(db));
+    }
 
     await auth.limits.check('stripe-refund-admin', actor.user.id, 12, 60);
     await auth.limits.check('stripe-refund-shared', 'shared', 30, 60);
@@ -97,33 +100,36 @@ export function makeStripeRefundExecutionController(auth: AuthService) {
         throw notEligible();
       }
       const prior = current.stripeExecution;
-      const now = new Date();
-      if (prior && (['succeeded', 'failed'].includes(prior.status) || (prior.leaseUntil && prior.leaseUntil > now))) {
-        return { response: present(prior) };
+      if (prior) {
+        const now = await databaseNow(tx);
+        if (['succeeded', 'failed'].includes(prior.status) || (prior.leaseUntil && prior.leaseUntil > now)) {
+          return { response: present(prior, now) };
+        }
       }
       const reserved = await findReservedFunds(tx, current.reservationId, current.reserve, current.amountMinor, current.reserveAmountMinor);
       if (!reserved || (prior && (prior.amountMinor !== current.amountMinor || prior.paymentIntentId !== intentId))) throw notEligible();
       const allowSubmit = current.order.status === 'paid' &&
         (current.requestId !== null || !await paymentBlocked(tx, current.booking.id, false));
       if (!prior && !allowSubmit) throw notEligible();
+      const now = await databaseNow(tx);
       const lease = { leaseId: randomUUID(), leaseUntil: new Date(now.getTime() + 30_000), updatedAt: now };
       const row = prior
         ? await tx.stripeRefundExecution.update({ where: { id: prior.id }, data: lease })
         : await tx.stripeRefundExecution.create({ data: {
           requestId: current.requestId, damageClaimId: current.damageClaimId, arbitrationId: current.arbitrationId, orderId,
           actorId: currentAdmin.user.id, paymentIntentId: intentId!,
-          amountMinor: current.amountMinor, ...lease,
+          amountMinor: current.amountMinor, createdAt: now, ...lease,
         } });
       return { row, leaseId: lease.leaseId, reserved, allowSubmit, firstAttempt: !prior };
     });
     if (claim.response) return claim.response;
 
-    const observation = await processStripeRefund(key, claim.row, claim.allowSubmit, claim.firstAttempt);
+    const observation = await processStripeRefund(key, claim.row, claim.allowSubmit, claim.firstAttempt, () => databaseNow(db));
     return db.$transaction(async tx => {
       await lockBooking(tx, source.booking.id);
       await lockPaymentOrder(tx, orderId);
       const current = await tx.stripeRefundExecution.findUniqueOrThrow({ where: { id: claim.row.id } });
-      if (current.leaseId !== claim.leaseId) return present(current);
+      if (current.leaseId !== claim.leaseId) return present(current, await databaseNow(tx));
 
       let settlementId: string | undefined;
       if (observation?.status === 'succeeded') {
@@ -131,13 +137,14 @@ export function makeStripeRefundExecutionController(auth: AuthService) {
       }
       const status = !observation ? 'uncertain' : settlementId ? 'succeeded'
         : observation.status === 'failed' || observation.status === 'canceled' ? 'failed' : 'pending';
+      const now = await databaseNow(tx);
       return present(await tx.stripeRefundExecution.update({
         where: { id: current.id },
         data: {
           status, ...(observation ? { providerRefundId: observation.id } : {}), settlementId,
-          updatedAt: new Date(), leaseId: null, leaseUntil: null,
+          updatedAt: now, leaseId: null, leaseUntil: null,
         },
-      }));
+      }), now);
     });
   }
 
@@ -152,7 +159,7 @@ export function makeStripeRefundExecutionController(auth: AuthService) {
     async status(@Req() req: Request, @Param('id') id: string, @Param('orderId') orderId: string) {
       await admin(req);
       const item = await refundTarget(db, { requestId: parse(uuid, id), orderId: parse(uuid, orderId) });
-      return { execution: item.stripeExecution ? present(item.stripeExecution) : null };
+      return { execution: item.stripeExecution ? present(item.stripeExecution, await databaseNow(db)) : null };
     }
 
     @Post('admin/refund-requests/:id/items/:orderId/stripe-execution')
@@ -171,7 +178,7 @@ export function makeStripeRefundExecutionController(auth: AuthService) {
     async depositStatus(@Req() req: Request, @Param('id') id: string) {
       await admin(req);
       const target = await refundTarget(db, { claimId: parse(uuid, id) });
-      return { execution: target.stripeExecution ? present(target.stripeExecution) : null };
+      return { execution: target.stripeExecution ? present(target.stripeExecution, await databaseNow(db)) : null };
     }
 
     @Post('admin/damage-claims/:id/stripe-refund')
@@ -190,7 +197,7 @@ export function makeStripeRefundExecutionController(auth: AuthService) {
     async arbitrationStatus(@Req() req: Request, @Param('id') id: string, @Param('orderId') orderId: string) {
       await admin(req);
       const target = await refundTarget(db, { arbitrationId: parse(uuid, id), orderId: parse(uuid, orderId) });
-      return { execution: target.stripeExecution ? present(target.stripeExecution) : null };
+      return { execution: target.stripeExecution ? present(target.stripeExecution, await databaseNow(db)) : null };
     }
 
     @Post('admin/arbitrations/:id/items/:orderId/stripe-refund')
