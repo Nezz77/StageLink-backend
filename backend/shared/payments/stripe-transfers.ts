@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { observeStripe } from './reconciliation.js';
 import { stripeAccountId } from './stripe-capabilities.js';
+import { canSubmitStripeAttempt } from './stripe.js';
 
 const stripe = 'https://api.stripe.com/v1/';
 const transferId = z.string().max(150).regex(/^tr_[A-Za-z0-9_]+$/);
@@ -23,7 +24,6 @@ const paymentIntent = z.object({
     amount_captured: z.number().int().positive(), amount_refunded: z.number().int().nonnegative(),
   }),
 });
-const replayWindowMs = 23 * 60 * 60_000;
 export const stripeTransferRejection = z.object({
   code: z.literal('balance_insufficient'),
   requestId: z.string().max(150).regex(/^req_[A-Za-z0-9_]+$/),
@@ -116,10 +116,7 @@ export async function processStripePayoutTransfer(
       if (data.has_more || data.data.length > 1) return null;
       if (data.data.length === 1) return matchStripePayoutTransfer(data.data[0], expected);
     }
-    if (!submission || !expected.leaseUntil) return null;
-    const now = await readClock();
-    const age = now.getTime() - expected.createdAt.getTime();
-    if (now >= expected.leaseUntil || age < 0 || age >= replayWindowMs) return null;
+    if (!submission || !canSubmitStripeAttempt(expected, await readClock())) return null;
     const body = new URLSearchParams({
       amount: String(expected.amountMinor), currency: 'lkr', destination: expected.stripeAccountId,
       transfer_group: group, source_type: 'card', 'metadata[stagelink_payout_transfer]': expected.id,

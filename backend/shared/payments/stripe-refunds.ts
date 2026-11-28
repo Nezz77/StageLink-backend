@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { canSubmitStripeAttempt } from './stripe.js';
 
 const refundId = z.string().max(150).regex(/^re_[A-Za-z0-9_]+$/);
 const metadataField = 'stagelink_refund_execution';
@@ -11,9 +12,11 @@ const refund = z.object({
 const page = z.object({ object: z.literal('list'), has_more: z.boolean(), data: z.array(z.unknown()).max(100) });
 const taggedRefund = z.object({ metadata: z.object({ [metadataField]: z.string() }).nullable() });
 const api = 'https://api.stripe.com/v1/refunds';
-const replayWindowMs = 23 * 60 * 60_000;
 
-type Execution = { id: string; paymentIntentId: string; amountMinor: number; providerRefundId: string | null; createdAt: Date };
+type Execution = {
+  id: string; paymentIntentId: string; amountMinor: number; providerRefundId: string | null;
+  createdAt: Date; leaseUntil: Date | null;
+};
 
 function checked(raw: unknown, execution: Execution) {
   const value = refund.safeParse(raw);
@@ -24,8 +27,10 @@ function checked(raw: unknown, execution: Execution) {
 }
 
 export async function processStripeRefund(
-  key: string, execution: Execution, allowSubmit: boolean, firstAttempt: boolean, send = fetch,
+  key: string, execution: Execution, allowSubmit: boolean, firstAttempt: boolean,
+  readClock: () => Promise<Date>, send = fetch,
 ) {
+  if (!key.startsWith('sk_test_')) return null;
   async function stripe(url: string, init?: { method: 'POST'; headers: Record<string, string>; body: URLSearchParams }) {
     const response = await send(url, {
       method: init?.method ?? 'GET', redirect: 'error', signal: AbortSignal.timeout(8000), body: init?.body,
@@ -46,7 +51,7 @@ export async function processStripeRefund(
       if (matches.length > 1 || refunds.has_more) return null;
       if (matches.length === 1) return checked(matches[0], execution);
     }
-    if (!allowSubmit || Date.now() - execution.createdAt.getTime() >= replayWindowMs) return null;
+    if (!allowSubmit || !canSubmitStripeAttempt(execution, await readClock())) return null;
     return checked(await stripe(api, {
       method: 'POST', headers: { 'Idempotency-Key': 'stagelink-refund-' + execution.id },
       body: new URLSearchParams({

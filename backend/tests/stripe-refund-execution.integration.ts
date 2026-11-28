@@ -7,9 +7,11 @@ import { csrfFor } from '../api/src/auth/security.js';
 import { recordCapture } from '../api/src/payments/capture.js';
 import { documentKey, processBookingDocuments } from '../shared/booking-documents.js';
 import { readConfig } from '../shared/config.js';
+import { databaseNow } from '../shared/database-clock.js';
 import { MediaStore } from '../shared/media-store.js';
 import { hasJournalSqlState, openAccount, postedBalance, postJournal } from '../shared/payments/journal.js';
 import { resources } from '../shared/resources.js';
+import { serverClock } from './fixtures/server-clock.js';
 
 const config = readConfig({
   ...process.env, AUTH_RATE_PREFIX: 'stripe-refund-test-' + randomUUID(),
@@ -142,7 +144,7 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
         createdAt: recent ? new Date() : new Date(Date.now() - 20 * 60_000),
       } });
       const token = await new SignJWT({ sid: session.id }).setProtectedHeader({ alg: 'HS256', typ: 'JWT' }).setSubject(user.id)
-        .setIssuer('stagelink-api').setAudience('stagelink-web').setIssuedAt().setExpirationTime('10m')
+        .setIssuer('stagelink-api').setAudience('stagelink-web').setIssuedAt(Math.floor(Date.now() / 1000) - 180).setExpirationTime('10m')
         .sign(Buffer.from(config.AUTH_JWT_SECRET, 'hex'));
       return { id: user.id, headers: {
         Authorization: 'Bearer ' + token, Origin: config.WEB_ORIGIN, 'Content-Type': 'application/json',
@@ -233,7 +235,12 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
     const waiting = submit(advance.id);
     await Promise.race([awaitingStripe, waiting.then(async response => assert.fail(await response.clone().text()))]);
     try {
-      assert.equal((await (await submit(advance.id)).json()).state, 'processing');
+      await serverClock(120_000, async () => {
+        const inFlight = (await (await fetch(path(advance.id), admin)).json()).execution;
+        assert.equal(inFlight.state, 'processing');
+        assert.deepEqual(await (await submit(advance.id)).json(), inFlight);
+        assert.deepEqual(submissions, ['pi_service']);
+      });
     } finally { release(); }
     assert.equal((await (await waiting).json()).state, 'pending');
     assert.equal(await postedBalance(deps.db, advance.accountId), 150001n);
@@ -248,9 +255,27 @@ test('approved sandbox refunds settle reserved funds once after exact authentica
     assert.deepEqual(await (await submit(advance.id)).json(), settled);
     assert.equal(await postedBalance(deps.db, advance.accountId), 0n);
 
-    assert.equal((await (await submit(deposit.id)).json()).state, 'uncertain');
+    const uncertainDeposit = await (await submit(deposit.id)).json();
+    assert.equal(uncertainDeposit.state, 'uncertain');
     assert.equal(await postedBalance(deps.db, deposit.accountId), 150001n);
-    assert.equal((await (await submit(deposit.id)).json()).state, 'succeeded');
+    const moment = await databaseNow(deps.db);
+    await deps.db.stripeRefundExecution.update({
+      where: { id: uncertainDeposit.id }, data: { createdAt: new Date(moment.getTime() - 23 * 3600_000 - 30_000) },
+    });
+    const observedDeposit = providerRefunds.get('pi_deposit');
+    assert.ok(observedDeposit);
+    providerRefunds.delete('pi_deposit');
+    await serverClock(-120_000, async () => {
+      const older = await (await submit(deposit.id)).json();
+      assert.equal(older.state, 'uncertain');
+      assert.equal(older.id, uncertainDeposit.id);
+      assert.deepEqual(submissions, ['pi_service', 'pi_deposit']);
+      assert.equal(await postedBalance(deps.db, deposit.accountId), 150001n);
+    });
+    providerRefunds.set('pi_deposit', observedDeposit);
+    const settledDeposit = await (await submit(deposit.id)).json();
+    assert.equal(settledDeposit.id, uncertainDeposit.id);
+    assert.equal(settledDeposit.state, 'succeeded');
     assert.equal(await postedBalance(deps.db, deposit.accountId), 0n);
     assert.deepEqual(submissions, ['pi_service', 'pi_deposit']);
     const after = await dashboard();

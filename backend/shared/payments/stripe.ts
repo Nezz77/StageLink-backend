@@ -2,6 +2,13 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 
 const id = (prefix: string) => z.string().max(150).regex(new RegExp('^' + prefix + '[A-Za-z0-9_]+$'));
+const replayWindowMs = 23 * 60 * 60_000;
+
+export function canSubmitStripeAttempt(attempt: { createdAt: Date; leaseUntil: Date | null }, now: Date) {
+  const age = now.getTime() - attempt.createdAt.getTime();
+  return attempt.leaseUntil !== null && now < attempt.leaseUntil && age >= 0 && age < replayWindowMs;
+}
+
 export const stripeSessionReference = z.object({
   object: z.literal('checkout.session'), client_reference_id: z.string().uuid(),
 });
