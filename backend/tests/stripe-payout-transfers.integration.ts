@@ -506,13 +506,14 @@ async function checkPayoutReconciliation(
       const before = gatewayRequests;
       const submitStripe = () => fetch(path, { method: 'POST', headers: admin.headers, body: '{}' });
       assert.equal((await (await submitStripe()).json()).code, 'MANUAL_SANDBOX_PAYOUT_STARTED');
-      const repair = await fetch(base + 'admin/bookings/' + booking.id + '/payout-destination-repairs', {
-        method: 'POST', headers: admin.headers, body: JSON.stringify({
-          requestKey: randomUUID(), expectedDestinationRevision: 1, destinationRevision: 2,
-          reason: 'Try to change a destination that has a sandbox reference.',
-        }),
+      const repairInput = {
+        requestKey: randomUUID(), expectedDestinationRevision: 1, destinationRevision: 2,
+        reason: 'Move the restored sandbox reserve to the newly reviewed destination.',
+      };
+      const repair = (body = repairInput, actor = admin) => fetch(base + 'admin/bookings/' + booking.id + '/payout-destination-repairs', {
+        method: 'POST', headers: actor.headers, body: JSON.stringify(body),
       });
-      assert.equal((await repair.json()).code, 'MANUAL_SANDBOX_PAYOUT_STARTED');
+      assert.equal((await (await repair()).json()).code, 'MANUAL_SANDBOX_PAYOUT_STARTED');
 
       const reviewInput = { decision: manualDecision, reason: 'Independently reviewed the fictional sandbox payout.' };
       const review = (actor = reviewer, input: typeof reviewInput & { expectedRevision?: number } = reviewInput) => fetch(manualPath + '/review', {
@@ -570,7 +571,7 @@ async function checkPayoutReconciliation(
         expectedRevision: 1, testReference: 'SBX-' + randomUUID().toUpperCase(),
         reason: 'Replace the flagged fictional reference after checking the evidence.',
       };
-      const correct = (input = correctionInput, actor = admin) => fetch(manualPath + '/corrections', {
+      const correct = (input: typeof correctionInput & { expectedDestinationRevision?: number } = correctionInput, actor = admin) => fetch(manualPath + '/corrections', {
         method: 'POST', headers: actor.headers, body: JSON.stringify(input),
       });
       if (settled) {
@@ -716,26 +717,58 @@ async function checkPayoutReconciliation(
         reason: 'Replace the reversed sandbox payout with new evidence.',
       };
       assert.equal((await (await correct(replacementInput)).json()).code, 'PAYOUT_NOT_ELIGIBLE');
+      const pendingDestination = { ...dest, revision: 2, accountLast4: '2345', status: 'pending' };
+      await deps.db.payoutDestinationVersion.create({ data: pendingDestination });
+      await deps.db.payoutDestination.update({ where: { userId: provider.id }, data: pendingDestination });
+      assert.equal((await (await repair()).json()).code, 'PAYOUT_NOT_ELIGIBLE');
       await deps.db.bookingPayoutHold.create({ data: {
         bookingId, revision: 2, held: false, reason: 'Fixture review hold cleared for replacement.', actorId: admin.id, createdAt: now,
       } });
-      assert.equal((await (await correct({ ...replacementInput, testReference: manualInput.testReference })).json()).code,
+      assert.equal((await repair(repairInput, provider)).status, 403);
+      assert.equal((await (await repair()).json()).code, 'DESTINATION_NOT_APPROVED');
+      await deps.db.payoutDestinationVersion.update({
+        where: { userId_revision: { userId: provider.id, revision: 2 } },
+        data: { status: 'approved', reviewerId: reviewer.id, reviewedAt: now, reviewReason: repairInput.reason },
+      });
+      await deps.db.payoutDestination.update({ where: { userId: provider.id }, data: { status: 'approved' } });
+      assert.equal((await (await correct(replacementInput)).json()).code, 'DESTINATION_NOT_APPROVED');
+      const repairs = await Promise.all([repair(), repair()]);
+      assert.ok(repairs.every(result => result.status === 200));
+      const [repaired, replayedRepair] = await Promise.all(repairs.map(result => result.json()));
+      assert.deepEqual(replayedRepair, repaired);
+      assert.equal(repaired.previousDestinationRevision, 1);
+      assert.equal(repaired.destinationRevision, 2);
+      assert.equal(repaired.payoutId, payoutId);
+      assert.equal(await deps.db.payoutDestinationRepair.count({ where: { payoutId } }), 1);
+      assert.equal(await postedBalance(deps.db, reserved.account.id), 100000n);
+      const repairedStatement = await deps.db.bookingDocument.findFirstOrThrow({ where: { bookingId, kind: 'settlement', sourceId: repaired.id } });
+      assert.equal((repairedStatement.snapshot as { destinationRevision: number }).destinationRevision, 2);
+      assert.equal((await (await correct(replacementInput)).json()).code, 'PAYOUT_DESTINATION_CHANGED');
+      assert.equal((await (await correct({ ...replacementInput, expectedDestinationRevision: 1 })).json()).code, 'PAYOUT_DESTINATION_CHANGED');
+      const alignedReplacement = { ...replacementInput, expectedDestinationRevision: 2 };
+      assert.equal((await (await correct({ ...alignedReplacement, testReference: manualInput.testReference })).json()).code,
         'MANUAL_PAYOUT_REFERENCE_REUSED');
       assert.equal((await deps.db.manualSandboxPayout.findUniqueOrThrow({ where: { id: correction.id } })).supersededReversalId, null);
-      const replacements = await Promise.all([correct(replacementInput), correct(replacementInput)]);
+      const replacements = await Promise.all([correct(alignedReplacement), correct(alignedReplacement)]);
       assert.ok(replacements.every(result => result.status === 200));
       const [replacement, repeatedReplacement] = await Promise.all(replacements.map(result => result.json()));
       assert.deepEqual(repeatedReplacement, replacement);
       assert.equal(replacement.revision, 3);
+      assert.equal(replacement.destinationRevision, 2);
       assert.equal(replacement.state, 'awaiting_review');
       assert.equal(replacement.journalId, null);
       assert.ok(!('supersededReversalId' in replacement));
       assert.equal(await postedBalance(deps.db, reserved.account.id), 100000n);
+      assert.equal((await (await correct({ ...alignedReplacement, expectedDestinationRevision: 1 })).json()).code,
+        'MANUAL_PAYOUT_REVISION_CHANGED');
       assert.equal((await deps.db.manualSandboxPayout.findUniqueOrThrow({ where: { id: correction.id } })).supersededReversalId, reversed.reversal.id);
       assert.deepEqual(await (await reverse()).json(), reversed, 'an older reversal still replays after replacement');
       assert.equal((await (await reverse(admin, { ...reversalInput, requestKey: randomUUID() })).json()).code,
         'MANUAL_PAYOUT_REVISION_CHANGED');
       assert.deepEqual((await (await fetch(historyPath, admin)).json()).items, [replacement, reversed, decision]);
+      assert.equal((await (await repair({
+        ...repairInput, requestKey: randomUUID(), expectedDestinationRevision: 2, destinationRevision: 3,
+      })).json()).code, 'MANUAL_SANDBOX_PAYOUT_STARTED');
       const replacementConfirmation = { ...confirmation, expectedRevision: 3 };
       assert.equal((await review(admin, replacementConfirmation)).status, 403);
       const replacementReviews = await Promise.all([review(reviewer, replacementConfirmation), review(reviewer, replacementConfirmation)]);
@@ -749,6 +782,9 @@ async function checkPayoutReconciliation(
       assert.equal(replacementAnalytics.settled.paidOutMinor, '95000');
       assert.equal(replacementAnalytics.settled.feeRevenueMinor, '5000');
       const newStatement = await deps.db.bookingDocument.findFirstOrThrow({ where: { bookingId, kind: 'settlement', sourceId: newSettlement.journalId } });
+      assert.equal((newStatement.snapshot as { destinationRevision: number }).destinationRevision, 2);
+      const priorStatement = await deps.db.bookingDocument.findFirstOrThrow({ where: { bookingId, kind: 'settlement', sourceId: reversalPosting.id } });
+      assert.equal((priorStatement.snapshot as { destinationRevision: number }).destinationRevision, 1);
       assert.deepEqual((newStatement.snapshot as { manualSettlement: object }).manualSettlement, {
         state: 'settled', settlementId: replacement.id, revision: 3, journalId: newSettlement.journalId,
       });

@@ -82,6 +82,7 @@ Checked boxes mark completed repository work. Hosted checks and remaining client
 - [x] P12 Versioned corrections for flagged sandbox payout references with independent review and preserved audit history.
 - [x] P12 Audited reversals for posted manual sandbox payouts with exact compensating ledger entries and restored reserves.
 - [x] P12 Reversed manual sandbox payouts can be replaced through an independently reviewed revision with preserved reversal and statement history.
+- [x] P12 Audited destination repair for reversed manual sandbox payouts and explicit destination verification when recording the replacement.
 - [ ] P12 Manual bank payout execution.
 - [x] P13 Sandbox invoice, per-capture receipt and payout reservation statement with private server-rendered PDFs.
 - [x] P13 Private sandbox statements for posted Stripe test bank settlements and reversals, including backfill from historical journals.

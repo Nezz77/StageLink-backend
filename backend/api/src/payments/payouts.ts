@@ -129,6 +129,10 @@ function notEligible(): never {
   throw new PublicError(409, 'PAYOUT_NOT_ELIGIBLE', 'The booking, payments or destination are unavailable for payout reservation.');
 }
 
+function destinationChanged(): never {
+  throw new PublicError(409, 'PAYOUT_DESTINATION_CHANGED', 'Reload the payout reservation and review its current destination.');
+}
+
 async function payoutAmounts(tx: Prisma.TransactionClient, booking: Booking, revision: number) {
   const [report, hold, orders] = await Promise.all([
     tx.bookingCompletion.findUnique({ where: { bookingId: booking.id } }),
@@ -535,14 +539,19 @@ export function makePayoutsController(auth: AuthService) {
           const prior = await tx.manualSandboxPayout.findUnique({
             where: { payoutId_revision: { payoutId, revision: next } }, include: manualEvidenceInclude,
           });
-          if (prior && matchesManualEvidence(prior, actorId, input)) return presentManualSandbox(prior);
+          if (prior && matchesManualEvidence(prior, actorId, input) &&
+            (input.expectedDestinationRevision === undefined || input.expectedDestinationRevision === prior.destinationRevision)) {
+            return presentManualSandbox(prior);
+          }
           throw new PublicError(409, 'MANUAL_PAYOUT_REVISION_CHANGED', 'Reload the current manual sandbox payout revision.');
         }
         const reversal = latest.journalId ? latest.reversal : null;
         if (manualSandboxState(latest) !== 'review_required' && !reversal) {
           throw new PublicError(409, 'MANUAL_PAYOUT_NOT_FLAGGED', 'Only a flagged or reversed sandbox payout revision can be corrected.');
         }
-        await sandboxPayoutReserve(tx, booking, order, latest.amountMinor, latest.destinationRevision);
+        const destinationRevision = reversal ? order.destinationRevision : latest.destinationRevision;
+        if ((input.expectedDestinationRevision ?? latest.destinationRevision) !== destinationRevision) destinationChanged();
+        await sandboxPayoutReserve(tx, booking, order, latest.amountMinor, destinationRevision);
         if (reversal) {
           await tx.manualSandboxPayout.update({
             where: { id: latest.id }, data: { supersededReversalId: reversal.id },
@@ -630,7 +639,10 @@ export function makePayoutsController(auth: AuthService) {
         where: { bookingId: booking.id, damageClaimId, arbitrationId },
         include: {
           stripeTransfers: { where: { retryAuthorizedAt: null }, select: { id: true }, take: 1 },
-          manualSandboxPayouts: { select: { id: true }, take: 1 },
+          manualSandboxPayouts: {
+            ...latestManualSandboxPayout,
+            select: { id: true, journalId: true, reversal: { select: { id: true } } },
+          },
         },
       });
       if (!order) throw new PublicError(404, 'PAYOUT_NOT_FOUND', 'This payout reservation is unavailable.');
@@ -644,10 +656,11 @@ export function makePayoutsController(auth: AuthService) {
         }
         return presentRepair(prior);
       }
-      if (order.destinationRevision !== input.expectedDestinationRevision) {
-        throw new PublicError(409, 'PAYOUT_DESTINATION_CHANGED', 'Reload the payout reservation and review its current destination.');
+      if (order.destinationRevision !== input.expectedDestinationRevision) destinationChanged();
+      const [manual] = order.manualSandboxPayouts;
+      if (manual && (!manual.journalId || !manual.reversal || auth.config.MANUAL_SANDBOX_PAYOUT_RECONCILIATION !== 'true')) {
+        assertNoManualSandboxPayout(order);
       }
-      assertNoManualSandboxPayout(order);
       if (order.stripeTransfers.length) {
         throw new PublicError(409, 'PAYOUT_TRANSFER_STARTED', 'This payout is tied to a transfer attempt. Review it from the Stripe transfer endpoint.');
       }
