@@ -16,7 +16,7 @@ import { findReservedFunds } from './refund-reservations.js';
 import {
   assertNoManualSandboxPayout, createManualEvidence, latestManualSandboxPayout, manualEvidenceInclude, manualSandboxCorrection,
   manualSandboxRecord, manualSandboxReversal, manualSandboxReview, manualSandboxState, manualSandboxStatus,
-  manualSandboxView, matchesManualEvidence, presentManualSandbox, reverseManualSandboxPayout, reviewManualSandboxPayout,
+  manualSandboxView, matchesManualEvidence, matchesManualReversal, presentManualSandbox, reverseManualSandboxPayout, reviewManualSandboxPayout,
 } from './manual-sandbox-payouts.js';
 
 const timestamp = z.iso.datetime();
@@ -538,10 +538,16 @@ export function makePayoutsController(auth: AuthService) {
           if (prior && matchesManualEvidence(prior, actorId, input)) return presentManualSandbox(prior);
           throw new PublicError(409, 'MANUAL_PAYOUT_REVISION_CHANGED', 'Reload the current manual sandbox payout revision.');
         }
-        if (manualSandboxState(latest) !== 'review_required') {
-          throw new PublicError(409, 'MANUAL_PAYOUT_NOT_FLAGGED', 'Only a flagged sandbox payout revision can be corrected.');
+        const reversal = latest.journalId ? latest.reversal : null;
+        if (manualSandboxState(latest) !== 'review_required' && !reversal) {
+          throw new PublicError(409, 'MANUAL_PAYOUT_NOT_FLAGGED', 'Only a flagged or reversed sandbox payout revision can be corrected.');
         }
         await sandboxPayoutReserve(tx, booking, order, latest.amountMinor, latest.destinationRevision);
+        if (reversal) {
+          await tx.manualSandboxPayout.update({
+            where: { id: latest.id }, data: { supersededReversalId: reversal.id },
+          });
+        }
         return createManualEvidence(tx, order, next, actorId, input);
       });
     }
@@ -587,6 +593,10 @@ export function makePayoutsController(auth: AuthService) {
         const [latest] = order.manualSandboxPayouts;
         if (!latest) throw new PublicError(404, 'MANUAL_PAYOUT_NOT_FOUND', 'This manual sandbox record is unavailable.');
         if (latest.revision !== input.expectedRevision) {
+          const prior = await tx.manualSandboxPayout.findUnique({
+            where: { payoutId_revision: { payoutId, revision: input.expectedRevision } }, include: manualEvidenceInclude,
+          });
+          if (prior?.reversal && matchesManualReversal(prior.reversal, actorId, input)) return presentManualSandbox(prior);
           throw new PublicError(409, 'MANUAL_PAYOUT_REVISION_CHANGED', 'Reload the current manual sandbox payout revision.');
         }
         return reverseManualSandboxPayout(tx, order, latest, actorId, input);
