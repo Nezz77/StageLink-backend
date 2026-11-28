@@ -464,6 +464,10 @@ After building the backend, set `STAGELINK_SMOKE_ORIGIN` and `STAGELINK_SMOKE_WE
 
 This checks connection readiness, not sender authorization or recipient deliverability. See [Nodemailer SMTP verification](https://nodemailer.com/smtp). SMS provider delivery, actual email delivery, TLS/authentication against the hosted relay, and frontend/Figma controls still need staging verification. No live messages are sent by this command.
 
+## Promotional email
+
+Verified administrators preview, schedule and cancel campaigns under `/api/v1/admin/campaigns`. Scheduling uses PostgreSQL time and accepts a future time within 30 days. Worker claims and delivery outcomes use the same clock. Cancelling a campaign records the same timestamp on the campaign and its skipped queued recipients. A delivery already claimed by the worker can finish.
+
 ## SMS contact verification
 
 `SMS_VERIFICATION_ENABLED` enables contact verification and `BOOKING_SMS_REMINDERS` enables 24-hour and 2-hour reminders for opted-in verified contacts. Both settings default to false and share `SMS_HOURLY_LIMIT`. Members read delivery status at `GET /api/v1/me/booking-sms-reminders`. [SMS verification and booking reminders](SMS-Contact-Verification.md).

@@ -1,6 +1,7 @@
 import type { PrismaClient } from '../generated/prisma/client.js';
 import type { createMailer } from './auth-mail.js';
 import { smtpFailureState } from './booking-reminders.js';
+import { databaseNow } from './database-clock.js';
 import { promotionalUnsubscribeHeaders } from './promotional-unsubscribe.js';
 import type { Config } from './config.js';
 
@@ -47,7 +48,7 @@ export async function processPromotionalEmail(db: PrismaClient, config: Config, 
     const where = { campaignId_userId: candidate };
     if (!current.eligible) {
       await tx.promotionalCampaignRecipient.update({
-        where, data: { deliveryStatus: 'skipped', resolvedAt: new Date(), deliveryCode: 'RECIPIENT_INELIGIBLE' },
+        where, data: { deliveryStatus: 'skipped', resolvedAt: await databaseNow(tx), deliveryCode: 'RECIPIENT_INELIGIBLE' },
       });
       return null;
     }
@@ -83,6 +84,6 @@ export async function processPromotionalEmail(db: PrismaClient, config: Config, 
   }
   await db.promotionalCampaignRecipient.updateMany({
     where: { campaignId: message.campaignId, userId: message.userId, deliveryStatus: 'sending' },
-    data: { deliveryStatus, deliveryCode, resolvedAt: new Date() },
+    data: { deliveryStatus, deliveryCode, resolvedAt: await databaseNow(db) },
   });
 }
