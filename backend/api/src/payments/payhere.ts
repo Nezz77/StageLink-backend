@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOkResponse, ApiParam, ApiTags }
 import type { Request } from 'express';
 import { z } from 'zod';
 import type { Config } from '../../../shared/config.js';
+import { databaseNow } from '../../../shared/database-clock.js';
 import { checkoutHash, formatPayHereAmount, notificationStatus, payHereCheckoutUrl, payHereNotification, verifyNotification } from '../../../shared/payments/payhere.js';
 import type { AuthService } from '../auth/service.js';
 import { checkoutExpiry, lockBooking, paidAdvance, paymentBlocked } from '../bookings/lifecycle.js';
@@ -58,10 +59,15 @@ export function makePayHereController(auth: AuthService) {
         if (booking.customerId !== actor.user.id) throw new PublicError(403, 'PAYMENT_CUSTOMER_REQUIRED', 'Only the booking customer can start checkout.');
         await lockBooking(tx, booking.id);
         await lockPaymentOrder(tx, orderId);
-        const order = await tx.paymentOrder.findUniqueOrThrow({ where: { id: orderId }, include: { payhereAttempt: true, stripeAttempt: { select: { id: true } } } });
-        const now = new Date();
+        const order = await tx.paymentOrder.findUniqueOrThrow({
+          where: { id: orderId }, include: {
+            booking: { select: { id: true, agreedAt: true, startsAt: true } },
+            payhereAttempt: true, stripeAttempt: { select: { id: true } },
+          },
+        });
+        const now = await databaseNow(tx);
         if (order.stripeAttempt) throw new PublicError(409, 'CHECKOUT_GATEWAY_SELECTED', 'This order already has a Stripe checkout.');
-        const expiresAt = await checkoutExpiry(tx, booking, order.purpose, now, attemptLifetimeMs);
+        const expiresAt = await checkoutExpiry(tx, order.booking, order.purpose, now, attemptLifetimeMs);
         if (!expiresAt || !['open', 'pending'].includes(order.status)) {
           throw new PublicError(409, 'CHECKOUT_NOT_ELIGIBLE', 'This order is unavailable for checkout.');
         }
@@ -127,7 +133,7 @@ export function makePayHereController(auth: AuthService) {
           return { received: true };
         }
 
-        const now = new Date();
+        const now = await databaseNow(tx);
         const captureNeedsReview = event.status_code === '2' && (
           await paymentBlocked(tx, order.bookingId) ||
           (order.purpose === 'balance' && !await paidAdvance(tx, order.bookingId))

@@ -44,7 +44,8 @@ export async function paymentBlocked(tx: Prisma.TransactionClient, bookingId: st
 }
 
 export async function checkoutExpiry(
-  tx: Prisma.TransactionClient, booking: Booking, purpose: 'advance' | 'balance' | 'deposit', now: Date, lifetimeMs: number,
+  tx: Prisma.TransactionClient, booking: Pick<Booking, 'id' | 'agreedAt' | 'startsAt'>,
+  purpose: 'advance' | 'balance' | 'deposit', now: Date, lifetimeMs: number,
 ) {
   if (!booking.agreedAt || await paymentBlocked(tx, booking.id)) return null;
   if (purpose === 'balance') {

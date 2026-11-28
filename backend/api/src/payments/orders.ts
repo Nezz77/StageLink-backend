@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiParam, ApiTags, type SchemaOb
 import type { Request } from 'express';
 import { z } from 'zod';
 import type { PaymentOrder, Prisma } from '../../../generated/prisma/client.js';
+import { databaseNow } from '../../../shared/database-clock.js';
 import type { AuthService, Identity } from '../auth/service.js';
 import { PublicError } from '../auth/errors.js';
 import { agreementAmounts, lockBooking, paidAdvance, paymentBlocked } from '../bookings/lifecycle.js';
@@ -86,6 +87,7 @@ export function makePaymentOrdersController(auth: AuthService) {
         if (await paymentBlocked(tx, bookingId)) {
           throw new PublicError(409, 'BOOKING_PAYMENT_BLOCKED', 'This booking is cancelled or under refund review.');
         }
+        const now = await databaseNow(tx);
         let amountMinor: number;
         if (purpose === 'balance') {
           const report = await tx.bookingCompletion.findUnique({ where: { bookingId } });
@@ -94,14 +96,17 @@ export function makePaymentOrdersController(auth: AuthService) {
           }
           amountMinor = report.balanceMinor;
         } else {
-          if (!booking.agreedAt || booking.startsAt <= new Date()) {
+          const current = await tx.booking.findUniqueOrThrow({
+            where: { id: bookingId }, select: { agreedAt: true, startsAt: true },
+          });
+          if (!current.agreedAt || current.startsAt <= now) {
             throw new PublicError(409, 'PAYMENT_NOT_ELIGIBLE', 'An upcoming booking agreement is required.');
           }
           const terms = await agreementAmounts(tx, bookingId);
           amountMinor = purpose === 'advance' ? terms.serviceAdvanceMinor : terms.depositMinor;
         }
         if (amountMinor === 0) throw new PublicError(409, 'PAYMENT_NOT_DUE', 'No payment is due for this purpose.');
-        return presentOrder(await tx.paymentOrder.create({ data: { bookingId, purpose, amountMinor, currency: 'LKR' } }));
+        return presentOrder(await tx.paymentOrder.create({ data: { bookingId, purpose, amountMinor, currency: 'LKR', createdAt: now } }));
       });
     }
 
